@@ -5,27 +5,27 @@ States: `[ ]` todo · `[~]` in progress · `[x]` done
 ---
 
 ## Phase 1 — Project scaffold
-- [ ] package.json + .gitignore
-- [ ] config.json (defaults: port 3322, origins, shell, search exclusions)
-- [ ] server/config.js
+- [x] package.json + .gitignore
+- [x] config.json (defaults: port 3322, origins, shell, search exclusions)
+- [x] server/config.js
 
 ## Phase 2 — Database
-- [ ] server/db.js (schema: devices, otps, files, bookmarks)
+- [x] server/db.js (schema: devices, otps, files, bookmarks)
 
 ## Phase 3 — Backend modules
-- [ ] server/auth.js (OTP gen, enrollment, token validation, --gen-otp CLI flag, /admin/gen-otp endpoint)
-- [ ] server/files.js (list, stat, read, write, mkdir, copy, move, delete)
-- [ ] server/search.js (chokidar watcher, SQLite upsert, fuzzy filename search, content search)
-- [ ] server/thumbnails.js (sharp images, ffmpeg video frames, canvas code thumbnails, disk cache)
-- [ ] server/terminal.js (node-pty PTY, command runner fallback, shell switching)
-- [ ] server/upload.js (multer handler)
-- [ ] server/index.js (Express + WebSocket, route all message types, auth middleware)
+- [x] server/auth.js (OTP gen, enrollment, token validation, --gen-otp CLI flag, /admin/gen-otp endpoint)
+- [x] server/files.js (list, stat, read, write, mkdir, copy, move, delete)
+- [x] server/search.js (chokidar watcher, SQLite upsert, fuzzy filename search, content search)
+- [x] server/thumbnails.js (sharp images, ffmpeg video frames, canvas code thumbnails, disk cache)
+- [x] server/terminal.js (node-pty PTY, command runner fallback, shell switching)
+- [x] server/upload.js (multer handler)
+- [x] server/index.js (Express + WebSocket, route all message types, auth middleware)
 
 ## Phase 4 — Auto-start scripts
-- [ ] scripts/start.bat
-- [ ] scripts/start.sh
-- [ ] scripts/setup.bat (schtasks, idempotent)
-- [ ] scripts/setup.sh (systemd / launchd, idempotent, auto-detects OS)
+- [x] scripts/start.bat
+- [x] scripts/start.sh
+- [x] scripts/setup.bat (schtasks, idempotent)
+- [x] scripts/setup.sh (systemd / launchd, idempotent, auto-detects OS)
 
 ## Phase 5 — Frontend shell
 - [ ] public/enroll.html (OTP enrollment page)

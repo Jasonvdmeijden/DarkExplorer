@@ -1,0 +1,6 @@
+node_modules/
+data/darkexplorer.db
+data/thumbcache/
+data/themes/
+*.log
+.env
