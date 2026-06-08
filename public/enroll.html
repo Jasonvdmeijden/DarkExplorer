@@ -148,21 +148,22 @@
       err.style.display = 'none';
 
       try {
-        const ws = new WebSocket(`ws://${location.host}?token=`);
-        ws.onopen = () => ws.send(JSON.stringify({ id: '1', type: 'auth:enroll', payload: { code, label } }));
-        ws.onmessage = (e) => {
-          const msg = JSON.parse(e.data);
-          if (msg.ok && msg.data?.token) {
-            localStorage.setItem('de_token', msg.data.token);
-            location.href = '/';
-          } else {
-            showErr(msg.error || 'Enrollment failed');
-          }
-          ws.close();
-        };
-        ws.onerror = () => showErr('Connection error');
+        const res  = await fetch('/enroll', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code, label })
+        });
+        const data = await res.json();
+        if (res.ok && data.token) {
+          // store in localStorage for WebSocket auth
+          localStorage.setItem('de_token', data.token);
+          // cookie is already set by the server via Set-Cookie header
+          location.href = '/';
+        } else {
+          showErr(data.error || 'Enrollment failed');
+        }
       } catch (e) {
-        showErr(e.message);
+        showErr('Connection error: ' + e.message);
       }
     });
 

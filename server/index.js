@@ -37,17 +37,45 @@ app.use((req, res, next) => {
   next();
 });
 
-// Serve static files
-app.use(express.static(path.join(__dirname, '..', 'public')));
+// Cookie parser (no dependency needed)
+function getCookie(req, name) {
+  const header = req.headers.cookie || '';
+  for (const part of header.split(';')) {
+    const [k, ...v] = part.split('=');
+    if (k.trim() === name) return decodeURIComponent(v.join('=').trim());
+  }
+  return null;
+}
+
+// Guard the app root — must come BEFORE static middleware so it runs first
+app.get('/', (req, res, next) => {
+  const token = getCookie(req, 'de_token') || req.query.token;
+  const device = auth.validateToken(token);
+  if (!device) return res.redirect('/enroll');
+  next(); // authenticated — fall through to static middleware serving index.html
+});
+
+// HTTP enrollment endpoint (no token required — device doesn't have one yet)
+app.post('/enroll', express.json(), (req, res) => {
+  const { code, label } = req.body || {};
+  const result = auth.enrollDevice(code, label);
+  if (!result.ok) return res.status(401).json({ error: result.error });
+  // set token as a cookie so server-side auth middleware can read it
+  res.setHeader('Set-Cookie', `de_token=${result.token}; Path=/; SameSite=Strict; Max-Age=31536000`);
+  res.json({ token: result.token });
+});
 
 // Auth middleware for API routes
 function requireAuth(req, res, next) {
-  const token = req.headers['x-token'] || req.query.token;
+  const token = req.headers['x-token'] || req.query.token || getCookie(req, 'de_token');
   const device = auth.validateToken(token);
   if (!device) return res.status(401).json({ error: 'Unauthorised' });
   req.device = device;
   next();
 }
+
+// Static files — CSS/JS/images served without auth (safe: no private data in public/)
+app.use(express.static(path.join(__dirname, '..', 'public')));
 
 // Admin: generate OTP (localhost only)
 app.get('/admin/gen-otp', (req, res) => {
@@ -97,7 +125,7 @@ app.get('/thumbnail', requireAuth, async (req, res) => {
   res.sendFile(thumbPath);
 });
 
-// Enroll page redirect
+// Serve enroll page
 app.get('/enroll', (_req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'enroll.html'));
 });
@@ -147,13 +175,6 @@ const serverClipboard = new Map(); // deviceId -> [paths]
 
 async function handle(type, payload, reply, ws, device) {
   switch (type) {
-
-    // --- auth ---
-    case 'auth:enroll': {
-      const result = auth.enrollDevice(payload.code, payload.label);
-      reply(result.ok ? { token: result.token } : null, result.error);
-      break;
-    }
 
     // --- filesystem ---
     case 'fs:list': {
