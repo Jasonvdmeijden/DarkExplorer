@@ -46,7 +46,7 @@ States: `[ ]` todo · `[~]` in progress · `[x]` done
 - [x] public/js/search.js (filename fuzzy UI, content search UI, results panel)
 - [x] public/js/bookmarks.js (bookmark panel, add/remove)
 - [x] public/js/theme.js (CSS variable switching, theme load)
-- [ ] public/js/theme-builder.js (colour picker UI, live preview, save custom theme)
+- [x] public/js/theme-builder.js (colour picker UI, live preview, save custom theme)
 
 ## Phase 7 — Views
 - [x] Mosaic view (justified-row layout engine, thumbnail requests, slider)
@@ -64,4 +64,4 @@ States: `[ ]` todo · `[~]` in progress · `[x]` done
 - [x] ffmpeg missing → graceful fallback to static icon
 - [x] Search exclusion rules respected in filename and content search
 - [x] Thumbnail disk cache keyed by path+mtime
-- [ ] public/js/theme-builder.js (colour picker UI, live preview, save custom theme)
+- [x] public/js/theme-builder.js (colour picker UI, live preview, save custom theme)
