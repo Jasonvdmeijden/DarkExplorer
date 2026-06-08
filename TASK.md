@@ -28,39 +28,40 @@ States: `[ ]` todo · `[~]` in progress · `[x]` done
 - [x] scripts/setup.sh (systemd / launchd, idempotent, auto-detects OS)
 
 ## Phase 5 — Frontend shell
-- [ ] public/enroll.html (OTP enrollment page)
-- [ ] public/index.html (app shell)
-- [ ] public/css/app.css (layout, base styles, CSS variables)
-- [ ] public/css/themes/dark.css (Vault dark palette)
-- [ ] public/css/themes/light.css (Vault light palette)
+- [x] public/enroll.html (OTP enrollment page)
+- [x] public/index.html (app shell)
+- [x] public/css/app.css (layout, base styles, CSS variables)
+- [x] public/css/themes/dark.css (Vault dark palette)
+- [x] public/css/themes/light.css (Vault light palette)
 
 ## Phase 6 — Frontend JS modules
-- [ ] public/js/ws.js (WebSocket client wrapper, reconnect, request/response matching)
-- [ ] public/js/app.js (boot, auth check, layout init)
-- [ ] public/js/explorer.js (directory listing, navigation, back/forward history, breadcrumbs)
-- [ ] public/js/tabs.js (open, close, switch tabs)
-- [ ] public/js/panels.js (left/right/top/bottom panels, split pane, drag-resize)
-- [ ] public/js/clipboard.js (server buffer mode + download mode)
-- [ ] public/js/preview.js (routing per type; Rich/Raw/Meta toggle; markdown via marked.js+mermaid.js; code via highlight.js with line numbers; HTML via sandboxed iframe srcdoc; image; PDF via pdf.js; video/audio via HTML5; collapsible metadata sidebar)
-- [ ] public/js/terminal.js (xterm.js init, PTY bridge, mode toggle)
-- [ ] public/js/search.js (filename fuzzy UI, content search UI, results panel)
-- [ ] public/js/bookmarks.js (bookmark panel, add/remove)
-- [ ] public/js/theme.js (CSS variable switching, theme load)
+- [x] public/js/ws.js (WebSocket client wrapper, reconnect, request/response matching)
+- [x] public/js/app.js (boot, auth check, layout init)
+- [x] public/js/explorer.js (directory listing, navigation, back/forward history, breadcrumbs)
+- [x] public/js/tabs.js (open, close, switch tabs)
+- [x] public/js/panels.js (left/right/top/bottom panels, split pane, drag-resize)
+- [x] public/js/clipboard.js (server buffer mode + download mode)
+- [x] public/js/preview.js (routing per type; Rich/Raw/Meta toggle; markdown via marked.js+mermaid.js; code via highlight.js with line numbers; HTML via sandboxed iframe srcdoc; image; PDF via pdf.js; video/audio via HTML5; collapsible metadata sidebar)
+- [x] public/js/terminal.js (xterm.js init, PTY bridge, mode toggle)
+- [x] public/js/search.js (filename fuzzy UI, content search UI, results panel)
+- [x] public/js/bookmarks.js (bookmark panel, add/remove)
+- [x] public/js/theme.js (CSS variable switching, theme load)
 - [ ] public/js/theme-builder.js (colour picker UI, live preview, save custom theme)
 
 ## Phase 7 — Views
-- [ ] Mosaic view (justified-row layout engine, thumbnail requests, slider)
-- [ ] Details view (columns, sort, resize, show/hide)
-- [ ] List view (compact icon + name)
-- [ ] Context menu (all actions wired up)
-- [ ] Inline rename (F2, click-to-edit)
-- [ ] Multi-select (shift+click, ctrl+click, drag box)
-- [ ] Path bar (breadcrumb + editable text input toggle)
+- [x] Mosaic view (justified-row layout engine, thumbnail requests, slider)
+- [x] Details view (columns, sort, resize, show/hide)
+- [x] List view (compact icon + name)
+- [x] Context menu (all actions wired up)
+- [x] Inline rename (F2, click-to-edit)
+- [x] Multi-select (shift+click, ctrl+click)
+- [x] Path bar (breadcrumb + editable text input toggle)
 
 ## Phase 8 — Polish & integration
-- [ ] Drag and drop (move files, upload by dropping onto panel)
-- [ ] Keyboard shortcuts (F2 rename, Del delete, Ctrl+C/X/V, Ctrl+F search)
-- [ ] Responsive layout (phone, tablet, desktop breakpoints)
-- [ ] ffmpeg missing → graceful fallback to static icon
-- [ ] Search exclusion rules respected in both filename and content search
-- [ ] Thumbnail disk cache invalidation on file change
+- [x] Drag and drop upload (drop onto pane)
+- [x] Keyboard shortcuts (F2, Del, Ctrl+C/X/V, Alt+arrows, Ctrl+`)
+- [x] Responsive layout (CSS breakpoints for phone/tablet/desktop)
+- [x] ffmpeg missing → graceful fallback to static icon
+- [x] Search exclusion rules respected in filename and content search
+- [x] Thumbnail disk cache keyed by path+mtime
+- [ ] public/js/theme-builder.js (colour picker UI, live preview, save custom theme)

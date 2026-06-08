@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DarkExplorer — Enroll Device</title>
+  <link rel="stylesheet" href="/css/themes/dark.css">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg-base);
+      color: var(--text-primary);
+      font-family: system-ui, -apple-system, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+
+    .card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 2.5rem 2rem;
+      width: 100%;
+      max-width: 360px;
+      box-shadow: 0 8px 40px rgba(0,0,0,.4);
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: .6rem;
+      margin-bottom: 2rem;
+    }
+
+    .logo-icon {
+      width: 36px;
+      height: 36px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+
+    .logo-name {
+      font-size: 1.2rem;
+      font-weight: 700;
+      letter-spacing: -.02em;
+    }
+
+    h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: .4rem;
+    }
+
+    p.sub {
+      font-size: .85rem;
+      color: var(--text-secondary);
+      margin-bottom: 1.6rem;
+      line-height: 1.5;
+    }
+
+    label {
+      display: block;
+      font-size: .8rem;
+      color: var(--text-secondary);
+      margin-bottom: .4rem;
+    }
+
+    input {
+      width: 100%;
+      padding: .65rem .85rem;
+      background: var(--bg-base);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      color: var(--text-primary);
+      font-size: .95rem;
+      margin-bottom: 1rem;
+      outline: none;
+      transition: border-color .15s;
+    }
+
+    input:focus { border-color: var(--accent); }
+
+    button {
+      width: 100%;
+      padding: .7rem;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 7px;
+      font-size: .95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s;
+    }
+
+    button:hover { opacity: .88; }
+    button:disabled { opacity: .5; cursor: default; }
+
+    .error {
+      margin-top: 1rem;
+      padding: .6rem .85rem;
+      background: rgba(255,80,80,.12);
+      border: 1px solid rgba(255,80,80,.3);
+      border-radius: 6px;
+      font-size: .85rem;
+      color: #ff6b6b;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">
+      <div class="logo-icon">⬡</div>
+      <span class="logo-name">DarkExplorer</span>
+    </div>
+    <h2>Enroll this device</h2>
+    <p class="sub">Enter the one-time code generated on the server to gain access from this device.</p>
+
+    <label for="otp">One-time code</label>
+    <input id="otp" type="text" placeholder="XXXXXX" maxlength="6" autocomplete="off" spellcheck="false">
+
+    <label for="label">Device name <span style="opacity:.5">(optional)</span></label>
+    <input id="label" type="text" placeholder="My laptop">
+
+    <button id="btn">Enroll device</button>
+    <div class="error" id="err"></div>
+  </div>
+
+  <script>
+    const btn = document.getElementById('btn');
+    const err = document.getElementById('err');
+
+    btn.addEventListener('click', async () => {
+      const code  = document.getElementById('otp').value.trim().toUpperCase();
+      const label = document.getElementById('label').value.trim();
+      if (!code) return;
+
+      btn.disabled = true;
+      btn.textContent = 'Enrolling…';
+      err.style.display = 'none';
+
+      try {
+        const ws = new WebSocket(`ws://${location.host}?token=`);
+        ws.onopen = () => ws.send(JSON.stringify({ id: '1', type: 'auth:enroll', payload: { code, label } }));
+        ws.onmessage = (e) => {
+          const msg = JSON.parse(e.data);
+          if (msg.ok && msg.data?.token) {
+            localStorage.setItem('de_token', msg.data.token);
+            location.href = '/';
+          } else {
+            showErr(msg.error || 'Enrollment failed');
+          }
+          ws.close();
+        };
+        ws.onerror = () => showErr('Connection error');
+      } catch (e) {
+        showErr(e.message);
+      }
+    });
+
+    document.getElementById('otp').addEventListener('keydown', e => {
+      if (e.key === 'Enter') btn.click();
+    });
+
+    function showErr(msg) {
+      err.textContent = msg;
+      err.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = 'Enroll device';
+    }
+  </script>
+</body>
+</html>

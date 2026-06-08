@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DarkExplorer</title>
+  <link id="theme-css" rel="stylesheet" href="/css/themes/dark.css">
+  <link rel="stylesheet" href="/css/app.css">
+
+  <!-- CDN libraries -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/xterm/5.3.0/xterm.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xterm/5.3.0/xterm.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xterm/5.3.0/addon-fit.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js" defer></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+</head>
+<body>
+
+  <!-- ── Top toolbar ── -->
+  <header id="toolbar">
+    <div class="toolbar-left">
+      <span class="logo-icon">⬡</span>
+      <button class="icon-btn" id="btn-back"    title="Back (Alt+Left)">&#8592;</button>
+      <button class="icon-btn" id="btn-forward" title="Forward (Alt+Right)">&#8594;</button>
+      <button class="icon-btn" id="btn-up"      title="Up (Alt+Up)">&#8593;</button>
+
+      <!-- breadcrumb / path bar -->
+      <div id="pathbar">
+        <nav id="breadcrumb" aria-label="Path"></nav>
+        <input id="path-input" type="text" spellcheck="false" placeholder="Type a path…" style="display:none">
+      </div>
+    </div>
+
+    <div class="toolbar-center">
+      <div class="search-wrap">
+        <input id="search-input" type="search" placeholder="Search files…">
+        <button class="icon-btn" id="btn-search-options" title="Search options">⚙</button>
+      </div>
+    </div>
+
+    <div class="toolbar-right">
+      <button class="icon-btn" id="btn-view-mosaic"   title="Mosaic view"  data-view="mosaic">⊞</button>
+      <button class="icon-btn" id="btn-view-details"  title="Details view" data-view="details">☰</button>
+      <button class="icon-btn" id="btn-view-list"     title="List view"    data-view="list">≡</button>
+      <span class="toolbar-sep"></span>
+      <button class="icon-btn" id="btn-new-folder"   title="New folder">📁+</button>
+      <button class="icon-btn" id="btn-upload"       title="Upload files">⬆</button>
+      <span class="toolbar-sep"></span>
+      <button class="icon-btn" id="btn-theme"        title="Theme">◑</button>
+      <button class="icon-btn" id="btn-settings"     title="Settings">⚙</button>
+    </div>
+  </header>
+
+  <!-- ── Main layout ── -->
+  <div id="layout">
+
+    <!-- Left panel: tree + bookmarks -->
+    <aside id="panel-left">
+      <div class="panel-tabs">
+        <button class="ptab active" data-panel="tree">Tree</button>
+        <button class="ptab"        data-panel="bookmarks">Bookmarks</button>
+      </div>
+      <div id="tree-panel"      class="panel-content"></div>
+      <div id="bookmarks-panel" class="panel-content" style="display:none"></div>
+    </aside>
+
+    <div id="splitter-left" class="splitter splitter-v"></div>
+
+    <!-- Center: tabs + explorer / preview split -->
+    <main id="center">
+      <div id="tabs-bar">
+        <div id="tabs-list"></div>
+        <button id="btn-new-tab" title="New tab">+</button>
+        <button id="btn-split"   title="Split pane">⧉</button>
+      </div>
+
+      <div id="panes">
+        <!-- pane(s) rendered here by panels.js -->
+      </div>
+    </main>
+
+    <div id="splitter-right" class="splitter splitter-v" style="display:none"></div>
+
+    <!-- Right panel: preview -->
+    <aside id="panel-right" style="display:none">
+      <div id="preview-panel">
+        <div class="preview-toolbar">
+          <button class="ptab active" data-mode="rich">Rich</button>
+          <button class="ptab"        data-mode="raw">Raw</button>
+          <span class="flex-gap"></span>
+          <button class="ptab"        data-mode="meta">Meta</button>
+        </div>
+        <div id="preview-content"></div>
+        <aside id="preview-meta" style="display:none"></aside>
+      </div>
+    </aside>
+
+  </div>
+
+  <!-- Bottom panel: terminal -->
+  <div id="splitter-bottom" class="splitter splitter-h" style="display:none"></div>
+  <div id="panel-bottom" style="display:none">
+    <div class="panel-tabs">
+      <span style="flex:1"></span>
+      <button class="icon-btn" id="btn-term-mode"  title="Toggle PTY / runner">⇄</button>
+      <button class="icon-btn" id="btn-term-shell" title="Switch shell">⚡</button>
+      <button class="icon-btn" id="btn-term-close" title="Close terminal">✕</button>
+    </div>
+    <div id="terminal-container"></div>
+  </div>
+
+  <!-- Status bar -->
+  <footer id="statusbar">
+    <span id="status-items"></span>
+    <span class="flex-gap"></span>
+    <span id="status-path"></span>
+    <button class="icon-btn" id="btn-toggle-terminal" title="Toggle terminal (Ctrl+`)">⌨</button>
+  </footer>
+
+  <!-- Context menu -->
+  <ul id="context-menu" role="menu"></ul>
+
+  <!-- Hidden file input for upload -->
+  <input type="file" id="upload-input" multiple style="display:none">
+
+  <!-- JS modules -->
+  <script src="/js/ws.js"></script>
+  <script src="/js/theme.js"></script>
+  <script src="/js/tabs.js"></script>
+  <script src="/js/panels.js"></script>
+  <script src="/js/bookmarks.js"></script>
+  <script src="/js/clipboard.js"></script>
+  <script src="/js/preview.js"></script>
+  <script src="/js/terminal.js"></script>
+  <script src="/js/search.js"></script>
+  <script src="/js/explorer.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>
