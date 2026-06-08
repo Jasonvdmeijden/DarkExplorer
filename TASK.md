@@ -41,7 +41,7 @@ States: `[ ]` todo · `[~]` in progress · `[x]` done
 - [ ] public/js/tabs.js (open, close, switch tabs)
 - [ ] public/js/panels.js (left/right/top/bottom panels, split pane, drag-resize)
 - [ ] public/js/clipboard.js (server buffer mode + download mode)
-- [ ] public/js/preview.js (text/code, image, PDF, video preview routing)
+- [ ] public/js/preview.js (routing per type; Rich/Raw/Meta toggle; markdown via marked.js+mermaid.js; code via highlight.js with line numbers; HTML via sandboxed iframe srcdoc; image; PDF via pdf.js; video/audio via HTML5; collapsible metadata sidebar)
 - [ ] public/js/terminal.js (xterm.js init, PTY bridge, mode toggle)
 - [ ] public/js/search.js (filename fuzzy UI, content search UI, results panel)
 - [ ] public/js/bookmarks.js (bookmark panel, add/remove)

@@ -20,6 +20,8 @@ A web-based file explorer. Node.js backend, vanilla JS frontend (no build step, 
 | Code thumbnails | `canvas` (node-canvas) |
 | PDF preview | `pdf.js` (CDN) |
 | Syntax highlight | `highlight.js` (CDN) |
+| Markdown render | `marked.js` (CDN) |
+| Diagram render | `mermaid.js` (CDN) |
 
 ---
 
@@ -219,6 +221,25 @@ Downloads: `GET /download?path=<file>` (authenticated via token query param).
 | **Mosaic** | Justified-row layout. Items packed into rows at a shared height (slider-adjustable). Images/videos at natural aspect ratio; code files as 1:1 highlighted square thumbnail. |
 | **Details** | Columns: name, size, type, modified, created. Sortable (click header), resizable (drag), show/hide per column. |
 | **List** | Compact single-column, small icon + name. |
+
+---
+
+## Preview Panel
+
+Toggle bar at top: `[ Rich ]  [ Raw ]  |  [ Meta ]`
+
+| File type | Rich view | Raw view |
+|---|---|---|
+| Markdown | `marked.js` renders HTML; fenced `mermaid` blocks rendered by `mermaid.js` (flowcharts, sequence, Gantt, ER, class diagrams) | Raw source, `highlight.js` |
+| Code | `highlight.js` with line numbers | Plain text |
+| HTML | Sandboxed `<iframe sandbox="allow-scripts" srcdoc="...">` — rendered in-browser, isolated | Raw source, `highlight.js` |
+| Image | Native `<img>` | EXIF/metadata panel |
+| PDF | `pdf.js` viewer | — |
+| Video / audio | HTML5 `<video>` / `<audio>` | — |
+
+**Meta sidebar** (collapsible, shown via Meta toggle):
+- Name, full path, type, extension, size, modified, created, encoding (UTF-8 etc.)
+- Always available regardless of file type.
 
 ---
 
