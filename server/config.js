@@ -11,7 +11,7 @@ const DEFAULTS = {
   shell: {
     windows: 'cmd',
     linux: 'bash',
-    mac: 'bash'
+    mac: 'zsh'
   },
   search: {
     maxFileSizeBytes: 524288,

@@ -87,26 +87,45 @@ async function videoClip(filePath, mp4Path, webmPath, targetWidth) {
     });
   });
 
+  // Codec preference per platform:
+  //   Windows: h264_mf (MediaFoundation hw) > libx264 > libvpx
+  //   Mac:     h264_videotoolbox > libx264 > libvpx
+  //   Linux:   libx264 > libvpx
+  const codecs = process.platform === 'win32'
+    ? ['h264_mf', 'libx264']
+    : process.platform === 'darwin'
+      ? ['h264_videotoolbox', 'libx264']
+      : ['libx264'];
+
+  const tryCodec = (codec) => new Promise((resolve) => {
+    ffmpeg(filePath)
+      .inputOptions(['-ss', start, '-t', '5'])
+      .outputOptions(['-t', '5', '-vf', scale, '-an', '-c:v', codec, '-movflags', '+faststart'])
+      .output(mp4Path)
+      .on('end', () => resolve(true))
+      .on('error', (e) => {
+        try { fs.unlinkSync(mp4Path); } catch {}
+        console.warn(`[thumbs] ${codec} failed: ${e.message.split('\n')[0]}`);
+        resolve(false);
+      })
+      .run();
+  });
+
+  for (const codec of codecs) {
+    if (await tryCodec(codec)) return mp4Path;
+  }
+
+  // Last-resort VP8 WebM (more widely available but slower/larger)
   return new Promise((resolve) => {
     ffmpeg(filePath)
       .inputOptions(['-ss', start, '-t', '5'])
-      .outputOptions(['-t', '5', '-vf', scale, '-an', '-c:v', 'h264_mf', '-movflags', '+faststart'])
-      .output(mp4Path)
-      .on('end', () => resolve(mp4Path))
-      .on('error', (e1) => {
-        console.warn('[thumbs] h264_mf failed, trying libvpx:', e1.message);
-        try { fs.unlinkSync(mp4Path); } catch {}
-        ffmpeg(filePath)
-          .inputOptions(['-ss', start, '-t', '5'])
-          .outputOptions(['-t', '5', '-vf', scale, '-an', '-c:v', 'libvpx', '-b:v', '500k', '-deadline', 'realtime'])
-          .output(webmPath)
-          .on('end', () => resolve(webmPath))
-          .on('error', (e2) => {
-            try { fs.unlinkSync(webmPath); } catch {}
-            console.error('[thumbs] libvpx also failed:', e2.message);
-            resolve(null);
-          })
-          .run();
+      .outputOptions(['-t', '5', '-vf', scale, '-an', '-c:v', 'libvpx', '-b:v', '500k', '-deadline', 'realtime'])
+      .output(webmPath)
+      .on('end', () => resolve(webmPath))
+      .on('error', (e) => {
+        try { fs.unlinkSync(webmPath); } catch {}
+        console.error('[thumbs] libvpx fallback failed:', e.message.split('\n')[0]);
+        resolve(null);
       })
       .run();
   });

@@ -70,7 +70,7 @@ const Term = (() => {
       theme: { background: '#12121a', foreground: '#e2e2f0', cursor: '#7c6ef5' },
       fontSize: isMobile ? 10 : 13,
       lineHeight: isMobile ? 1.1 : 1.2,
-      fontFamily: "'JetBrains Mono', 'Cascadia Code', Consolas, monospace",
+      fontFamily: "'JetBrains Mono', 'Cascadia Code', 'SF Mono', Menlo, Monaco, Consolas, 'DejaVu Sans Mono', 'Ubuntu Mono', monospace",
       cursorBlink: true,
       allowProposedApi: true
     });
