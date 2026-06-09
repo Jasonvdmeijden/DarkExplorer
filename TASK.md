@@ -65,3 +65,26 @@ States: `[ ]` todo · `[~]` in progress · `[x]` done
 - [x] Search exclusion rules respected in filename and content search
 - [x] Thumbnail disk cache keyed by path+mtime
 - [x] public/js/theme-builder.js (colour picker UI, live preview, save custom theme)
+
+## Bug fixes
+- [x] Enrollment redirect loop — removed server-side GET / guard (was redirecting back to /enroll because cookie timing); client-side app.js guard is sufficient
+
+## Phase 9 — Behaviour & persistence
+- [x] Executable files (.exe/.msi/.bat/.cmd/.ps1/.sh) run on double-click; preview requires explicit context menu selection
+- [x] Workspace state persistence + cross-device sync via SQLite + WebSocket broadcast (tabs, active tab, view mode, sort, expanded tree nodes, split pane paths, panel width, mosaic size)
+
+## Phase 10 — UX polish
+- [x] Props-dialog and preview-modal centered via position:fixed + transform on dialog[open]
+- [x] Disk I/O speed (MB/s) + network Mbps stat chips with heat color
+- [x] Double-tap context menu on mobile (replaced long-press which conflicts with iOS)
+- [x] Folder sizes aggregated recursively, shown in properties and details view
+- [x] Search icon visible on mobile; search panel goes full-screen on mobile
+- [x] Rename is optimistic — UI updates immediately before WS round-trip
+- [x] Preview modal drag-resize (50%–90% of screen), symmetric from center, persisted in localStorage
+- [x] Horizontal resize unblocked (CSS max-width override); modal stays open during drag
+- [x] Breadcrumb clicks navigate to that path (stopPropagation prevents pathbar input opening)
+- [x] Context menu: Copy name / Copy path / Copy folder path
+- [x] Images and videos use object-fit:contain + fill container in resized preview modal
+- [x] Bookmark add fully async with error feedback and status display
+- [x] Search shows spinner while awaiting results
+- [x] Browser back/forward buttons drive in-app navigation via pushState + popstate

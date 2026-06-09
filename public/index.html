@@ -2,30 +2,34 @@
 <html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>DarkExplorer</title>
   <link id="theme-css" rel="stylesheet" href="/css/themes/dark.css">
   <link rel="stylesheet" href="/css/app.css">
 
   <!-- CDN libraries -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/xterm/5.3.0/xterm.min.css">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xterm/5.3.0/xterm.min.js" defer></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xterm/5.3.0/addon-fit.min.js" defer></script>
+  <link rel="stylesheet" href="/vendor/xterm.css">
+  <script src="/vendor/xterm.js"></script>
+  <script src="/vendor/xterm-addon-fit.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
 </head>
 <body>
 
   <!-- ── Top toolbar ── -->
   <header id="toolbar">
+
     <div class="toolbar-left">
+      <button class="icon-btn" id="btn-toggle-tree" title="Toggle tree panel">☰</button>
       <span class="logo-icon">⬡</span>
+      <span class="toolbar-sep"></span>
       <button class="icon-btn" id="btn-back"    title="Back (Alt+Left)">&#8592;</button>
       <button class="icon-btn" id="btn-forward" title="Forward (Alt+Right)">&#8594;</button>
       <button class="icon-btn" id="btn-up"      title="Up (Alt+Up)">&#8593;</button>
-
       <!-- breadcrumb / path bar -->
       <div id="pathbar">
         <nav id="breadcrumb" aria-label="Path"></nav>
@@ -34,16 +38,18 @@
     </div>
 
     <div class="toolbar-center">
-      <div class="search-wrap">
-        <input id="search-input" type="search" placeholder="Search files…">
-        <button class="icon-btn" id="btn-search-options" title="Search options">⚙</button>
-      </div>
+      <button class="icon-btn" id="btn-search" title="Search (Ctrl+F)">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="6.5" cy="6.5" r="4.5"/>
+          <line x1="9.9" y1="9.9" x2="13.5" y2="13.5"/>
+        </svg>
+      </button>
     </div>
 
     <div class="toolbar-right">
-      <button class="icon-btn" id="btn-view-mosaic"   title="Mosaic view"  data-view="mosaic">⊞</button>
-      <button class="icon-btn" id="btn-view-details"  title="Details view" data-view="details">☰</button>
-      <button class="icon-btn" id="btn-view-list"     title="List view"    data-view="list">≡</button>
+      <button class="icon-btn" id="btn-view-mosaic"  title="Gallery view"  data-view="mosaic">⊞</button>
+      <button class="icon-btn" id="btn-view-details" title="Details view"  data-view="details">☰</button>
+      <button class="icon-btn" id="btn-view-list"    title="List view"     data-view="list">≡</button>
       <span class="toolbar-sep"></span>
       <button class="icon-btn" id="btn-new-folder"   title="New folder">📁+</button>
       <button class="icon-btn" id="btn-upload"       title="Upload files">⬆</button>
@@ -51,19 +57,22 @@
       <button class="icon-btn" id="btn-theme"        title="Theme">◑</button>
       <button class="icon-btn" id="btn-settings"     title="Settings">⚙</button>
     </div>
+
   </header>
 
   <!-- ── Main layout ── -->
   <div id="layout">
 
-    <!-- Left panel: tree + bookmarks -->
+    <!-- Left panel: tree + bookmarks + git -->
     <aside id="panel-left">
       <div class="panel-tabs">
         <button class="ptab active" data-panel="tree">Tree</button>
-        <button class="ptab"        data-panel="bookmarks">Bookmarks</button>
+        <button class="ptab"        data-panel="bookmarks">Marks</button>
+        <button class="ptab"        data-panel="git">Git</button>
       </div>
       <div id="tree-panel"      class="panel-content"></div>
-      <div id="bookmarks-panel" class="panel-content" style="display:none"></div>
+      <div id="bookmarks-panel" class="panel-content" style="display:none;flex-direction:column"></div>
+      <div id="git-panel"       class="panel-content" style="display:none;overflow-y:auto"></div>
     </aside>
 
     <div id="splitter-left" class="splitter splitter-v"></div>
@@ -83,19 +92,8 @@
 
     <div id="splitter-right" class="splitter splitter-v" style="display:none"></div>
 
-    <!-- Right panel: preview -->
-    <aside id="panel-right" style="display:none">
-      <div id="preview-panel">
-        <div class="preview-toolbar">
-          <button class="ptab active" data-mode="rich">Rich</button>
-          <button class="ptab"        data-mode="raw">Raw</button>
-          <span class="flex-gap"></span>
-          <button class="ptab"        data-mode="meta">Meta</button>
-        </div>
-        <div id="preview-content"></div>
-        <aside id="preview-meta" style="display:none"></aside>
-      </div>
-    </aside>
+    <!-- Right panel: kept for panels.js layout ref, content moved to modal -->
+    <aside id="panel-right" style="display:none"></aside>
 
   </div>
 
@@ -115,6 +113,12 @@
   <footer id="statusbar">
     <span id="status-items"></span>
     <span class="flex-gap"></span>
+    <div id="sys-stats">
+      <span class="stat-chip" id="stat-cpu-tip"  title="CPU Usage">CPU <b id="stat-cpu-val">—</b></span>
+      <span class="stat-chip" id="stat-mem-tip"  title="Memory Usage">MEM <b id="stat-mem-val">—</b></span>
+      <span class="stat-chip" id="stat-disk-tip" title="Disk Usage">DSK <b id="stat-disk-val">—</b></span>
+      <span class="stat-chip" id="stat-net-tip"  title="Network Usage">NET <b id="stat-net-val">—</b></span>
+    </div>
     <span id="status-path"></span>
     <button class="icon-btn" id="btn-toggle-terminal" title="Toggle terminal (Ctrl+`)">⌨</button>
   </footer>
@@ -122,11 +126,43 @@
   <!-- Context menu -->
   <ul id="context-menu" role="menu"></ul>
 
+  <!-- Preview modal — uses <dialog> + showModal() for guaranteed top-layer rendering -->
+  <dialog id="preview-modal">
+    <div id="preview-modal-header">
+      <div id="preview-modal-file">
+        <span id="preview-modal-icon"></span>
+        <span id="preview-modal-title"></span>
+      </div>
+      <div id="preview-modal-tabs">
+        <button class="pv-tab active" data-mode="rich">Rich</button>
+        <button class="pv-tab"        data-mode="raw">Raw</button>
+        <button class="pv-tab"        data-mode="meta">Meta</button>
+      </div>
+      <button id="btn-preview-prev" title="Previous file (←)" style="display:none">&#8592;</button>
+      <button id="btn-preview-next" title="Next file (→)"     style="display:none">&#8594;</button>
+      <button id="btn-preview-edit"   title="Edit file"       style="display:none">✏</button>
+      <button id="btn-preview-newtab" title="Open in new tab">&#x2197;</button>
+      <button id="btn-preview-close"  title="Close (Esc)">&#x2715;</button>
+    </div>
+    <div id="preview-content"></div>
+    <div id="preview-resize-handle" aria-hidden="true"></div>
+  </dialog>
+
+  <!-- Properties popup dialog -->
+  <dialog id="props-dialog">
+    <div id="props-header">
+      <span id="props-title">Properties</span>
+      <button id="btn-props-close" title="Close">&#x2715;</button>
+    </div>
+    <div id="props-body"></div>
+  </dialog>
+
   <!-- Hidden file input for upload -->
   <input type="file" id="upload-input" multiple style="display:none">
 
   <!-- JS modules -->
   <script src="/js/ws.js"></script>
+  <script src="/js/state.js"></script>
   <script src="/js/theme.js"></script>
   <script src="/js/tabs.js"></script>
   <script src="/js/panels.js"></script>
@@ -135,7 +171,10 @@
   <script src="/js/preview.js"></script>
   <script src="/js/terminal.js"></script>
   <script src="/js/search.js"></script>
+  <script src="/js/tree.js"></script>
   <script src="/js/explorer.js"></script>
+  <script src="/js/git.js"></script>
+  <script src="/js/stats.js"></script>
   <script src="/js/theme-builder.js"></script>
   <script src="/js/app.js"></script>
 </body>

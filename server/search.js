@@ -1,7 +1,7 @@
-const fs = require('fs');
+const fs  = require('fs');
 const fsp = require('fs/promises');
 const path = require('path');
-const chokidar = require('chokidar');
+const { execSync } = require('child_process');
 const db = require('./db');
 const config = require('./config');
 
@@ -24,22 +24,22 @@ const upsert = db.prepare(`
 const remove = db.prepare('DELETE FROM files WHERE path = ?');
 
 function buildSearchable(filePath, stat) {
-  const name = path.basename(filePath);
-  const ext = path.extname(name).replace('.', '');
-  const size = formatSize(stat.size);
+  const name  = path.basename(filePath);
+  const ext   = path.extname(name).replace('.', '');
+  const size  = formatSize(stat.size);
   const mtime = new Date(stat.mtimeMs).toISOString().replace('T', ' ').slice(0, 16);
   return `${filePath} ${name} ${ext} ${size} ${mtime}`.toLowerCase();
 }
 
 function formatSize(bytes) {
-  if (bytes < 1024) return `${bytes}b`;
-  if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)}kb`;
-  if (bytes < 1073741824) return `${(bytes / 1048576).toFixed(1)}mb`;
+  if (bytes < 1024)        return `${bytes}b`;
+  if (bytes < 1048576)     return `${(bytes / 1024).toFixed(1)}kb`;
+  if (bytes < 1073741824)  return `${(bytes / 1048576).toFixed(1)}mb`;
   return `${(bytes / 1073741824).toFixed(1)}gb`;
 }
 
 function isExcluded(filePath) {
-  const excl = config.search.exclusions;
+  const excl  = config.search.exclusions;
   const parts = filePath.split(/[\\/]/);
   for (const rule of excl) {
     if (rule.startsWith('*.')) {
@@ -56,7 +56,7 @@ function upsertFile(filePath, stat) {
   upsert.run({
     path: filePath,
     name,
-    ext: path.extname(name).toLowerCase() || null,
+    ext:  path.extname(name).toLowerCase() || null,
     size: stat.size,
     mtime: stat.mtimeMs,
     ctime: stat.birthtimeMs || stat.ctimeMs,
@@ -65,41 +65,85 @@ function upsertFile(filePath, stat) {
   });
 }
 
-function startWatcher() {
-  const roots = process.platform === 'win32'
-    ? getDriveRoots()
-    : ['/'];
+// Write queue — individual inserts (no db.transaction wrapper).
+// Using db.transaction() here risks process.abort() if COMMIT fails when the
+// indexer child holds a write lock. Individual inserts simply throw SQLITE_BUSY
+// which we catch — no rollback, no abort.
+const writeQueue = [];
+let flushScheduled = false;
+const MAX_QUEUE = 1000;
 
-  const watcher = chokidar.watch(roots, {
-    persistent: true,
-    ignoreInitial: false,
-    ignored: (p) => isExcluded(p),
-    awaitWriteFinish: { stabilityThreshold: 500, pollInterval: 100 },
-    depth: Infinity
-  });
+function scheduleFlush() {
+  if (flushScheduled) return;
+  flushScheduled = true;
+  setImmediate(flushQueue);
+}
 
-  watcher
-    .on('add', (p, stat) => { if (stat && !isExcluded(p)) upsertFile(p, stat); })
-    .on('addDir', (p, stat) => { if (stat && !isExcluded(p)) upsertFile(p, stat); })
-    .on('change', (p, stat) => { if (stat && !isExcluded(p)) upsertFile(p, stat); })
-    .on('unlink', (p) => remove.run(p))
-    .on('unlinkDir', (p) => remove.run(p))
-    .on('error', (err) => console.error('[watcher]', err.message));
+function flushQueue() {
+  flushScheduled = false;
+  if (writeQueue.length === 0) return;
+  const batch = writeQueue.splice(0, 100);
+  for (const [p, s] of batch) {
+    try { upsertFile(p, s); } catch { /* SQLITE_BUSY or other — skip, watcher will retry on next change */ }
+  }
+  if (writeQueue.length > 0) scheduleFlush();
+}
 
-  return watcher;
+function queueUpsert(p, stat) {
+  if (writeQueue.length >= MAX_QUEUE) return;
+  writeQueue.push([p, stat]);
+  scheduleFlush();
 }
 
 function getDriveRoots() {
   try {
-    const { execSync } = require('child_process');
     const out = execSync('wmic logicaldisk get name', { encoding: 'utf8' });
-    return out.split('\n')
-      .map(l => l.trim())
-      .filter(l => /^[A-Z]:$/.test(l))
-      .map(d => d + '\\');
+    return out.split('\n').map(l => l.trim()).filter(l => /^[A-Z]:$/.test(l)).map(d => d + '\\');
   } catch {
     return ['C:\\'];
   }
+}
+
+// Per-path debounce: ignore repeated events for the same path within 2 seconds.
+// On Windows, watching C:\ generates enormous event volume; without this the
+// write queue fills instantly and DB contention spikes.
+const watchDebounce = new Map();
+const DEBOUNCE_MS = 2000;
+
+function startWatcher() {
+  // On Windows, fs.watch recursive on a root drive and the indexer child
+  // process both cause native-level crashes (no catchable error) in Node 24.
+  // Disable both on Windows — search index is populated lazily via the
+  // in-process watcher below once a safe alternative is implemented.
+  if (process.platform === 'win32') {
+    return [];
+  }
+
+  const roots = ['/'];
+  const watchers = roots.map(root => {
+    let watcher;
+    try {
+      watcher = fs.watch(root, { recursive: true, persistent: true }, (event, filename) => {
+        if (!filename) return;
+        const full = path.resolve(root, filename);
+        if (isExcluded(full)) return;
+        if (watchDebounce.has(full)) return;
+        watchDebounce.set(full, setTimeout(() => watchDebounce.delete(full), DEBOUNCE_MS));
+        fsp.stat(full)
+          .then(s => queueUpsert(full, s))
+          .catch(() => setImmediate(() => { try { remove.run(full); } catch {} }));
+      });
+      watcher.on('error', (err) => console.error('[watcher]', root, err.code));
+    } catch (err) {
+      console.error('[watcher] failed to watch', root, err.code);
+    }
+    return watcher;
+  });
+
+  const indexer = fork(path.join(__dirname, 'indexer.js'), [], { stdio: 'ignore' });
+  indexer.on('error', (e) => console.error('[indexer]', e.message));
+
+  return watchers;
 }
 
 // --- fuzzy filename search ---
@@ -175,7 +219,7 @@ async function searchContent({ term, isRegex, includes, excludes, page = 0, page
   const start = page * pageSize;
   return {
     results: results.slice(start, start + pageSize),
-    total: results.length,
+    total:   results.length,
     page,
     pageSize
   };

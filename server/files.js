@@ -45,6 +45,11 @@ async function read(filePath) {
   return fsp.readFile(filePath, 'utf8');
 }
 
+async function readBinary(filePath) {
+  const buf = await fsp.readFile(filePath);
+  return buf.toString('base64');
+}
+
 async function write(filePath, content) {
   await fsp.writeFile(filePath, content, 'utf8');
 }
@@ -115,4 +120,68 @@ function roots() {
   return ['/'];
 }
 
-module.exports = { list, stat, read, write, mkdir, remove, copy, move, rename, roots };
+// Folder-size walk: bounded by time + entry count, with an in-memory cache.
+// Walks are serialized (no Promise.all recursion) to cap memory + open-FD use.
+// Throttle: only N walks may run concurrently across the whole server.
+
+const _sizeCache = new Map();   // path → { size, partial, expires }
+const SIZE_TTL_MS    = 60 * 1000;       // memo for 1 minute
+const TIME_BUDGET_MS = 2000;            // give up after 2s per request
+const ENTRY_BUDGET   = 50000;           // stop after 50k entries
+const MAX_CONCURRENT = 2;
+
+let _active = 0;
+const _queue = [];
+
+function _runQueued(fn) {
+  return new Promise((resolve) => {
+    const task = async () => {
+      _active++;
+      try { resolve(await fn()); }
+      finally {
+        _active--;
+        const next = _queue.shift();
+        if (next) next();
+      }
+    };
+    if (_active < MAX_CONCURRENT) task();
+    else _queue.push(task);
+  });
+}
+
+async function _walk(dirPath, ctx) {
+  if (Date.now() > ctx.deadline || ctx.count >= ENTRY_BUDGET) { ctx.partial = true; return 0; }
+  let total = 0;
+  let entries;
+  try { entries = await fsp.readdir(dirPath, { withFileTypes: true }); }
+  catch { return 0; }
+  for (const e of entries) {
+    if (Date.now() > ctx.deadline || ctx.count >= ENTRY_BUDGET) { ctx.partial = true; break; }
+    ctx.count++;
+    const full = path.join(dirPath, e.name);
+    try {
+      if (e.isDirectory()) total += await _walk(full, ctx);
+      else { const s = await fsp.stat(full); total += s.size; }
+    } catch {}
+  }
+  return total;
+}
+
+async function folderSize(dirPath) {
+  const cached = _sizeCache.get(dirPath);
+  if (cached && cached.expires > Date.now()) return cached.size;
+
+  return _runQueued(async () => {
+    const ctx = { deadline: Date.now() + TIME_BUDGET_MS, count: 0, partial: false };
+    const size = await _walk(dirPath, ctx);
+    // Cache complete results longer; partial results only briefly so we may try again later
+    _sizeCache.set(dirPath, {
+      size,
+      partial: ctx.partial,
+      expires: Date.now() + (ctx.partial ? 5000 : SIZE_TTL_MS)
+    });
+    return size;
+  });
+}
+
+module.exports = { list, stat, read, readBinary, write, mkdir, remove, copy, move, rename, roots, folderSize };

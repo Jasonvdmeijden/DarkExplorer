@@ -1,18 +1,33 @@
-/* Boot — auth check, initial tab, mermaid init */
+/* Boot — auth check, restore workspace state, init modules */
 (function () {
-  // redirect to enroll if no token
   if (!localStorage.getItem('de_token')) {
     location.href = '/enroll';
     return;
   }
 
-  // init mermaid dark theme
   if (window.mermaid) {
     mermaid.initialize({ startOnLoad: false, theme: 'dark' });
   }
 
-  // open first tab on load
+  // Wire git panel refresh when user navigates (all modules loaded at this point)
+  Explorer.addNavListener((path) => {
+    const gitTab = document.querySelector('.ptab[data-panel="git"]');
+    if (gitTab?.classList.contains('active')) Git.refresh(path);
+  });
+
   window.addEventListener('load', () => {
-    Tabs.create('Home', null);
+    State.onReady(() => {
+      const savedTabs   = State.get('tabs', null);
+      const savedActive = State.get('activeTab', null);
+
+      if (savedTabs && savedTabs.length > 0) {
+        Tabs.restore(savedTabs, savedActive);
+      } else {
+        Tabs.create('Home', null);
+      }
+
+      Tree.init();
+      Panels.restore();
+    });
   });
 })();

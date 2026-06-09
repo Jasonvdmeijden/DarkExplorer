@@ -23,7 +23,7 @@ const Search = (() => {
           style="flex:1;background:none;border:none;outline:none;color:var(--text-primary);font-size:.9rem">
         <button id="search-close" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:16px">✕</button>
       </div>
-      <div id="search-filters" style="display:none;padding:.4rem .75rem;border-bottom:1px solid var(--border);gap:.4rem;flex-wrap:wrap">
+      <div id="search-filters" style="display:flex;padding:.4rem .75rem;border-bottom:1px solid var(--border);gap:.4rem;flex-wrap:wrap;align-items:center">
         <input id="search-include" placeholder="Include (*.ts, src/**)" style="flex:1;min-width:120px;background:var(--bg-base);border:1px solid var(--border);border-radius:var(--radius-sm);padding:.25rem .5rem;color:var(--text-primary);font-size:.78rem;outline:none">
         <input id="search-exclude" placeholder="Exclude (node_modules)" style="flex:1;min-width:120px;background:var(--bg-base);border:1px solid var(--border);border-radius:var(--radius-sm);padding:.25rem .5rem;color:var(--text-primary);font-size:.78rem;outline:none">
         <label style="display:flex;align-items:center;gap:.3rem;font-size:.78rem;color:var(--text-secondary)">
@@ -35,12 +35,7 @@ const Search = (() => {
     `;
     document.body.appendChild(panel);
 
-    document.getElementById('search-mode').addEventListener('change', (e) => {
-      document.getElementById('search-filters').style.display =
-        e.target.value === 'content' ? 'flex' : 'none';
-    });
-
-    document.getElementById('search-term').addEventListener('input', debounce(run, 300));
+    document.getElementById('search-term').addEventListener('input', debounce(run, 600));
     document.getElementById('search-close').addEventListener('click', hide);
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && visible) hide(); });
   }
@@ -57,9 +52,8 @@ const Search = (() => {
   }
 
   function showFromPath(scopePath) {
-    document.getElementById('search-include').value = scopePath + '/**';
+    document.getElementById('search-include').value = scopePath.replace(/\\/g, '/') + '/**';
     document.getElementById('search-mode').value = 'content';
-    document.getElementById('search-filters').style.display = 'flex';
     show();
   }
 
@@ -71,17 +65,18 @@ const Search = (() => {
 
     if (!term) { results.innerHTML = ''; status.textContent = ''; return; }
 
-    status.textContent = 'Searching…';
-    results.innerHTML  = '';
+    results.innerHTML = '<div class="search-loader"><span class="search-spin"></span>Searching…</div>';
+    status.textContent = '';
 
     try {
       if (mode === 'filename') {
-        const res = await WS.send('search:filename', { query: term, limit: 50 });
-        renderFilenameResults(res.results);
-        status.textContent = `${res.results.length} result${res.results.length !== 1 ? 's' : ''}`;
+        const res = await WS.send('search:filename', { query: term, limit: 200 });
+        const filtered = applyPathFilters(res.results);
+        renderFilenameResults(filtered);
+        status.textContent = `${filtered.length} result${filtered.length !== 1 ? 's' : ''}`;
       } else {
-        const include = document.getElementById('search-include').value.split(',').map(s => s.trim()).filter(Boolean);
-        const exclude = document.getElementById('search-exclude').value.split(',').map(s => s.trim()).filter(Boolean);
+        const include = getFilterList('search-include');
+        const exclude = getFilterList('search-exclude');
         const isRegex = document.getElementById('search-regex').checked;
         const res = await WS.send('search:content', { term, isRegex, includes: include, excludes: exclude });
         if (res.error) { status.textContent = res.error; return; }
@@ -91,6 +86,31 @@ const Search = (() => {
     } catch (e) {
       status.textContent = 'Error: ' + e.message;
     }
+  }
+
+  function getFilterList(id) {
+    return document.getElementById(id).value.split(',').map(s => s.trim()).filter(Boolean);
+  }
+
+  // Client-side path filter for filename results (server doesn't support include/exclude for filename search)
+  function applyPathFilters(items) {
+    const include = getFilterList('search-include');
+    const exclude = getFilterList('search-exclude');
+    let out = items;
+    if (include.length) out = out.filter(i => include.some(p => matchGlob(i.path, p)));
+    if (exclude.length) out = out.filter(i => !exclude.some(p => matchGlob(i.path, p)));
+    return out;
+  }
+
+  function matchGlob(str, pattern) {
+    const s = str.replace(/\\/g, '/').toLowerCase();
+    const p = pattern.replace(/\\/g, '/').toLowerCase()
+      .replace(/[.+^${}()|[\]]/g, '\\$&')
+      .replace(/\*\*/g, '\x00')
+      .replace(/\*/g, '[^/]*')
+      .replace(/\x00/g, '.*');
+    try { return new RegExp(p).test(s); }
+    catch { return s.includes(pattern.toLowerCase()); }
   }
 
   function renderFilenameResults(items) {
@@ -104,7 +124,11 @@ const Search = (() => {
         <span style="color:var(--text-muted);font-size:.72rem;flex-shrink:0">${shortPath(item.path)}</span>`;
       el.addEventListener('mouseenter', () => el.style.background = 'var(--bg-hover)');
       el.addEventListener('mouseleave', () => el.style.background = '');
-      el.addEventListener('click', () => { hide(); Explorer.navigate(item.isDir ? item.path : parentPath(item.path)); });
+      el.addEventListener('click', () => {
+        hide();
+        const dest = item.isDir ? item.path : parentPath(item.path);
+        Explorer.navigate(dest);
+      });
       results.appendChild(el);
     });
   }
@@ -141,13 +165,11 @@ const Search = (() => {
     return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
   }
 
-  // wire toolbar search input
-  document.getElementById('search-input').addEventListener('focus', () => {
-    show();
-    document.getElementById('search-term').value = document.getElementById('search-input').value;
-    document.getElementById('search-input').blur();
+  // Wire toolbar search button + Ctrl+F
+  document.getElementById('btn-search').addEventListener('click', show);
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'f') { e.preventDefault(); show(); }
   });
-  document.getElementById('btn-search-options').addEventListener('click', show);
 
   init();
   return { show, hide, showFromPath };

@@ -41,14 +41,27 @@ async function get(filePath, targetWidth = 300) {
   try {
     const stat = await fsp.stat(filePath);
     const key  = cacheKey(filePath, stat.mtimeMs, targetWidth);
-    const cp   = cachePath(key);
-    if (fs.existsSync(cp)) return cp;
+    const ext  = path.extname(filePath).toLowerCase();
 
-    const ext = path.extname(filePath).toLowerCase();
+    if (IMAGE_EXTS.has(ext)) {
+      const cp = cachePath(key);
+      if (fs.existsSync(cp)) return cp;
+      return await imageThumb(filePath, cp, targetWidth);
+    }
 
-    if (IMAGE_EXTS.has(ext))  return await imageThumb(filePath, cp, targetWidth);
-    if (VIDEO_EXTS.has(ext))  return await videoThumb(filePath, cp, targetWidth);
-    if (TEXT_EXTS.has(ext))   return await codeThumb(filePath, cp, targetWidth);
+    if (VIDEO_EXTS.has(ext)) {
+      const mp4  = path.join(CACHE_DIR, key + '.mp4');
+      const webm = path.join(CACHE_DIR, key + '.webm');
+      if (fs.existsSync(mp4))  return mp4;
+      if (fs.existsSync(webm)) return webm;
+      return await videoClip(filePath, mp4, webm, targetWidth);
+    }
+
+    if (TEXT_EXTS.has(ext)) {
+      const cp = cachePath(key);
+      if (fs.existsSync(cp)) return cp;
+      return await codeThumb(filePath, cp, targetWidth);
+    }
   } catch { /* fall through */ }
   return null;
 }
@@ -62,36 +75,40 @@ async function imageThumb(filePath, cp, targetWidth) {
   return cp;
 }
 
-async function videoThumb(filePath, cp, targetWidth) {
+async function videoClip(filePath, mp4Path, webmPath, targetWidth) {
   if (!ffmpeg) return null;
+  const scale = `scale=${targetWidth}:-2`;
+
+  // Probe duration so we can clip from the middle of the video
+  const start = await new Promise((resolve) => {
+    ffmpeg.ffprobe(filePath, (err, meta) => {
+      const dur = meta?.format?.duration || 0;
+      resolve(Math.max(0, dur / 2 - 2.5).toFixed(3));
+    });
+  });
+
   return new Promise((resolve) => {
-    const tmpDir = path.join(CACHE_DIR, '_tmp_' + path.basename(filePath, path.extname(filePath)));
-    fs.mkdirSync(tmpDir, { recursive: true });
     ffmpeg(filePath)
-      .on('end', async () => {
-        try {
-          const frames = fs.readdirSync(tmpDir).filter(f => f.endsWith('.jpg')).sort().slice(0, 3);
-          if (!frames.length) { resolve(null); return; }
-          // stitch frames side by side with sharp
-          if (sharp) {
-            const images = frames.map(f => ({ input: path.join(tmpDir, f) }));
-            const meta   = await sharp(path.join(tmpDir, frames[0])).metadata();
-            const w = meta.width || 160;
-            const h = meta.height || 90;
-            await sharp({ create: { width: w * images.length, height: h, channels: 3, background: '#000' } })
-              .composite(images.map((img, i) => ({ ...img, left: i * w, top: 0 })))
-              .resize(targetWidth, null)
-              .webp({ quality: 70 })
-              .toFile(cp);
-          } else {
-            fs.copyFileSync(path.join(tmpDir, frames[0]), cp);
-          }
-          fs.rmSync(tmpDir, { recursive: true, force: true });
-          resolve(cp);
-        } catch { fs.rmSync(tmpDir, { recursive: true, force: true }); resolve(null); }
+      .inputOptions(['-ss', start, '-t', '5'])
+      .outputOptions(['-t', '5', '-vf', scale, '-an', '-c:v', 'h264_mf', '-movflags', '+faststart'])
+      .output(mp4Path)
+      .on('end', () => resolve(mp4Path))
+      .on('error', (e1) => {
+        console.warn('[thumbs] h264_mf failed, trying libvpx:', e1.message);
+        try { fs.unlinkSync(mp4Path); } catch {}
+        ffmpeg(filePath)
+          .inputOptions(['-ss', start, '-t', '5'])
+          .outputOptions(['-t', '5', '-vf', scale, '-an', '-c:v', 'libvpx', '-b:v', '500k', '-deadline', 'realtime'])
+          .output(webmPath)
+          .on('end', () => resolve(webmPath))
+          .on('error', (e2) => {
+            try { fs.unlinkSync(webmPath); } catch {}
+            console.error('[thumbs] libvpx also failed:', e2.message);
+            resolve(null);
+          })
+          .run();
       })
-      .on('error', () => { fs.rmSync(tmpDir, { recursive: true, force: true }); resolve(null); })
-      .screenshots({ count: 3, folder: tmpDir, filename: 'frame-%i.jpg', size: `${targetWidth}x?` });
+      .run();
   });
 }
 

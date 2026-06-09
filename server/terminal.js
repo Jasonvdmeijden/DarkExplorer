@@ -111,4 +111,6 @@ function destroy(id) {
   sessions.delete(id);
 }
 
-module.exports = { create, input, resize, switchShell, destroy, resolveShell };
+function isAlive(id) { return sessions.has(id); }
+
+module.exports = { create, input, resize, switchShell, destroy, resolveShell, isAlive };

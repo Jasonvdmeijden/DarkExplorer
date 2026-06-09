@@ -10,6 +10,7 @@ if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 const db = new Database(DB_PATH);
 
 db.pragma('journal_mode = WAL');
+db.pragma('busy_timeout = 5000');
 db.pragma('foreign_keys = ON');
 
 db.exec(`
@@ -44,11 +45,44 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS bookmarks (
     id         TEXT PRIMARY KEY,
-    path       TEXT NOT NULL,
+    path       TEXT,
+    url        TEXT,
     label      TEXT,
     device_id  TEXT REFERENCES devices(id) ON DELETE CASCADE,
     created_at INTEGER NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS workspace_state (
+    key        TEXT PRIMARY KEY,
+    value      TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
 `);
+
+// Migrations for schema additions
+try { db.prepare('ALTER TABLE bookmarks ADD COLUMN url TEXT').run(); } catch {}
+
+// Migration: drop NOT NULL from bookmarks.path so URL-only bookmarks work
+try {
+  const pathCol = db.prepare("PRAGMA table_info(bookmarks)").all().find(c => c.name === 'path');
+  if (pathCol && pathCol.notnull) {
+    db.exec(`
+      BEGIN;
+      ALTER TABLE bookmarks RENAME TO _bm_old;
+      CREATE TABLE bookmarks (
+        id         TEXT PRIMARY KEY,
+        path       TEXT,
+        url        TEXT,
+        label      TEXT,
+        device_id  TEXT REFERENCES devices(id) ON DELETE CASCADE,
+        created_at INTEGER NOT NULL
+      );
+      INSERT INTO bookmarks (id, path, url, label, device_id, created_at)
+        SELECT id, path, url, label, device_id, created_at FROM _bm_old;
+      DROP TABLE _bm_old;
+      COMMIT;
+    `);
+  }
+} catch (e) { console.error('[db] bookmarks migration failed:', e.message); }
 
 module.exports = db;

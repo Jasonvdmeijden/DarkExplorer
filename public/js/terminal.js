@@ -1,41 +1,154 @@
-/* Terminal — xterm.js PTY bridge + command runner fallback */
+/* Terminal — xterm.js PTY bridge, shared across all connected devices */
 const Term = (() => {
-  let term = null;
+  let term     = null;
   let fitAddon = null;
-  let sid = null;
-  let ptMode = true; // true = PTY, false = command runner
+  let sid      = null;
+  let resizeObs = null;
 
-  function open(cwd) {
-    Panels.showBottom();
-    if (sid) return; // already running
+  WS.on('terminal:data', (d) => {
+    if (d.sid !== sid) return;
+    if (term) term.write(d.data);
+  });
+  WS.on('terminal:exit', (d) => {
+    if (d.sid !== sid) return;
+    if (term) term.write('\r\n[Process exited]\r\n');
+    sid = null;
+    State.set('activeTerm', { open: false, sid: null });
+  });
 
-    if (window.Terminal) {
-      term = new Terminal({
-        theme: {
-          background: '#12121a',
-          foreground: '#e2e2f0',
-          cursor:     '#7c6ef5'
-        },
-        fontSize: 13,
-        fontFamily: "'JetBrains Mono', 'Cascadia Code', Consolas, monospace",
-        cursorBlink: true
-      });
-      fitAddon = new FitAddon.FitAddon();
-      term.loadAddon(fitAddon);
-      const container = document.getElementById('terminal-container');
-      container.innerHTML = '';
-      term.open(container);
-      fitAddon.fit();
+  // Cross-device: another device opened or closed the terminal
+  State.onChange('activeTerm', async (val) => {
+    if (!val) return;
+    if (val.open && val.sid && val.sid !== sid) {
+      const ok = await _verifySid(val.sid);
+      if (ok) _attach(val.sid);
+    } else if (!val.open && sid) {
+      _localClose();
+    }
+  });
 
-      term.onData(data => {
-        if (sid) WS.emit('terminal:input', { sid, data });
-      });
+  // On first connect, only restore if the server still has the session
+  State.onReady(async () => {
+    const val = State.get('activeTerm', null);
+    if (!val?.open || !val?.sid) return;
+    const ok = await _verifySid(val.sid);
+    if (ok) _attach(val.sid);
+    else State.set('activeTerm', { open: false, sid: null });
+  });
+
+  async function _verifySid(checkSid) {
+    try {
+      const res = await WS.send('terminal:verify', { sid: checkSid });
+      return !!res?.alive;
+    } catch { return false; }
+  }
+
+  function _ensureXtermLoaded() {
+    return new Promise((resolve, reject) => {
+      if (window.Terminal) return resolve();
+      const t0 = Date.now();
+      const i = setInterval(() => {
+        if (window.Terminal) { clearInterval(i); resolve(); }
+        else if (Date.now() - t0 > 5000) { clearInterval(i); reject(new Error('xterm.js failed to load')); }
+      }, 50);
+    });
+  }
+
+  async function _initXterm() {
+    if (term) return true;
+    try { await _ensureXtermLoaded(); }
+    catch (e) {
+      const c = document.getElementById('terminal-container');
+      c.textContent = 'Terminal library failed to load (check network/CDN)';
+      c.style.color = 'var(--danger)';
+      c.style.padding = '1rem';
+      return false;
     }
 
-    createSession(cwd);
+    const isMobile = window.innerWidth <= 768;
+    term = new Terminal({
+      theme: { background: '#12121a', foreground: '#e2e2f0', cursor: '#7c6ef5' },
+      fontSize: isMobile ? 10 : 13,
+      lineHeight: isMobile ? 1.1 : 1.2,
+      fontFamily: "'JetBrains Mono', 'Cascadia Code', Consolas, monospace",
+      cursorBlink: true,
+      allowProposedApi: true
+    });
 
-    // resize on layout change
-    window.addEventListener('resize', fitIfOpen);
+    if (window.FitAddon) {
+      fitAddon = new FitAddon.FitAddon();
+      term.loadAddon(fitAddon);
+    }
+
+    const container = document.getElementById('terminal-container');
+    container.innerHTML = '';
+    container.style.color = '';
+    container.style.padding = '.3rem';
+    term.open(container);
+    term.focus();
+
+    _safeFit();
+    // Belt-and-braces refits as layout settles
+    setTimeout(_safeFit, 80);
+    setTimeout(_safeFit, 250);
+
+    // ResizeObserver catches any later container resize (panel splitter drag, viewport change)
+    if (window.ResizeObserver && !resizeObs) {
+      resizeObs = new ResizeObserver(() => _safeFit());
+      resizeObs.observe(container);
+    }
+
+    // iOS Safari focus workaround — must run from a direct touch handler
+    container.addEventListener('touchstart', () => {
+      if (!term) return;
+      term.focus();
+      const ta = container.querySelector('textarea');
+      if (ta) ta.focus();
+    }, { passive: true });
+
+    term.onData(data => { if (sid) WS.emit('terminal:input', { sid, data }); });
+    window.addEventListener('resize', _safeFit);
+    return true;
+  }
+
+  function _safeFit() {
+    if (!fitAddon || !term) return;
+    const c = document.getElementById('terminal-container');
+    if (!c || c.clientWidth < 20 || c.clientHeight < 20) return;
+    try {
+      fitAddon.fit();
+      if (sid) WS.emit('terminal:resize', { sid, cols: term.cols, rows: term.rows });
+    } catch {}
+  }
+
+  async function _attach(remoteSid) {
+    Panels.showBottom();
+    sid = remoteSid;
+    requestAnimationFrame(() => requestAnimationFrame(async () => {
+      const ok = await _initXterm();
+      if (ok) _safeFit();
+    }));
+  }
+
+  function _localClose() {
+    sid = null;
+    Panels.hideBottom();
+  }
+
+  async function open(cwd) {
+    Panels.showBottom();
+
+    // If we think we have a session, verify it's still alive
+    if (sid) {
+      const ok = await _verifySid(sid);
+      if (!ok) sid = null;
+      else { requestAnimationFrame(_safeFit); return; }
+    }
+
+    requestAnimationFrame(() => requestAnimationFrame(async () => {
+      const ok = await _initXterm();
+      if (ok) createSession(cwd);
+    }));
   }
 
   async function createSession(cwd) {
@@ -46,60 +159,38 @@ const Term = (() => {
         rows: term ? term.rows : 24
       });
       sid = res.sid;
-
-      WS.on('terminal:data', (d) => {
-        if (d.sid !== sid) return;
-        if (term) term.write(d.data);
-      });
-      WS.on('terminal:exit', (d) => {
-        if (d.sid !== sid) return;
-        if (term) term.write('\r\n[Process exited]\r\n');
-        sid = null;
-      });
+      State.set('activeTerm', { open: true, sid });
+      _safeFit();
+      if (term) term.focus();
     } catch (e) {
       if (term) term.write(`\r\n[Error: ${e.message}]\r\n`);
     }
   }
 
-  function openHere(path) {
-    open(path);
-    if (sid) {
-      const cmd = `cd "${path}"\r`;
-      WS.emit('terminal:input', { sid, data: cmd });
-    }
-  }
+  function openHere(dirPath) { open(dirPath); }
 
   async function switchShell(shellName) {
-    if (sid) {
-      await WS.send('terminal:switch', { sid });
-      sid = null;
-    }
+    if (sid) { await WS.send('terminal:switch', { sid }).catch(() => {}); sid = null; }
     const res = await WS.send('terminal:create', {
       shell: shellName,
       cols: term ? term.cols : 80,
       rows: term ? term.rows : 24
     });
     sid = res.sid;
-  }
-
-  function fitIfOpen() {
-    if (fitAddon && sid) fitAddon.fit();
-    if (sid && term) WS.emit('terminal:resize', { sid, cols: term.cols, rows: term.rows });
+    State.set('activeTerm', { open: true, sid });
   }
 
   function close() {
     if (sid) { WS.send('terminal:destroy', { sid }).catch(() => {}); sid = null; }
-    Panels.hideBottom();
+    _localClose();
+    State.set('activeTerm', { open: false, sid: null });
   }
 
-  // toolbar buttons
   document.getElementById('btn-term-close').addEventListener('click', close);
   document.getElementById('btn-toggle-terminal').addEventListener('click', () => {
-    if (sid || document.getElementById('panel-bottom').style.display !== 'none') {
-      close();
-    } else {
-      open();
-    }
+    const panelBottom = document.getElementById('panel-bottom');
+    if (sid || panelBottom.style.display !== 'none') close();
+    else open();
   });
   document.getElementById('btn-term-shell').addEventListener('click', async () => {
     const isWin = navigator.platform.toLowerCase().includes('win');
@@ -107,7 +198,6 @@ const Term = (() => {
     await switchShell(newShell);
   });
 
-  // Ctrl+`
   document.addEventListener('keydown', e => {
     if (e.ctrlKey && e.key === '`') {
       e.preventDefault();

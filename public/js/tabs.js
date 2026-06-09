@@ -1,10 +1,17 @@
 /* Tab management */
 const Tabs = (() => {
-  let tabs = [];
+  let tabs     = [];
   let activeId = null;
-  let seq = 0;
+  let seq      = 0;
+  let _saving  = false; // prevent re-entrant saves during programmatic updates
 
   const list = document.getElementById('tabs-list');
+
+  function _saveState() {
+    if (_saving) return;
+    State.set('tabs',      tabs.map(t => ({ id: t.id, name: t.name, path: t.path })));
+    State.set('activeTab', activeId);
+  }
 
   function create(name, path) {
     const id = ++seq;
@@ -19,6 +26,7 @@ const Tabs = (() => {
     render();
     const tab = tabs.find(t => t.id === id);
     if (tab) Explorer.navigate(tab.path, id);
+    _saveState();
   }
 
   function close(id) {
@@ -34,21 +42,75 @@ const Tabs = (() => {
       const tab = tabs.find(t => t.id === activeId);
       if (tab) Explorer.navigate(tab.path, activeId);
     }
+    _saveState();
   }
 
   function updateName(id, name, path) {
     const tab = tabs.find(t => t.id === id);
-    if (tab) { tab.name = name; tab.path = path; render(); }
+    if (!tab) return;
+    tab.name = name;
+    tab.path = path;
+    render();
+    _saveState();
   }
 
   function getActive() { return tabs.find(t => t.id === activeId) || null; }
+
+  // Called by app.js on startup to restore persisted or synced tabs
+  function restore(savedTabs, savedActiveId) {
+    _saving = true;
+    tabs    = [];
+    seq     = 0;
+    savedTabs.forEach(t => {
+      tabs.push({ id: t.id, name: t.name, path: t.path });
+      if (t.id > seq) seq = t.id;
+    });
+    activeId = savedActiveId || (tabs[0] ? tabs[0].id : null);
+    render();
+    if (activeId) {
+      const tab = tabs.find(t => t.id === activeId);
+      if (tab) Explorer.navigate(tab.path, activeId);
+    }
+    _saving = false;
+  }
+
+  // Cross-device: another device changed the tab list
+  State.onChange('tabs', (newTabs) => {
+    if (!newTabs || _saving) return;
+    _saving = true;
+    const prevPath = tabs.find(t => t.id === activeId)?.path ?? null;
+    tabs = newTabs.map(t => ({ ...t }));
+    seq  = Math.max(seq, ...tabs.map(t => t.id), 0);
+    if (!tabs.find(t => t.id === activeId) && tabs.length > 0) {
+      activeId = tabs[0].id;
+    }
+    render();
+    // Follow navigation: if the active tab's path changed on another device, navigate here too
+    const activeTab = tabs.find(t => t.id === activeId);
+    if (activeTab && activeTab.path !== prevPath) {
+      Explorer.navigate(activeTab.path, activeId);
+    }
+    _saving = false;
+  });
+
+  // Cross-device: another device switched the active tab
+  State.onChange('activeTab', (newId) => {
+    if (newId === activeId || _saving) return;
+    const tab = tabs.find(t => t.id === newId);
+    if (!tab) return;
+    _saving  = true;
+    activeId = newId;
+    render();
+    Explorer.navigate(tab.path, newId);
+    _saving = false;
+  });
 
   function render() {
     list.innerHTML = '';
     tabs.forEach(tab => {
       const el = document.createElement('div');
       el.className = 'tab' + (tab.id === activeId ? ' active' : '');
-      el.innerHTML = `<span class="tab-name" title="${tab.path}">${tab.name}</span><span class="tab-close">✕</span>`;
+      el.innerHTML = `<span class="tab-name" title="${tab.path || ''}">${tab.name}</span><span class="tab-close">✕</span>`;
       el.addEventListener('click', (e) => {
         if (e.target.classList.contains('tab-close')) close(tab.id);
         else activate(tab.id);
@@ -61,5 +123,5 @@ const Tabs = (() => {
     create('Home', null);
   });
 
-  return { create, activate, close, updateName, getActive };
+  return { create, activate, close, updateName, getActive, restore };
 })();

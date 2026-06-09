@@ -3,6 +3,8 @@ const WS = (() => {
   let socket = null;
   let pending = {};   // id -> { resolve, reject, timer }
   let seq = 0;
+  let sendQueue = []; // buffered while socket is connecting
+  let isOpen = false;
   const TIMEOUT = 30000;
   const listeners = {}; // type -> [fn]
 
@@ -10,8 +12,14 @@ const WS = (() => {
     const token = localStorage.getItem('de_token') || '';
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
     socket = new WebSocket(`${proto}://${location.host}?token=${token}`);
+    isOpen = false;
 
-    socket.onopen = () => console.log('[ws] connected');
+    socket.onopen = () => {
+      isOpen = true;
+      console.log('[ws] connected');
+      sendQueue.forEach(msg => socket.send(msg));
+      sendQueue = [];
+    };
 
     socket.onmessage = (e) => {
       const msg = JSON.parse(e.data);
@@ -30,6 +38,7 @@ const WS = (() => {
     };
 
     socket.onclose = (e) => {
+      isOpen = false;
       if (e.code === 4001) {
         // unauthorised — redirect to enroll
         localStorage.removeItem('de_token');
@@ -51,7 +60,12 @@ const WS = (() => {
         reject(new Error('Request timed out'));
       }, TIMEOUT);
       pending[id] = { resolve, reject, timer };
-      socket.send(JSON.stringify({ id, type, payload: payload || {} }));
+      const msg = JSON.stringify({ id, type, payload: payload || {} });
+      if (isOpen) {
+        socket.send(msg);
+      } else {
+        sendQueue.push(msg);
+      }
     });
   }
 

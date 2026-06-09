@@ -8,36 +8,138 @@ const Explorer = (() => {
   let view        = localStorage.getItem('de_view') || 'details';
   let sortKey     = 'name';
   let sortAsc     = true;
-  let mosaicRowH  = 200;
-  let activeTabId = null;
+  let mosaicCols  = parseInt(localStorage.getItem('de_mosaic_cols') || '4');
+  let activeTabId     = null;
+  let lastClickedPath = null;
 
-  const pane1     = (() => { const d = document.createElement('div'); d.className = 'pane'; d.id = 'pane-1'; return d; })();
-  const ctxMenu   = document.getElementById('context-menu');
+  const pane1   = (() => { const d = document.createElement('div'); d.className = 'pane'; d.id = 'pane-1'; return d; })();
+  const ctxMenu = document.getElementById('context-menu');
 
-  function init() {
-    document.getElementById('panes').appendChild(pane1);
-    setView(view);
-    navigate(null); // show roots
+  // focused pane tracking
+  let focusedPaneEl = pane1;
+
+  document.getElementById('panes').appendChild(pane1);
+  pane1.addEventListener('mousedown', () => setFocusedPane(pane1));
+
+  // Drag-to-select rectangle
+  pane1.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    if (e.target.closest('.file-row,.mosaic-item,.col-head,.mosaic-slider-wrap')) return;
+    const x0 = e.clientX, y0 = e.clientY;
+    let rect = null, started = false;
+    const onMove = (mv) => {
+      if (!started) {
+        if (Math.hypot(mv.clientX - x0, mv.clientY - y0) < 6) return;
+        started = true;
+        rect = document.createElement('div');
+        rect.className = 'drag-select-rect';
+        document.body.appendChild(rect);
+        if (!e.ctrlKey) { selected.clear(); updateSelectionUI(); }
+      }
+      const x1 = Math.min(x0, mv.clientX), y1 = Math.min(y0, mv.clientY);
+      rect.style.left          = x1 + 'px';
+        rect.style.top           = y1 + 'px';
+        rect.style.width         = Math.abs(mv.clientX - x0) + 'px';
+        rect.style.height        = Math.abs(mv.clientY - y0) + 'px';
+    };
+    const onUp = (up) => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      if (!rect) return;
+      rect.remove();
+      const r = { left: Math.min(x0, up.clientX), right: Math.max(x0, up.clientX),
+                  top:  Math.min(y0, up.clientY),  bottom: Math.max(y0, up.clientY) };
+      pane1.querySelectorAll('[data-path]').forEach(el => {
+        const b = el.getBoundingClientRect();
+        if (b.right > r.left && b.left < r.right && b.bottom > r.top && b.top < r.bottom) {
+          selected.add(el.dataset.path);
+        }
+      });
+      updateSelectionUI();
+      updateStatus();
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+
+  // Right-click on empty pane space → context menu for current folder
+  pane1.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    if (e.target.closest('.file-row,.mosaic-item,.col-head')) return;
+    selected.clear();
+    lastClickedPath = null;
+    updateSelectionUI();
+    showContextMenu(e.clientX, e.clientY, {
+      path: currentPath, isDir: true, ext: null, size: 0, mtime: 0, ctime: 0,
+      name: currentPath ? currentPath.split(/[\\/]/).pop() || currentPath : 'Home'
+    });
+  });
+
+  // ── Focus tracking ────────────────────────────────────────
+  function setFocusedPane(pane) {
+    focusedPaneEl = pane;
+    document.querySelectorAll('.pane').forEach(p =>
+      p.classList.toggle('pane-focused', p === pane)
+    );
   }
 
+  // Called by tree: navigate the currently focused pane
+  function navigateFocused(path) {
+    const pane2 = document.getElementById('pane-2');
+    if (focusedPaneEl !== pane1 && focusedPaneEl?._explorer) {
+      focusedPaneEl._explorer.navigate(path);
+    } else {
+      navigate(path);
+    }
+  }
+
+  // Open a path in the split pane (creating it if needed)
+  function openInSplit(path) {
+    let pane2 = document.getElementById('pane-2');
+    if (!pane2) {
+      Panels.addPane();
+      pane2 = document.getElementById('pane-2');
+    }
+    if (pane2?._explorer) pane2._explorer.navigate(path);
+  }
+
+  // Called by panels.js when the last extra pane is removed
+  function setFocusToPrimary() {
+    setFocusedPane(pane1);
+  }
+
+  // Nav listeners — called after every navigation (used by Git panel etc.)
+  const _navListeners = [];
+  function addNavListener(fn) { _navListeners.push(fn); }
+  function getCurrentPath()   { return currentPath; }
+
   // ── Navigation ──────────────────────────────────────────
+  // Core navigation work without touching app or browser history
+  async function _go(path) {
+    currentPath = path;
+    selected.clear();
+    lastClickedPath = null;
+    await loadDir(path);
+    updateBreadcrumb(path);
+    updateNavButtons();
+    updateStatus();
+    if (path) Tree.expandTo(path);
+    if (activeTabId) {
+      Tabs.updateName(activeTabId, path ? path.split(/[\\/]/).pop() || path : 'Home', path);
+    }
+    document.getElementById('status-path').textContent = path || 'Home';
+    _navListeners.forEach(fn => { try { fn(path); } catch {} });
+  }
+
   async function navigate(path, tabId) {
     if (tabId) activeTabId = tabId;
     if (path !== currentPath) {
       history = history.slice(0, historyIdx + 1);
       history.push(path);
       historyIdx = history.length - 1;
+      window.history.pushState({ de_idx: historyIdx }, '');
     }
-    currentPath = path;
-    selected.clear();
-    await loadDir(path);
-    updateBreadcrumb(path);
-    updateNavButtons();
-    updateStatus();
-    if (activeTabId) {
-      Tabs.updateName(activeTabId, path ? path.split(/[\\/]/).pop() || path : 'Home', path);
-    }
-    document.getElementById('status-path').textContent = path || 'Home';
+    await _go(path);
   }
 
   async function loadDir(path) {
@@ -50,12 +152,8 @@ const Explorer = (() => {
     }
   }
 
-  function goBack() {
-    if (historyIdx > 0) { historyIdx--; navigate(history[historyIdx]); }
-  }
-  function goForward() {
-    if (historyIdx < history.length - 1) { historyIdx++; navigate(history[historyIdx]); }
-  }
+  function goBack()    { if (historyIdx > 0)                  window.history.back(); }
+  function goForward() { if (historyIdx < history.length - 1) window.history.forward(); }
   function goUp() {
     if (!currentPath) return;
     const parts = currentPath.split(/[\\/]/);
@@ -79,28 +177,50 @@ const Explorer = (() => {
       bc.appendChild(span);
       return;
     }
-    const parts = path.replace(/\\/g, '/').split('/').filter(Boolean);
-    // root (drive or /)
-    const rootLabel = path.match(/^([A-Za-z]:)/) ? path.match(/^([A-Za-z]:)/)[1] + '\\' : '/';
 
-    const rootCrumb = document.createElement('span');
-    rootCrumb.className = 'crumb';
-    rootCrumb.textContent = rootLabel;
-    rootCrumb.addEventListener('click', () => navigate(rootLabel));
-    bc.appendChild(rootCrumb);
+    // Detect Windows drive root (e.g. "C:") vs Unix root ("/")
+    const winMatch = path.match(/^([A-Za-z]:)/);
+    let rootLabel, rootPath, segments;
+    if (winMatch) {
+      rootLabel = winMatch[1] + '\\';
+      rootPath  = winMatch[1] + '\\';
+      // strip "C:" then split on either separator
+      segments  = path.slice(2).split(/[\\/]+/).filter(Boolean);
+    } else {
+      rootLabel = '/';
+      rootPath  = '/';
+      segments  = path.split(/[\\/]+/).filter(Boolean);
+    }
 
-    parts.forEach((part, i) => {
+    const makeCrumb = (label, targetPath, isLast) => {
+      const c = document.createElement('span');
+      c.className = 'crumb' + (isLast ? ' last' : '');
+      c.textContent = label;
+      if (!isLast) {
+        c.addEventListener('click', (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          navigate(targetPath);
+        });
+      }
+      return c;
+    };
+
+    bc.appendChild(makeCrumb(rootLabel, rootPath, segments.length === 0));
+
+    let accum = rootPath;
+    segments.forEach((seg, i) => {
       const sep = document.createElement('span');
       sep.className = 'crumb-sep';
       sep.textContent = '›';
       bc.appendChild(sep);
 
-      const crumb = document.createElement('span');
-      crumb.className = 'crumb' + (i === parts.length - 1 ? ' last' : '');
-      crumb.textContent = part;
-      const crumbPath = path.replace(/\\/g, '/').split('/').slice(0, i + 2).join('/') || '/';
-      crumb.addEventListener('click', () => navigate(crumbPath));
-      bc.appendChild(crumb);
+      // Build the absolute path up to this segment
+      accum = winMatch
+        ? (i === 0 ? rootPath + seg : accum + '\\' + seg)
+        : (accum === '/' ? '/' + seg : accum + '/' + seg);
+      const isLast = i === segments.length - 1;
+      bc.appendChild(makeCrumb(seg, accum, isLast));
     });
   }
 
@@ -108,10 +228,34 @@ const Explorer = (() => {
   function setView(v) {
     view = v;
     localStorage.setItem('de_view', v);
+    State.set('view', v);
     document.querySelectorAll('[data-view]').forEach(b =>
       b.classList.toggle('active', b.dataset.view === v));
     renderView();
   }
+
+  // Restore view/sort from state when it first loads
+  State.onReady(() => {
+    const sv = State.get('view', null);
+    const ss = State.get('sort', null);
+    if (sv && sv !== view) { view = sv; localStorage.setItem('de_view', sv); }
+    if (ss) { sortKey = ss.key; sortAsc = ss.asc; }
+    const sm = State.get('mosaicSize', null);
+    if (sm) { mosaicCols = sm; localStorage.setItem('de_mosaic_cols', sm); }
+  });
+
+  // Live-sync from other devices
+  State.onChange('view', (v) => {
+    if (!v || v === view) return;
+    view = v; localStorage.setItem('de_view', v);
+    document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === v));
+    if (items.length) renderView();
+  });
+  State.onChange('sort', (s) => {
+    if (!s) return;
+    sortKey = s.key; sortAsc = s.asc;
+    if (items.length) { items = sortItems(items); renderView(); }
+  });
 
   function renderView() {
     if (view === 'mosaic')  renderMosaic();
@@ -147,7 +291,6 @@ const Explorer = (() => {
     const table = document.createElement('div');
     table.className = 'view-details';
 
-    // header
     const head = document.createElement('div');
     head.className = 'col-head';
     cols.forEach(col => {
@@ -157,6 +300,7 @@ const Explorer = (() => {
       th.innerHTML = col.label + (sortKey === col.key ? `<span class="sort-arrow">${sortAsc ? '▲' : '▼'}</span>` : '');
       th.addEventListener('click', () => {
         if (sortKey === col.key) sortAsc = !sortAsc; else { sortKey = col.key; sortAsc = true; }
+        State.set('sort', { key: sortKey, asc: sortAsc });
         items = sortItems(items);
         renderDetails();
       });
@@ -176,7 +320,8 @@ const Explorer = (() => {
         if (col.key === 'name') {
           cell.innerHTML = `<div class="cell-name"><span class="file-icon">${fileIcon(item)}</span><span>${escHtml(item.name)}</span></div>`;
         } else if (col.key === 'size') {
-          cell.textContent = item.isDir ? '—' : formatSize(item.size);
+          if (item.isDir) { cell.textContent = '…'; cell.dataset.sizeFor = item.path; }
+          else cell.textContent = formatSize(item.size);
         } else if (col.key === 'ext') {
           cell.textContent = item.ext ? item.ext.replace('.','') : (item.isDir ? 'folder' : '—');
         } else if (col.key === 'mtime' || col.key === 'ctime') {
@@ -187,6 +332,13 @@ const Explorer = (() => {
 
       attachRowEvents(row, item);
       table.appendChild(row);
+    });
+
+    // Fetch folder sizes asynchronously after table is built
+    table.querySelectorAll('[data-size-for]').forEach(cell => {
+      WS.send('fs:folder-size', { path: cell.dataset.sizeFor })
+        .then(r => { cell.textContent = formatSize(r.size); })
+        .catch(() => { cell.textContent = '—'; });
     });
 
     wrap.appendChild(table);
@@ -218,17 +370,18 @@ const Explorer = (() => {
   function renderMosaic() {
     pane1.innerHTML = '';
 
-    // slider
     const sliderWrap = document.createElement('div');
     sliderWrap.className = 'mosaic-slider-wrap';
-    sliderWrap.innerHTML = `<span style="color:var(--text-muted);font-size:.75rem">Size</span>
-      <input type="range" min="80" max="400" value="${mosaicRowH}" style="flex:1;accent-color:var(--accent)">
-      <span style="color:var(--text-muted);font-size:.75rem">${mosaicRowH}px</span>`;
+    sliderWrap.innerHTML = `<span style="color:var(--text-muted);font-size:.75rem">Per row</span>
+      <input type="range" min="1" max="8" value="${mosaicCols}" style="flex:1;accent-color:var(--accent)">
+      <span style="color:var(--text-muted);font-size:.75rem">${mosaicCols}</span>`;
     const slider = sliderWrap.querySelector('input');
     const label  = sliderWrap.querySelector('span:last-child');
     slider.addEventListener('input', () => {
-      mosaicRowH = parseInt(slider.value);
-      label.textContent = mosaicRowH + 'px';
+      mosaicCols = parseInt(slider.value);
+      label.textContent = mosaicCols;
+      localStorage.setItem('de_mosaic_cols', mosaicCols);
+      State.set('mosaicSize', mosaicCols);
       layoutMosaic(mosaicContainer);
     });
 
@@ -241,66 +394,64 @@ const Explorer = (() => {
     layoutMosaic(mosaicContainer);
   }
 
+  const GALLERY_IMG_EXTS = new Set(['.jpg','.jpeg','.png','.gif','.webp','.avif','.bmp']);
+  const GALLERY_VID_EXTS = new Set(['.mp4','.webm','.mov','.mkv','.avi','.m4v']);
+
   function layoutMosaic(container) {
     container.innerHTML = '';
     const containerW = container.clientWidth || 800;
-    const rowH = mosaicRowH;
-    const gap = 3;
+    const tileW = Math.round((containerW - 3 * (mosaicCols - 1)) / mosaicCols);
 
-    // group items into rows
-    let rowItems = [];
-    let rowW = 0;
+    const sorted = [...items]
+      .filter(item => !item.isDir && (
+        GALLERY_IMG_EXTS.has((item.ext || '').toLowerCase()) ||
+        GALLERY_VID_EXTS.has((item.ext || '').toLowerCase())
+      ))
+      .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
 
-    const flush = () => {
-      if (!rowItems.length) return;
-      const row = document.createElement('div');
-      row.className = 'mosaic-row';
-      row.style.setProperty('--row-height', rowH + 'px');
-      rowItems.forEach(({ item, ratio }) => {
-        const tile = makeMosaicTile(item, ratio, rowH);
-        row.appendChild(tile);
-      });
-      container.appendChild(row);
-      rowItems = [];
-      rowW = 0;
-    };
+    if (!sorted.length) {
+      container.innerHTML = '<div style="padding:2rem;color:var(--text-muted);font-size:.85rem;text-align:center">No images or videos in this folder</div>';
+      return;
+    }
 
-    items.forEach(item => {
-      const ratio = getAspectRatio(item);
-      const w = Math.round(ratio * rowH);
-      if (rowW + w + gap > containerW && rowItems.length) flush();
-      rowItems.push({ item, ratio });
-      rowW += w + gap;
-    });
-    flush();
+    container.style.gridTemplateColumns = `repeat(${mosaicCols}, 1fr)`;
+
+    sorted.forEach(item => container.appendChild(makeMosaicTile(item, tileW)));
   }
 
-  function getAspectRatio(item) {
-    if (item.isDir) return 1;
-    const ext = (item.ext || '').toLowerCase();
-    if (['.jpg','.jpeg','.png','.gif','.webp'].includes(ext)) return 4/3;
-    if (['.mp4','.webm','.mov'].includes(ext)) return 16/9;
-    return 1; // square for code/other
-  }
-
-  function makeMosaicTile(item, ratio, rowH) {
+  function makeMosaicTile(item, tileW) {
     const tile = document.createElement('div');
     tile.className = 'mosaic-item' + (selected.has(item.path) ? ' selected' : '');
-    tile.style.width = Math.round(ratio * rowH) + 'px';
     tile.dataset.path = item.path;
 
     const token = localStorage.getItem('de_token') || '';
-    const ext = (item.ext || '').toLowerCase();
-    const isMedia = ['.jpg','.jpeg','.png','.gif','.webp','.avif','.mp4','.webm','.mov'].includes(ext);
+    const ext   = (item.ext || '').toLowerCase();
+    const src    = `/thumbnail?path=${encodeURIComponent(item.path)}&width=${Math.round(tileW * 1.5)}&token=${token}`;
 
-    if (!item.isDir && isMedia) {
+    const loader = document.createElement('div');
+    loader.className = 'mosaic-loader';
+    tile.appendChild(loader);
+
+    const removeLoader = () => { if (loader.parentNode) loader.remove(); };
+
+    if (GALLERY_VID_EXTS.has(ext)) {
+      const vid = document.createElement('video');
+      vid.autoplay = true;
+      vid.muted    = true;
+      vid.loop     = true;
+      vid.setAttribute('playsinline', '');
+      vid.preload  = 'auto';
+      vid.src      = src;
+      vid.addEventListener('loadeddata', removeLoader, { once: true });
+      vid.onerror  = () => { removeLoader(); vid.replaceWith(makeIconTile(item)); };
+      tile.appendChild(vid);
+    } else {
       const img = document.createElement('img');
       img.loading = 'lazy';
-      img.src = `/thumbnail?path=${encodeURIComponent(item.path)}&width=${Math.round(ratio * rowH * 1.5)}&token=${token}`;
-      img.onerror = () => { img.replaceWith(makeIconTile(item)); };
+      img.src     = src;
+      img.addEventListener('load', removeLoader, { once: true });
+      img.onerror = () => { removeLoader(); img.replaceWith(makeIconTile(item)); };
       tile.appendChild(img);
-    } else {
-      tile.appendChild(makeIconTile(item));
     }
 
     const label = document.createElement('div');
@@ -322,23 +473,71 @@ const Explorer = (() => {
   // ── Row interaction ──────────────────────────────────────
   function attachRowEvents(el, item) {
     el.addEventListener('click', (e) => {
-      if (!e.ctrlKey && !e.shiftKey) selected.clear();
-      if (e.ctrlKey) {
+      setFocusedPane(pane1);
+      if (e.shiftKey && lastClickedPath !== null) {
+        const allPaths = items.map(i => i.path);
+        const a = allPaths.indexOf(lastClickedPath);
+        const b = allPaths.indexOf(item.path);
+        if (a !== -1 && b !== -1) {
+          if (!e.ctrlKey) selected.clear();
+          const [lo, hi] = [Math.min(a, b), Math.max(a, b)];
+          for (let i = lo; i <= hi; i++) selected.add(allPaths[i]);
+        }
+      } else if (e.ctrlKey) {
         selected.has(item.path) ? selected.delete(item.path) : selected.add(item.path);
+        lastClickedPath = item.path;
       } else {
+        selected.clear();
         selected.add(item.path);
+        lastClickedPath = item.path;
       }
       updateSelectionUI();
       updateStatus();
     });
 
     el.addEventListener('dblclick', () => {
-      if (item.isDir) navigate(item.path);
-      else Preview.open(item);
+      if (item.isDir) {
+        navigate(item.path);
+      } else {
+        const ext = (item.ext || '').replace('.', '').toLowerCase();
+        if (['exe','msi','bat','cmd','com','ps1','sh','app'].includes(ext)) {
+          WS.send('fs:exec', { path: item.path });
+        } else {
+          Preview.open(item, items);
+        }
+      }
     });
+
+    // Touch: double-tap → context menu; single-tap → open/navigate
+    let _lastTap = 0, _tapTimer = null;
+    const _openItem = () => {
+      if (item.isDir) { navigate(item.path); return; }
+      const ext = (item.ext || '').replace('.', '').toLowerCase();
+      if (['exe','msi','bat','cmd','com','ps1','sh','app'].includes(ext)) WS.send('fs:exec', { path: item.path });
+      else Preview.open(item, items);
+    };
+    el.addEventListener('touchmove', () => {
+      if (_tapTimer) { clearTimeout(_tapTimer); _tapTimer = null; _lastTap = 0; }
+    }, { passive: true });
+    el.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      const now = Date.now(), touch = e.changedTouches[0];
+      if (now - _lastTap < 280) {
+        if (_tapTimer) { clearTimeout(_tapTimer); _tapTimer = null; }
+        _lastTap = 0;
+        setFocusedPane(pane1);
+        if (!selected.has(item.path)) { selected.clear(); selected.add(item.path); updateSelectionUI(); }
+        showContextMenu(touch.clientX, touch.clientY, item);
+      } else {
+        _lastTap = now;
+        _tapTimer = setTimeout(() => { _tapTimer = null; _lastTap = 0; _openItem(); }, 280);
+      }
+    }, { passive: false });
 
     el.addEventListener('contextmenu', (e) => {
       e.preventDefault();
+      e.stopPropagation();
+      setFocusedPane(pane1);
       if (!selected.has(item.path)) { selected.clear(); selected.add(item.path); updateSelectionUI(); }
       showContextMenu(e.clientX, e.clientY, item);
     });
@@ -364,44 +563,78 @@ const Explorer = (() => {
     input.focus();
     input.select();
 
+    let committed = false;
+
     const commit = async () => {
+      if (committed) return;
+      committed = true;
       const newName = input.value.trim();
+      // Optimistic: replace input with new name immediately — no waiting for server
+      const span = document.createElement('span');
+      span.textContent = (newName && newName !== orig) ? newName : orig;
+      input.replaceWith(span);
       if (newName && newName !== orig) {
-        try { await WS.send('fs:rename', { path: item.path, name: newName }); } catch (e) { alert(e.message); }
+        try { await WS.send('fs:rename', { path: item.path, name: newName }); }
+        catch (e) { alert(e.message); span.textContent = orig; }
+        refresh();
       }
-      refresh();
     };
+
     input.addEventListener('blur', commit);
     input.addEventListener('keydown', e => {
-      if (e.key === 'Enter') { e.preventDefault(); commit(); }
-      if (e.key === 'Escape') { e.preventDefault(); refresh(); }
+      if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        committed = true;
+        const span = document.createElement('span');
+        span.textContent = orig;
+        input.replaceWith(span);
+      }
     });
   }
 
   // ── Context menu ─────────────────────────────────────────
   function showContextMenu(x, y, item) {
-    const sel = Array.from(selected);
+    const sel   = Array.from(selected);
     const multi = sel.length > 1;
+    const ext   = (item.ext || '').replace('.', '').toLowerCase();
+    const isExec = !multi && !item.isDir &&
+      ['exe','msi','bat','cmd','com','ps1','sh','app'].includes(ext);
+    const isZip  = !multi && !item.isDir && ext === 'zip';
 
     const menuItems = [
-      { label: multi ? `Open all (${sel.length})` : 'Open', action: () => { if (item.isDir) navigate(item.path); else Preview.open(item); } },
-      !multi && { label: 'Open in new tab',   action: () => Tabs.create(item.name, item.path) },
-      !multi && { label: 'Open in split pane', action: () => { Panels.toggleRight(); Preview.open(item); } },
+      { label: multi ? `Open all (${sel.length})` : 'Open',
+        action: () => { if (item.isDir) navigate(item.path); else Preview.open(item, items); } },
+      !multi && { label: 'Open in new tab',                         action: () => Tabs.create(item.name, item.isDir ? item.path : parentOf(item.path)) },
+      !multi && { label: '⊞ Open in split panel',                  action: () => openInSplit(item.isDir ? item.path : parentOf(item.path)) },
+      !multi && !item.isDir && { label: 'Preview',                 action: () => Preview.open(item, items) },
+      isExec                 && { label: '▶ Run',                  action: () => WS.send('fs:exec', { path: item.path }) },
+      isZip                  && { label: '📂 Extract here',        action: () => extractZipHere(item.path) },
+      isZip                  && { label: '📂 Extract to...',       action: () => extractZipTo(item.path) },
       'sep',
       { label: '🖥 Open terminal here', action: () => Term.openHere(item.isDir ? item.path : parentOf(item.path)) },
       { label: '🔍 Search from here',   action: () => Search.showFromPath(item.isDir ? item.path : parentOf(item.path)) },
       'sep',
       { label: '✂ Cut',      action: () => Clipboard.set(sel, 'cut') },
       { label: '⎘ Copy',     action: () => Clipboard.set(sel, 'copy') },
-      { label: '⬇ Download', action: () => Clipboard.download(sel) },
+      (!item.isDir && !multi) && { label: '⬇ Download',            action: () => Clipboard.download(sel) },
+      (item.isDir && !multi)  && { label: '📦 Download as ZIP',    action: () => downloadAsZip([item.path], item.name + '.zip') },
+      multi                   && { label: '📦 Download as ZIP',    action: () => downloadAsZip(sel) },
+      (item.isDir && !multi)  && { label: '🗜 Zip here',           action: () => zipHere([item.path], item.name + '.zip') },
+      multi                   && { label: '🗜 Zip selected',       action: () => zipHere(sel) },
       { label: '📋 Paste',   action: () => Clipboard.paste(currentPath) },
       'sep',
       !multi && { label: '✏ Rename (F2)', action: () => startRename(item) },
+      'sep',
+      !multi && { label: 'Copy name',        action: () => navigator.clipboard.writeText(item.name) },
+      !multi && { label: 'Copy path',        action: () => navigator.clipboard.writeText(item.path) },
+      !multi && !item.isDir && { label: 'Copy folder path', action: () => navigator.clipboard.writeText(parentOf(item.path)) },
+      'sep',
       { label: '📁 New folder',           action: () => newFolder() },
       { label: '🗑 Delete',  cls: 'danger', action: () => deleteSelected() },
       'sep',
       !multi && { label: '📌 Bookmark',   action: () => Bookmarks.add(item.path, item.name) },
-      !multi && { label: 'ℹ Properties',  action: () => Preview.open(item) }
+      !multi && { label: 'ℹ Properties',  action: () => Preview.showProperties(item) }
     ].filter(Boolean);
 
     ctxMenu.innerHTML = '';
@@ -422,6 +655,9 @@ const Explorer = (() => {
     ctxMenu.style.left = x + 'px';
     ctxMenu.style.top  = y + 'px';
     ctxMenu.classList.add('visible');
+    const r = ctxMenu.getBoundingClientRect();
+    if (r.right  > window.innerWidth)  ctxMenu.style.left = Math.max(0, x - r.width)  + 'px';
+    if (r.bottom > window.innerHeight) ctxMenu.style.top  = Math.max(0, y - r.height) + 'px';
   }
 
   function hideContextMenu() { ctxMenu.classList.remove('visible'); }
@@ -448,6 +684,44 @@ const Explorer = (() => {
 
   function refresh() { loadDir(currentPath); }
 
+  // ── Zip helpers ───────────────────────────────────────────
+  function downloadAsZip(paths, name) {
+    const token = localStorage.getItem('de_token') || '';
+    const n = name || 'archive.zip';
+    const a = document.createElement('a');
+    a.href = `/zip-download?paths=${encodeURIComponent(JSON.stringify(paths))}&name=${encodeURIComponent(n)}&token=${encodeURIComponent(token)}`;
+    a.download = n;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
+  async function zipHere(paths, name) {
+    if (!currentPath) { alert('Navigate to a folder first.'); return; }
+    const n = name || `archive-${Date.now()}.zip`;
+    try {
+      await WS.send('zip:create', { paths, outputPath: currentPath + '/' + n });
+      refresh();
+    } catch (e) { alert('Failed to create zip: ' + e.message); }
+  }
+
+  async function extractZipHere(zipPath) {
+    try {
+      await WS.send('zip:extract', { path: zipPath, dest: parentOf(zipPath) });
+      refresh();
+    } catch (e) { alert('Extraction failed: ' + e.message); }
+  }
+
+  async function extractZipTo(zipPath) {
+    const dest = prompt('Extract to:', parentOf(zipPath));
+    if (dest) {
+      try {
+        await WS.send('zip:extract', { path: zipPath, dest });
+        refresh();
+      } catch (e) { alert('Extraction failed: ' + e.message); }
+    }
+  }
+
   // ── Status bar ────────────────────────────────────────────
   function updateStatus() {
     const el = document.getElementById('status-items');
@@ -456,6 +730,133 @@ const Explorer = (() => {
     } else {
       el.textContent = `${items.length} items`;
     }
+  }
+
+  // ── Split pane mini-explorer ──────────────────────────────
+  function renderInPane(pane, initialPath) {
+    let paneCurrentPath = null;
+    let paneItems       = [];
+
+    async function paneNavigate(p) {
+      paneCurrentPath = p;
+      // Update path indicator
+      const pathText = pane.querySelector('.pane-path-text');
+      if (pathText) pathText.textContent = p || 'Home';
+
+      try {
+        const result = await WS.send('fs:list', p ? { path: p } : {});
+        paneItems = result.sort((a, b) => {
+          if (a.isDir !== b.isDir) return b.isDir - a.isDir;
+          return String(a.name).toLowerCase().localeCompare(String(b.name).toLowerCase());
+        });
+        renderPaneList();
+        Panels.saveSplitState();
+      } catch (e) {
+        const body = pane.querySelector('.pane-body');
+        if (body) body.innerHTML = `<p style="padding:1rem;color:var(--danger)">Error: ${e.message}</p>`;
+      }
+    }
+
+    function renderPaneList() {
+      const body = pane.querySelector('.pane-body');
+      if (!body) return;
+      body.innerHTML = '';
+
+      const wrap = document.createElement('div');
+      wrap.className = 'file-pane';
+      const list = document.createElement('div');
+      list.className = 'view-list';
+
+      paneItems.forEach(item => {
+        const row = document.createElement('div');
+        row.className = 'file-row';
+        row.dataset.path = item.path;
+        row.innerHTML = `<span class="file-icon">${fileIcon(item)}</span><span>${escHtml(item.name)}</span>`;
+
+        row.addEventListener('click', (e) => {
+          setFocusedPane(pane);
+          body.querySelectorAll('.file-row').forEach(r => r.classList.remove('selected'));
+          row.classList.add('selected');
+          Tree.setSelected(item.isDir ? item.path : paneCurrentPath);
+          e.stopPropagation();
+        });
+
+        row.addEventListener('dblclick', () => {
+          if (item.isDir) {
+            paneNavigate(item.path);
+          } else {
+            const ext = (item.ext || '').replace('.', '').toLowerCase();
+            if (['exe','msi','bat','cmd','com','ps1','sh','app'].includes(ext)) {
+              WS.send('fs:exec', { path: item.path });
+            } else {
+              Preview.open(item, paneItems);
+            }
+          }
+        });
+
+        // Touch: double-tap → context menu; single-tap → open/navigate
+        let _lastPTap = 0, _pTapTimer = null;
+        const _pOpen = () => {
+          if (item.isDir) { paneNavigate(item.path); return; }
+          const ext = (item.ext || '').replace('.', '').toLowerCase();
+          if (['exe','msi','bat','cmd','com','ps1','sh','app'].includes(ext)) WS.send('fs:exec', { path: item.path });
+          else Preview.open(item, paneItems);
+        };
+        row.addEventListener('touchmove', () => {
+          if (_pTapTimer) { clearTimeout(_pTapTimer); _pTapTimer = null; _lastPTap = 0; }
+        }, { passive: true });
+        row.addEventListener('touchend', (e) => {
+          e.preventDefault();
+          const now = Date.now(), touch = e.changedTouches[0];
+          if (now - _lastPTap < 280) {
+            if (_pTapTimer) { clearTimeout(_pTapTimer); _pTapTimer = null; }
+            _lastPTap = 0;
+            setFocusedPane(pane);
+            showContextMenu(touch.clientX, touch.clientY, item);
+          } else {
+            _lastPTap = now;
+            _pTapTimer = setTimeout(() => { _pTapTimer = null; _lastPTap = 0; _pOpen(); }, 280);
+          }
+        }, { passive: false });
+
+        row.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          setFocusedPane(pane);
+          showContextMenu(e.clientX, e.clientY, item);
+        });
+
+        list.appendChild(row);
+      });
+
+      wrap.appendChild(list);
+      body.appendChild(wrap);
+    }
+
+    // Build pane structure
+    pane.innerHTML = '';
+    const bar = document.createElement('div');
+    bar.className = 'pane-pathbar';
+    bar.innerHTML = `<span class="pane-path-text">${initialPath || 'Home'}</span>
+      <button class="pane-close-btn" title="Close pane">✕</button>`;
+    bar.querySelector('.pane-close-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      Panels.removePane(pane);
+    });
+
+    const body = document.createElement('div');
+    body.className = 'pane-body';
+
+    pane.appendChild(bar);
+    pane.appendChild(body);
+
+    pane.addEventListener('mousedown', () => setFocusedPane(pane));
+
+    pane._explorer = {
+      navigate: paneNavigate,
+      get currentPath() { return paneCurrentPath; }
+    };
+
+    paneNavigate(initialPath);
   }
 
   // ── Keyboard shortcuts ────────────────────────────────────
@@ -507,7 +908,6 @@ const Explorer = (() => {
     btn.addEventListener('click', () => setView(btn.dataset.view))
   );
 
-  // Upload handler
   document.getElementById('upload-input').addEventListener('change', async (e) => {
     const form = new FormData();
     Array.from(e.target.files).forEach(f => form.append('files', f));
@@ -534,11 +934,6 @@ const Explorer = (() => {
   });
 
   // ── Helpers ───────────────────────────────────────────────
-  function renderInPane(pane, path) {
-    // used for split pane — minimal independent pane
-    pane.innerHTML = '<p style="padding:1rem;color:var(--text-muted)">Navigate to a folder.</p>';
-  }
-
   function parentOf(p) { return p.split(/[\\/]/).slice(0,-1).join('/') || '/'; }
   function fileIcon(item) {
     if (item.isDir) return '📁';
@@ -549,6 +944,7 @@ const Explorer = (() => {
     if (['.pdf'].includes(ext)) return '📕';
     if (['.zip','.rar','.7z','.tar','.gz'].includes(ext)) return '🗜';
     if (['.js','.ts','.py','.rb','.go','.rs'].includes(ext)) return '📝';
+    if (['.exe','.msi','.bat','.cmd','.sh'].includes(ext)) return '⚙';
     return '📄';
   }
   function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -560,5 +956,16 @@ const Explorer = (() => {
     return (b/1073741824).toFixed(1) + ' GB';
   }
 
-  return { navigate, refresh, renderInPane };
+  setView(view);
+
+  // Intercept browser back/forward to drive app navigation
+  window.history.replaceState({ de_idx: -1 }, '');
+  window.addEventListener('popstate', (e) => {
+    const idx = e.state?.de_idx ?? -1;
+    if (idx < 0 || idx >= history.length) return;
+    historyIdx = idx;
+    _go(history[idx]);
+  });
+
+  return { navigate, refresh, renderInPane, navigateFocused, openInSplit, setFocusToPrimary, showContextMenu, addNavListener, getCurrentPath };
 })();

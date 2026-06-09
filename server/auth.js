@@ -34,7 +34,9 @@ function validateToken(token) {
   if (!token) return null;
   const device = db.prepare('SELECT * FROM devices WHERE token = ?').get(token);
   if (!device) return null;
-  db.prepare('UPDATE devices SET last_seen = ? WHERE id = ?').run(Date.now(), device.id);
+  try {
+    db.prepare('UPDATE devices SET last_seen = ? WHERE id = ?').run(Date.now(), device.id);
+  } catch { /* non-critical — skip if DB busy */ }
   return device;
 }
 
