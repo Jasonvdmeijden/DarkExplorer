@@ -105,6 +105,9 @@ app.get('/serve', requireAuth, async (req, res) => {
   try {
     const stat = await files.stat(filePath);
     res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(stat.name)}"`);
+    if (stat.name.toLowerCase().endsWith('.pdf')) {
+      res.setHeader('Content-Type', 'application/pdf');
+    }
     res.sendFile(filePath);
   } catch { res.status(404).json({ error: 'Not found' }); }
 });
@@ -168,6 +171,7 @@ wss.on('connection', (ws, req) => {
     let msg;
     try { msg = JSON.parse(raw); } catch { return; }
     const { id, type, payload } = msg;
+
     const reply = (data, error) => {
       if (ws.readyState === WebSocket.OPEN)
         ws.send(JSON.stringify({ id, type, ok: !error, data, error }));
@@ -204,6 +208,10 @@ async function handle(type, payload, reply, ws, device) {
     case 'fs:copy':   await files.copy(payload.sources, payload.dest); reply({ ok: true }); break;
     case 'fs:move':   await files.move(payload.sources, payload.dest); reply({ ok: true }); break;
     case 'fs:rename': reply({ path: await files.rename(payload.path, payload.name) }); break;
+    case 'fs:duplicate': reply({ path: await files.duplicate(payload.path) }); break;
+    case 'fs:set-tag':  reply(files.setTag(payload.path, payload.color, payload.label)); broadcastAll(JSON.stringify({ type: 'tags:update', data: { path: payload.path, color: payload.color, label: payload.label } })); break;
+    case 'fs:get-tags':  reply(files.getTags(payload.paths)); break;
+    case 'fs:list-tags': reply(files.listTags()); break;
     case 'fs:roots':  reply(files.roots().map(r => ({ name: r, path: r, isDir: true }))); break;
 
     case 'fs:exec': {

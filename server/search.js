@@ -1,7 +1,8 @@
 const fs  = require('fs');
 const fsp = require('fs/promises');
 const path = require('path');
-const { execSync } = require('child_process');
+const os = require('os');
+const { execSync, fork } = require('child_process');
 const db = require('./db');
 const config = require('./config');
 
@@ -119,7 +120,13 @@ function startWatcher() {
     return [];
   }
 
-  const roots = ['/'];
+  const roots = [os.homedir()];
+  // On Mac/Linux, also try to watch project root if it is outside home
+  const projRoot = path.resolve(__dirname, '..');
+  if (!projRoot.startsWith(os.homedir())) {
+    roots.push(projRoot);
+  }
+
   const watchers = roots.map(root => {
     let watcher;
     try {
@@ -140,7 +147,7 @@ function startWatcher() {
     return watcher;
   });
 
-  const indexer = fork(path.join(__dirname, 'indexer.js'), [], { stdio: 'ignore' });
+  const indexer = fork(path.join(__dirname, 'indexer.js'), [], { stdio: ['ignore', 'inherit', 'inherit', 'ipc'] });
   indexer.on('error', (e) => console.error('[indexer]', e.message));
 
   return watchers;
@@ -168,12 +175,16 @@ function trigrams(s) {
 }
 
 function searchFilename(query, limit = 50) {
-  const rows = db.prepare('SELECT path, name, ext, size, mtime, is_dir, searchable FROM files').all();
+  // Narrow down candidates using SQL LIKE first to avoid processing millions of rows in JS
+  const pattern = `%${query}%`;
+  const rows = db.prepare('SELECT path, name, ext, size, mtime, is_dir, searchable FROM files WHERE searchable LIKE ?').all(pattern);
+  
+  // If we have too many matches, still score them to show the best ones first
   const scored = rows
     .map(r => ({ ...r, score: trigramScore(r.searchable, query) }))
-    .filter(r => r.score > 0.1)
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
+    
   return scored.map(({ score: _s, searchable: _t, ...r }) => r);
 }
 

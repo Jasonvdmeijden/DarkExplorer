@@ -57,6 +57,13 @@ db.exec(`
     value      TEXT NOT NULL,
     updated_at INTEGER NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS tags (
+    path       TEXT PRIMARY KEY,
+    color      TEXT,
+    label      TEXT,
+    updated_at INTEGER NOT NULL
+  );
 `);
 
 // Migrations for schema additions

@@ -36,7 +36,9 @@ const Preview = (() => {
     'pdf', 'docx', 'doc', 'odt',
     'xlsx', 'xls', 'xlsm', 'ods',
     'pptx', 'ppt', 'odp',
-    'zip'
+    'zip', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'svg', 'bmp', 'ico', 'tiff', 'tif',
+    'mp4', 'webm', 'mov', 'mkv', 'avi', 'm4v', '3gp', 'flv', 'ogv',
+    'mp3', 'ogg', 'wav', 'flac', 'aac', 'm4a', 'm4b', 'opus'
   ]);
 
   const editBtn = document.getElementById('btn-preview-edit');
@@ -45,11 +47,11 @@ const Preview = (() => {
 
   // File types with no useful plain-text content (suppress Edit button)
   const BINARY_EXTS = new Set([
-    'jpg','jpeg','png','gif','webp','avif','svg','bmp',
-    'mp4','webm','mov','mkv','avi','m4v',
-    'mp3','ogg','wav','flac','aac',
+    'jpg','jpeg','png','gif','webp','avif','svg','bmp','ico','tiff','tif',
+    'mp4','webm','mov','mkv','avi','m4v','3gp','flv','ogv',
+    'mp3','ogg','wav','flac','aac','m4a','m4b','opus','mid',
     'pdf','docx','doc','odt','xlsx','xls','xlsm','ods','pptx','ppt','odp',
-    'zip','rar','7z','tar','gz','exe','msi','dll'
+    'zip','rar','7z','tar','gz','exe','msi','dll','app','dmg','pkg'
   ]);
 
   async function open(fileStat, newNavItems) {
@@ -154,12 +156,12 @@ const Preview = (() => {
     content.style.flexDirection = '';
 
     if (currentFile.url) return renderUrl();
-    if (['jpg','jpeg','png','gif','webp','avif','svg','bmp'].includes(ext)) return renderImage();
-    if (['mp4','webm','mov','mkv','avi','m4v'].includes(ext))               return renderVideo();
-    if (['mp3','ogg','wav','flac','aac'].includes(ext))                      return renderAudio();
-    if (ext === 'pdf')                                                        return renderPdf();
-    if (ext === 'csv')                                                        return renderCsv();
-    if (ext === 'md')                                                         return renderMarkdown();
+    if (['jpg','jpeg','png','gif','webp','avif','svg','bmp','ico','tiff','tif'].includes(ext)) return renderImage();
+    if (['mp4','webm','mov','mkv','avi','m4v','3gp','flv','ogv'].includes(ext))               return renderVideo();
+    if (['mp3','ogg','wav','flac','aac','m4a','m4b','opus'].includes(ext))                    return renderAudio();
+    if (ext === 'pdf')                                                                        return renderPdf();
+    if (ext === 'csv')                                                                        return renderCsv();
+    if (ext === 'md')                                                                         return renderMarkdown();
     if (ext === 'html' || ext === 'htm') {
       if (currentMode === 'rich') return renderHtmlIframe();
       return renderCode(ext);
@@ -292,10 +294,15 @@ const Preview = (() => {
     content.style.padding  = '0';
     content.style.overflow = 'hidden';
     const iframe = document.createElement('iframe');
-    // /serve sends Content-Disposition: inline so the browser renders the PDF
-    iframe.src = `/serve?path=${encodeURIComponent(currentFile.path)}&token=${token}`;
-    iframe.style.cssText = 'width:100%;height:100%;border:none;display:block';
+    iframe.src = `/serve?path=${encodeURIComponent(currentFile.path)}&token=${token}#toolbar=1&navpanes=0&scrollbar=1`;
+    iframe.style.cssText = 'width:100%;height:100%;border:none;display:block;background:#fff';
     content.appendChild(iframe);
+    
+    // Add a small helper message for browsers that might block the iframe
+    const helper = document.createElement('div');
+    helper.style.cssText = 'position:absolute;bottom:10px;right:10px;font-size:10px;color:#888;pointer-events:none';
+    helper.textContent = 'Use native viewer if preview fails';
+    content.appendChild(helper);
   }
 
   async function renderCsv() {
@@ -775,9 +782,9 @@ const Preview = (() => {
   function fileIcon(fileStat) {
     if (fileStat.isDir) return '📁';
     const ext = (fileStat.ext || '').replace('.', '').toLowerCase();
-    if (['jpg','jpeg','png','gif','webp','avif','svg','bmp'].includes(ext)) return '🖼';
-    if (['mp4','webm','mov','mkv','avi','m4v'].includes(ext)) return '🎬';
-    if (['mp3','ogg','wav','flac','aac'].includes(ext)) return '🎵';
+    if (['jpg','jpeg','png','gif','webp','avif','svg','bmp','ico'].includes(ext)) return '🖼';
+    if (['mp4','webm','mov','mkv','avi','m4v','3gp','flv','ogv'].includes(ext)) return '🎬';
+    if (['mp3','ogg','wav','flac','aac','m4a','m4b','opus'].includes(ext)) return '🎵';
     if (ext === 'pdf') return '📕';
     if (['docx','doc','odt'].includes(ext)) return '📝';
     if (['xlsx','xls','xlsm','ods','csv'].includes(ext)) return '📊';
@@ -785,7 +792,8 @@ const Preview = (() => {
     if (['zip','rar','7z','tar','gz'].includes(ext)) return '🗜';
     if (['html','htm'].includes(ext)) return '🌐';
     if (ext === 'md') return '📋';
-    if (['js','ts','jsx','tsx','py','rb','go','rs','java','c','cpp','h','cs','php'].includes(ext)) return '📝';
+    if (['js','ts','jsx','tsx','py','rb','go','rs','java','c','cpp','h','cs','php','sh','bash','zsh','sql','json','yaml','yml','xml','toml'].includes(ext)) return '📝';
+    if (['exe','msi','bat','cmd','app','dmg','pkg'].includes(ext)) return '⚙';
     return '📄';
   }
 

@@ -72,7 +72,9 @@ const Term = (() => {
       lineHeight: isMobile ? 1.1 : 1.2,
       fontFamily: "'JetBrains Mono', 'Cascadia Code', 'SF Mono', Menlo, Monaco, Consolas, 'DejaVu Sans Mono', 'Ubuntu Mono', monospace",
       cursorBlink: true,
-      allowProposedApi: true
+      allowProposedApi: true,
+      scrollback: 5000,
+      overviewRulerWidth: 10
     });
 
     if (window.FitAddon) {
@@ -138,11 +140,10 @@ const Term = (() => {
   async function open(cwd) {
     Panels.showBottom();
 
-    // If we think we have a session, verify it's still alive
+    // Always destroy existing session to ensure a "fresh" start as requested
     if (sid) {
-      const ok = await _verifySid(sid);
-      if (!ok) sid = null;
-      else { requestAnimationFrame(_safeFit); return; }
+      await WS.send('terminal:destroy', { sid }).catch(() => {});
+      sid = null;
     }
 
     requestAnimationFrame(() => requestAnimationFrame(async () => {

@@ -100,6 +100,48 @@ async function move(sources, destDir) {
 async function rename(filePath, newName) {
   const dest = path.join(path.dirname(filePath), newName);
   await fsp.rename(filePath, dest);
+  // Update tags if renamed
+  const db = require('./db');
+  db.prepare('UPDATE tags SET path = ? WHERE path = ?').run(dest, filePath);
+  return dest;
+}
+
+function setTag(path, color, label) {
+  const db = require('./db');
+  if (!color && !label) {
+    db.prepare('DELETE FROM tags WHERE path = ?').run(path);
+  } else {
+    db.prepare('INSERT OR REPLACE INTO tags (path, color, label, updated_at) VALUES (?, ?, ?, ?)')
+      .run(path, color || null, label || null, Date.now());
+  }
+  return { ok: true };
+}
+
+function getTags(paths) {
+  const db = require('./db');
+  const placeholders = paths.map(() => '?').join(',');
+  return db.prepare(`SELECT * FROM tags WHERE path IN (${placeholders})`).all(paths);
+}
+
+function listTags() {
+  const db = require('./db');
+  return db.prepare('SELECT * FROM tags').all();
+}
+
+async function duplicate(filePath) {
+  const dir = path.dirname(filePath);
+  const ext = path.extname(filePath);
+  const base = path.basename(filePath, ext);
+  let name = `${base} copy${ext}`;
+  let dest = path.join(dir, name);
+  let counter = 1;
+
+  while (fs.existsSync(dest)) {
+    name = `${base} copy ${++counter}${ext}`;
+    dest = path.join(dir, name);
+  }
+
+  await copyEntry(filePath, dest);
   return dest;
 }
 
@@ -184,4 +226,4 @@ async function folderSize(dirPath) {
   });
 }
 
-module.exports = { list, stat, read, readBinary, write, mkdir, remove, copy, move, rename, roots, folderSize };
+module.exports = { list, stat, read, readBinary, write, mkdir, remove, copy, move, rename, duplicate, setTag, getTags, listTags, roots, folderSize };

@@ -11,6 +11,9 @@ const Explorer = (() => {
   let mosaicCols  = parseInt(localStorage.getItem('de_mosaic_cols') || '4');
   let activeTabId     = null;
   let lastClickedPath = null;
+  let tagMap      = new Map(); // path -> { color, label }
+  let filterText  = '';
+  let colorFilter = null; // null or color hex
 
   const pane1   = (() => { const d = document.createElement('div'); d.className = 'pane'; d.id = 'pane-1'; return d; })();
   const ctxMenu = document.getElementById('context-menu');
@@ -20,6 +23,13 @@ const Explorer = (() => {
 
   document.getElementById('panes').appendChild(pane1);
   pane1.addEventListener('mousedown', () => setFocusedPane(pane1));
+
+  WS.on('tags:update', (data) => {
+    if (data.color || data.label) tagMap.set(data.path, data);
+    else tagMap.delete(data.path);
+    renderView();
+    if (window.Tree && Tree.updateTags) Tree.updateTags(tagMap);
+  });
 
   // Drag-to-select rectangle
   pane1.addEventListener('mousedown', (e) => {
@@ -144,7 +154,15 @@ const Explorer = (() => {
 
   async function loadDir(path) {
     try {
-      const result = await WS.send('fs:list', path ? { path } : {});
+      const [result, tags] = await Promise.all([
+        WS.send('fs:list', path ? { path } : {}),
+        WS.send('fs:list-tags', {})
+      ]);
+      
+      tagMap.clear();
+      tags.forEach(t => tagMap.set(t.path, t));
+      if (window.Tree && Tree.updateTags) Tree.updateTags(tagMap);
+
       items = sortItems(result);
       renderView();
     } catch (e) {
@@ -264,7 +282,16 @@ const Explorer = (() => {
   }
 
   function sortItems(arr) {
-    return [...arr].sort((a, b) => {
+    let filtered = arr;
+    if (filterText) {
+      const low = filterText.toLowerCase();
+      filtered = filtered.filter(i => i.name.toLowerCase().includes(low));
+    }
+    if (colorFilter) {
+      filtered = filtered.filter(i => tagMap.get(i.path)?.color === colorFilter);
+    }
+
+    return [...filtered].sort((a, b) => {
       if (a.isDir !== b.isDir) return b.isDir - a.isDir;
       let va = a[sortKey] ?? '', vb = b[sortKey] ?? '';
       if (typeof va === 'string') va = va.toLowerCase();
@@ -275,13 +302,16 @@ const Explorer = (() => {
   }
 
   // ── Details view ─────────────────────────────────────────
+  let columnWidths = JSON.parse(localStorage.getItem('de_column_widths') || '{}');
+  if (!columnWidths.name) columnWidths = { name: '40%', size: '10%', ext: '10%', mtime: '20%', ctime: '20%' };
+
   function renderDetails() {
     const cols = [
-      { key: 'name', label: 'Name', width: '40%' },
-      { key: 'size', label: 'Size', width: '10%' },
-      { key: 'ext',  label: 'Type', width: '10%' },
-      { key: 'mtime',label: 'Modified', width: '20%' },
-      { key: 'ctime',label: 'Created', width: '20%' }
+      { key: 'name', label: 'Name', width: columnWidths.name },
+      { key: 'size', label: 'Size', width: columnWidths.size },
+      { key: 'ext',  label: 'Type', width: columnWidths.ext },
+      { key: 'mtime',label: 'Modified', width: columnWidths.mtime },
+      { key: 'ctime',label: 'Created', width: columnWidths.ctime }
     ];
 
     pane1.innerHTML = '';
@@ -293,22 +323,72 @@ const Explorer = (() => {
 
     const head = document.createElement('div');
     head.className = 'col-head';
-    cols.forEach(col => {
+    cols.forEach((col, idx) => {
       const th = document.createElement('div');
       th.className = 'col-h';
       th.style.width = col.width;
-      th.innerHTML = col.label + (sortKey === col.key ? `<span class="sort-arrow">${sortAsc ? '▲' : '▼'}</span>` : '');
-      th.addEventListener('click', () => {
+      th.dataset.key = col.key;
+      th.innerHTML = `<span>${col.label}</span>` + (sortKey === col.key ? `<span class="sort-arrow">${sortAsc ? '▲' : '▼'}</span>` : '');
+      
+      th.addEventListener('click', (e) => {
+        if (e.target.closest('.col-resizer')) return;
         if (sortKey === col.key) sortAsc = !sortAsc; else { sortKey = col.key; sortAsc = true; }
         State.set('sort', { key: sortKey, asc: sortAsc });
         items = sortItems(items);
         renderDetails();
       });
+
+      // Add resizer handle
+      if (idx < cols.length - 1) {
+        const resizer = document.createElement('div');
+        resizer.className = 'col-resizer';
+        resizer.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const startX = e.clientX;
+          const startWidth = th.offsetWidth;
+          const nextTh = th.nextElementSibling;
+          const nextStartWidth = nextTh.offsetWidth;
+          resizer.classList.add('resizing');
+
+          const onMove = (moveEvent) => {
+            const delta = moveEvent.clientX - startX;
+            const newWidth = Math.max(50, startWidth + delta);
+            const totalWidth = table.offsetWidth;
+            
+            // Convert to percentages for responsive behavior
+            const p1 = (newWidth / totalWidth) * 100;
+            const p2 = ((nextStartWidth - delta) / totalWidth) * 100;
+            
+            if (p2 > 5) {
+              th.style.width = p1 + '%';
+              nextTh.style.width = p2 + '%';
+              columnWidths[col.key] = p1 + '%';
+              columnWidths[nextTh.dataset.key] = p2 + '%';
+            }
+          };
+
+          const onUp = () => {
+            resizer.classList.remove('resizing');
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+            localStorage.setItem('de_column_widths', JSON.stringify(columnWidths));
+            // Re-render to ensure all rows match the new header widths
+            renderDetails();
+          };
+
+          document.addEventListener('mousemove', onMove);
+          document.addEventListener('mouseup', onUp);
+        });
+        th.appendChild(resizer);
+      }
+
       head.appendChild(th);
     });
     table.appendChild(head);
 
-    items.forEach(item => {
+    const sortedItems = sortItems(items);
+    sortedItems.forEach(item => {
       const row = document.createElement('div');
       row.className = 'file-row' + (selected.has(item.path) ? ' selected' : '');
       row.dataset.path = item.path;
@@ -318,7 +398,7 @@ const Explorer = (() => {
         cell.className = 'cell' + (col.key !== 'name' ? ' cell-muted' : '');
         cell.style.width = col.width;
         if (col.key === 'name') {
-          cell.innerHTML = `<div class="cell-name"><span class="file-icon">${fileIcon(item)}</span><span>${escHtml(item.name)}</span></div>`;
+          cell.innerHTML = `<div class="cell-name">${getTagDot(item)}<span class="file-icon">${fileIcon(item)}</span><span class="file-name-text">${escHtml(item.name)}</span></div>`;
         } else if (col.key === 'size') {
           if (item.isDir) { cell.textContent = '…'; cell.dataset.sizeFor = item.path; }
           else cell.textContent = formatSize(item.size);
@@ -353,11 +433,12 @@ const Explorer = (() => {
     const list = document.createElement('div');
     list.className = 'view-list';
 
-    items.forEach(item => {
+    const sortedItems = sortItems(items);
+    sortedItems.forEach(item => {
       const row = document.createElement('div');
       row.className = 'file-row' + (selected.has(item.path) ? ' selected' : '');
       row.dataset.path = item.path;
-      row.innerHTML = `<span class="file-icon">${fileIcon(item)}</span><span>${escHtml(item.name)}</span>`;
+      row.innerHTML = `${getTagDot(item)}<span class="file-icon">${fileIcon(item)}</span><span>${escHtml(item.name)}</span>`;
       attachRowEvents(row, item);
       list.appendChild(row);
     });
@@ -402,7 +483,8 @@ const Explorer = (() => {
     const containerW = container.clientWidth || 800;
     const tileW = Math.round((containerW - 3 * (mosaicCols - 1)) / mosaicCols);
 
-    const sorted = [...items]
+    const filtered = sortItems(items);
+    const sorted = filtered
       .filter(item => !item.isDir && (
         GALLERY_IMG_EXTS.has((item.ext || '').toLowerCase()) ||
         GALLERY_VID_EXTS.has((item.ext || '').toLowerCase())
@@ -602,6 +684,9 @@ const Explorer = (() => {
       ['exe','msi','bat','cmd','com','ps1','sh','app'].includes(ext);
     const isZip  = !multi && !item.isDir && ext === 'zip';
 
+    const tag = tagMap.get(item.path);
+    const colors = ['#ff5f56', '#ffbd2e', '#27c93f', '#42a5f5', '#a29bfe', '#abb2bf'];
+
     const menuItems = [
       { label: multi ? `Open all (${sel.length})` : 'Open',
         action: () => { if (item.isDir) navigate(item.path); else Preview.open(item, items); } },
@@ -625,6 +710,15 @@ const Explorer = (() => {
       { label: '📋 Paste',   action: () => Clipboard.paste(currentPath) },
       'sep',
       !multi && { label: '✏ Rename (F2)', action: () => startRename(item) },
+      !multi && { label: '📑 Duplicate',    action: () => WS.send('fs:duplicate', { path: item.path }).then(() => refresh()) },
+      'sep',
+      { label: '🏷 Tag Color:', type: 'label' },
+      { 
+        type: 'colors',
+        colors: colors,
+        active: tag?.color,
+        onSelect: (c) => WS.send('fs:set-tag', { path: item.path, color: c === tag?.color ? null : c }).then(() => refresh())
+      },
       'sep',
       !multi && { label: 'Copy name',        action: () => navigator.clipboard.writeText(item.name) },
       !multi && { label: 'Copy path',        action: () => navigator.clipboard.writeText(item.path) },
@@ -643,6 +737,26 @@ const Explorer = (() => {
         const sep = document.createElement('li');
         sep.className = 'ctx-sep';
         ctxMenu.appendChild(sep);
+        return;
+      }
+      if (m.type === 'label') {
+        const li = document.createElement('li');
+        li.className = 'ctx-label';
+        li.textContent = m.label;
+        ctxMenu.appendChild(li);
+        return;
+      }
+      if (m.type === 'colors') {
+        const li = document.createElement('li');
+        li.className = 'ctx-colors';
+        m.colors.forEach(c => {
+          const dot = document.createElement('span');
+          dot.className = 'color-dot' + (m.active === c ? ' active' : '');
+          dot.style.background = c;
+          dot.addEventListener('click', (e) => { e.stopPropagation(); m.onSelect(c); hideContextMenu(); });
+          li.appendChild(dot);
+        });
+        ctxMenu.appendChild(li);
         return;
       }
       const li = document.createElement('li');
@@ -664,6 +778,16 @@ const Explorer = (() => {
 
   document.addEventListener('click', hideContextMenu);
   document.addEventListener('keydown', e => { if (e.key === 'Escape') hideContextMenu(); });
+
+  function setFilter(text) {
+    filterText = text;
+    renderView();
+  }
+
+  function setColorFilter(color) {
+    colorFilter = color;
+    renderView();
+  }
 
   // ── File operations ───────────────────────────────────────
   async function newFolder() {
@@ -808,14 +932,14 @@ const Explorer = (() => {
         row.addEventListener('touchend', (e) => {
           e.preventDefault();
           const now = Date.now(), touch = e.changedTouches[0];
-          if (now - _lastPTap < 280) {
+          if (now - _lastTap < 280) {
             if (_pTapTimer) { clearTimeout(_pTapTimer); _pTapTimer = null; }
-            _lastPTap = 0;
+            _lastTap = 0;
             setFocusedPane(pane);
             showContextMenu(touch.clientX, touch.clientY, item);
           } else {
-            _lastPTap = now;
-            _pTapTimer = setTimeout(() => { _pTapTimer = null; _lastPTap = 0; _pOpen(); }, 280);
+            _lastTap = now;
+            _pTapTimer = setTimeout(() => { _pTapTimer = null; _lastTap = 0; _pOpen(); }, 280);
           }
         }, { passive: false });
 
@@ -903,6 +1027,55 @@ const Explorer = (() => {
   document.getElementById('btn-up').addEventListener('click', goUp);
   document.getElementById('btn-theme').addEventListener('click', () => Theme.toggle());
   document.getElementById('btn-new-folder').addEventListener('click', newFolder);
+  
+  const btnFilter = document.getElementById('btn-filter');
+  if (btnFilter) {
+    btnFilter.addEventListener('click', (e) => {
+      showFilterMenu(e.clientX, e.clientY);
+    });
+  }
+
+  function showFilterMenu(x, y) {
+    const colors = ['#ff5f56', '#ffbd2e', '#27c93f', '#42a5f5', '#a29bfe', '#abb2bf'];
+    const menu = document.createElement('div');
+    menu.className = 'filter-menu';
+    menu.style.cssText = `position:fixed; left:${x}px; top:${y}px; background:var(--bg-surface); border:1px solid var(--border); border-radius:var(--radius-md); box-shadow:var(--shadow-lg); z-index:1000; padding:.5rem; min-width:180px`;
+    
+    let html = `
+      <div style="margin-bottom:.5rem">
+        <input type="text" id="filter-input" placeholder="Filter by name..." value="${filterText}" 
+          style="width:100%; background:var(--bg-base); border:1px solid var(--border); color:var(--text-primary); padding:.3rem; border-radius:3px; outline:none; font-size:.8rem">
+      </div>
+      <div style="font-size:.7rem; color:var(--text-muted); margin-bottom:.3rem">Filter by Color:</div>
+      <div class="ctx-colors" style="justify-content:flex-start; padding:0">
+        <span class="color-dot ${!colorFilter ? 'active' : ''}" style="background:#888" data-color="clear"></span>
+    `;
+    colors.forEach(c => {
+      html += `<span class="color-dot ${colorFilter === c ? 'active' : ''}" style="background:${c}" data-color="${c}"></span>`;
+    });
+    html += `</div>`;
+    menu.innerHTML = html;
+    document.body.appendChild(menu);
+
+    const input = menu.querySelector('#filter-input');
+    input.focus();
+    input.addEventListener('input', (e) => {
+      setFilter(e.target.value);
+    });
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === 'Escape') menu.remove(); });
+
+    menu.querySelectorAll('.color-dot').forEach(dot => {
+      dot.addEventListener('click', () => {
+        const c = dot.dataset.color;
+        setColorFilter(c === 'clear' ? null : c);
+        menu.remove();
+      });
+    });
+
+    const closeHandler = (e) => { if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener('mousedown', closeHandler); } };
+    setTimeout(() => document.addEventListener('mousedown', closeHandler), 10);
+  }
+
   document.getElementById('btn-upload').addEventListener('click', () => document.getElementById('upload-input').click());
   document.querySelectorAll('[data-view]').forEach(btn =>
     btn.addEventListener('click', () => setView(btn.dataset.view))
@@ -936,16 +1109,27 @@ const Explorer = (() => {
   // ── Helpers ───────────────────────────────────────────────
   function parentOf(p) { return p.split(/[\\/]/).slice(0,-1).join('/') || '/'; }
   function fileIcon(item) {
-    if (item.isDir) return '📁';
+    const tag = tagMap.get(item.path);
+    const colorStyle = tag?.color ? `style="color:${tag.color};filter:drop-shadow(0 0 2px ${tag.color}66)"` : '';
+
+    if (item.isDir) return `<span ${colorStyle}>📁</span>`;
     const ext = (item.ext || '').toLowerCase();
-    if (['.jpg','.jpeg','.png','.gif','.webp','.svg'].includes(ext)) return '🖼';
-    if (['.mp4','.webm','.mov','.avi'].includes(ext)) return '🎬';
-    if (['.mp3','.ogg','.wav','.flac'].includes(ext)) return '🎵';
-    if (['.pdf'].includes(ext)) return '📕';
-    if (['.zip','.rar','.7z','.tar','.gz'].includes(ext)) return '🗜';
-    if (['.js','.ts','.py','.rb','.go','.rs'].includes(ext)) return '📝';
-    if (['.exe','.msi','.bat','.cmd','.sh'].includes(ext)) return '⚙';
-    return '📄';
+    let icon = '📄';
+    if (['.jpg','.jpeg','.png','.gif','.webp','.svg'].includes(ext)) icon = '🖼';
+    else if (['.mp4','.webm','.mov','.avi'].includes(ext)) icon = '🎬';
+    else if (['.mp3','.ogg','.wav','.flac'].includes(ext)) icon = '🎵';
+    else if (ext === '.pdf') icon = '📕';
+    else if (['.zip','.rar','.7z','.tar','.gz'].includes(ext)) icon = '🗜';
+    else if (['.js','.ts','.py','.rb','.go','.rs'].includes(ext)) icon = '📝';
+    else if (['.exe','.msi','.bat','.cmd','.sh'].includes(ext)) icon = '⚙';
+
+    return `<span ${colorStyle}>${icon}</span>`;
+  }
+
+  function getTagDot(item) {
+    const tag = tagMap.get(item.path);
+    if (!tag?.color) return '';
+    return `<span class="tag-dot" style="background:${tag.color}"></span>`;
   }
   function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   function formatSize(b) {
@@ -967,5 +1151,5 @@ const Explorer = (() => {
     _go(history[idx]);
   });
 
-  return { navigate, refresh, renderInPane, navigateFocused, openInSplit, setFocusToPrimary, showContextMenu, addNavListener, getCurrentPath };
+  return { navigate, refresh, renderInPane, navigateFocused, openInSplit, setFocusToPrimary, showContextMenu, addNavListener, getCurrentPath, setFilter, setColorFilter };
 })();

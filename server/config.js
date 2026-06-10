@@ -9,13 +9,16 @@ const DEFAULTS = {
     'http://localhost:3322'
   ],
   shell: {
-    windows: 'cmd',
-    linux: 'bash',
-    mac: 'zsh'
+    windows: 'cmd.exe',
+    linux: '/bin/bash',
+    mac: '/bin/zsh'
   },
   search: {
     maxFileSizeBytes: 524288,
-    exclusions: ['node_modules', '.git', 'dist', 'build', '__pycache__', '*.min.js', '*.min.css']
+    exclusions: [
+      'node_modules', '.git', 'dist', 'build', '__pycache__', '*.min.js', '*.min.css',
+      'Library', 'Applications', 'System', 'Volumes', '.Trash', 'Developer'
+    ]
   },
   thumbnails: {
     rowHeight: 200,

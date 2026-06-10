@@ -38,6 +38,13 @@ const Search = (() => {
     document.getElementById('search-term').addEventListener('input', debounce(run, 600));
     document.getElementById('search-close').addEventListener('click', hide);
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && visible) hide(); });
+    
+    // Close on click outside
+    document.addEventListener('mousedown', e => {
+      if (visible && panel && !panel.contains(e.target) && !e.target.closest('#btn-search')) {
+        hide();
+      }
+    });
   }
 
   function show() {
@@ -129,6 +136,11 @@ const Search = (() => {
         const dest = item.isDir ? item.path : parentPath(item.path);
         Explorer.navigate(dest);
       });
+      el.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        Explorer.showContextMenu(e.clientX, e.clientY, item);
+      });
       results.appendChild(el);
     });
   }
@@ -144,6 +156,18 @@ const Search = (() => {
         header.style.cssText = 'padding:.3rem .75rem .1rem;font-size:.78rem;color:var(--accent);font-weight:600;cursor:pointer';
         header.textContent = item.path;
         header.addEventListener('click', () => { hide(); Explorer.navigate(parentPath(item.path)); });
+        header.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          // For content search, we need to synthesize a file object for the context menu
+          const fileObj = {
+            path: item.path,
+            name: item.path.split(/[\\/]/).pop(),
+            isDir: false,
+            ext: '.' + item.path.split('.').pop()
+          };
+          Explorer.showContextMenu(e.clientX, e.clientY, fileObj);
+        });
         results.appendChild(header);
       }
       const el = document.createElement('div');
@@ -152,6 +176,14 @@ const Search = (() => {
         <span style="color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(item.text)}</span>`;
       el.addEventListener('mouseenter', () => el.style.background = 'var(--bg-hover)');
       el.addEventListener('mouseleave', () => el.style.background = '');
+      el.addEventListener('click', () => {
+        hide();
+        Explorer.navigate(parentPath(item.path));
+        // Small delay to ensure navigation completes before preview
+        setTimeout(() => {
+          Preview.open({ path: item.path, name: item.path.split(/[\\/]/).pop(), isDir: false });
+        }, 100);
+      });
       results.appendChild(el);
     });
   }

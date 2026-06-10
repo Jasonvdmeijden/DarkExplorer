@@ -41,9 +41,12 @@ const Tree = (() => {
     toggle.className = 'tree-toggle';
     toggle.textContent = '▶';
 
+    const tag = explorerTagMap?.get(path);
+    const colorStyle = tag?.color ? `style="color:${tag.color}"` : '';
+
     const label = document.createElement('span');
     label.className = 'tree-label';
-    label.textContent = '📁 ' + name;
+    label.innerHTML = `<span class="tree-icon" ${colorStyle}>📁</span> ` + name;
 
     node.append(toggle, label);
     wrapper.appendChild(node);
@@ -117,6 +120,20 @@ const Tree = (() => {
       n.classList.toggle('selected', n.dataset.path === path);
     });
   }
+
+  function updateTags(tagMap) {
+    explorerTagMap = tagMap;
+    panel.querySelectorAll('.tree-node').forEach(node => {
+      const path = node.dataset.path;
+      const tag = tagMap.get(path);
+      const icon = node.querySelector('.tree-icon');
+      if (icon) {
+        icon.style.color = tag?.color || '';
+      }
+    });
+  }
+
+  let explorerTagMap = null;
 
   async function expandTo(path) {
     if (!path) return;

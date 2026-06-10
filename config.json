@@ -6,9 +6,9 @@
     "http://localhost:3322"
   ],
   "shell": {
-    "windows": "cmd",
-    "linux": "bash",
-    "mac": "zsh"
+    "windows": "cmd.exe",
+    "linux": "/bin/bash",
+    "mac": "/bin/zsh"
   },
   "search": {
     "maxFileSizeBytes": 524288,

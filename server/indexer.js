@@ -7,11 +7,12 @@
  */
 const fsp  = require('fs/promises');
 const path = require('path');
+const os = require('os');
 const { execSync } = require('child_process');
 
 // Open DB directly (not via the shared db module, which belongs to the main process)
 const Database = require('better-sqlite3');
-const dbPath = path.join(__dirname, '..', 'data', 'explorer.db');
+const dbPath = path.join(__dirname, '..', 'data', 'darkexplorer.db');
 const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
 db.pragma('busy_timeout = 10000');
@@ -51,6 +52,13 @@ function formatSize(bytes) {
 
 function isExcluded(filePath) {
   const excl = config.search.exclusions;
+  const name = path.basename(filePath);
+  
+  // Skip hidden files/folders on Unix-like systems
+  if (process.platform !== 'win32' && name.startsWith('.') && name !== '.') {
+    return true;
+  }
+
   const parts = filePath.split(/[\\/]/);
   for (const rule of excl) {
     if (rule.startsWith('*.')) {
@@ -101,7 +109,13 @@ function getRoots() {
       return out.split('\n').map(l=>l.trim()).filter(l=>/^[A-Z]:$/.test(l)).map(d=>d+'\\');
     } catch { return ['C:\\']; }
   }
-  return ['/'];
+  const roots = [];
+  const projRoot = path.resolve(__dirname, '..');
+  roots.push(projRoot); // Project files first
+
+  const home = os.homedir();
+  if (!roots.includes(home)) roots.push(home);
+  return roots;
 }
 
 async function crawl(dirPath) {
@@ -121,9 +135,15 @@ async function crawl(dirPath) {
 }
 
 (async () => {
+  // Clear the files table for a fresh start on Mac/Linux when exclusions change
+  if (process.platform !== 'win32') {
+    db.prepare('DELETE FROM files').run();
+  }
+
   const roots = getRoots();
   console.log(`[indexer] starting — roots: ${roots.join(', ')}`);
   for (const root of roots) {
+    console.log(`[indexer] crawling ${root}...`);
     await crawl(root);
   }
   flush(); // final partial batch

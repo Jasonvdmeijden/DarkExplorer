@@ -1,5 +1,7 @@
 const { spawn } = require('child_process');
 const os = require('os');
+const path = require('path');
+const fs = require('fs');
 
 let pty;
 try { pty = require('node-pty'); } catch { pty = null; }
@@ -10,8 +12,8 @@ function defaultShell() {
   const config = require('./config');
   const p = process.platform;
   if (p === 'win32') return config.shell.windows || 'cmd.exe';
-  if (p === 'darwin') return config.shell.mac || 'bash';
-  return config.shell.linux || 'bash';
+  if (p === 'darwin') return config.shell.mac || '/bin/zsh';
+  return config.shell.linux || '/bin/bash';
 }
 
 function shellArgs(shell) {
@@ -30,24 +32,72 @@ function resolveShell(name) {
 }
 
 function create(id, { cwd, shell: shellName, cols = 80, rows = 24, onData, onExit }) {
+  if (sessions.has(id)) {
+    destroy(id);
+  }
+
   const shell = resolveShell(shellName);
   const args  = shellArgs(shell);
+  const spawnCwd = cwd || os.homedir();
+  const isMac = process.platform === 'darwin';
 
-  if (pty) {
-    const proc = pty.spawn(shell, args, {
-      name: 'xterm-256color',
-      cols,
-      rows,
-      cwd: cwd || os.homedir(),
-      env: process.env
+  if (pty && !isMac) {
+    try {
+      const proc = pty.spawn(shell, args, {
+        name: 'xterm-256color',
+        cols,
+        rows,
+        cwd: spawnCwd,
+        env: process.env
+      });
+      proc.onData(onData);
+      proc.onExit(({ exitCode }) => onExit(exitCode));
+      sessions.set(id, { type: 'pty', proc, shell });
+    } catch (err) {
+      console.error(`[terminal] pty.spawn failed: ${err.message}`);
+      onData(`\r\n[Error: ${err.message}]\r\n`);
+      if (onExit) onExit(1);
+    }
+  } else if (isMac) {
+    // Mac Bridge: Use Python to create a real PTY since node-pty is failing.
+    // This provides the native zsh prompt and interactive features.
+    const pythonCmd = `import pty, os; os.chdir("${spawnCwd}"); pty.spawn("${shell}")`;
+    const proc = spawn('python3', ['-c', pythonCmd], {
+      env: { ...process.env, TERM: 'xterm-256color' },
+      stdio: ['pipe', 'pipe', 'pipe']
     });
-    proc.onData(onData);
-    proc.onExit(({ exitCode }) => onExit(exitCode));
-    sessions.set(id, { type: 'pty', proc, shell });
+
+    const session = { type: 'bridge', shell, cwd: spawnCwd, proc, onData, onExit };
+    sessions.set(id, session);
+
+    proc.stdout.on('data', d => onData(d.toString().replace(/\n/g, '\r\n')));
+    proc.stderr.on('data', d => onData(d.toString().replace(/\n/g, '\r\n')));
+    proc.on('exit', code => {
+      onData(`\r\n[Terminal session finished]\r\n`);
+      if (onExit) onExit(code);
+      sessions.delete(id);
+    });
+
+    // Auto-clear to hide initial startup noise
+    setTimeout(() => {
+      proc.stdin.write('clear\n');
+    }, 500);
   } else {
-    // fallback: command runner (no true PTY)
-    sessions.set(id, { type: 'runner', shell, cwd: cwd || os.homedir(), onData, onExit });
-    onData(`[PTY unavailable — command runner mode]\r\n${shell}> `);
+    // Linux/Other Fallback
+    const proc = spawn(shell, ['-i'], {
+      cwd: spawnCwd,
+      env: { ...process.env, TERM: 'xterm-256color' },
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+    const session = { type: 'runner', shell, cwd: spawnCwd, proc, onData, onExit, _buf: '' };
+    sessions.set(id, session);
+    proc.stdout.on('data', d => onData(d.toString().replace(/\n/g, '\r\n')));
+    proc.stderr.on('data', d => onData(d.toString().replace(/\n/g, '\r\n')));
+    proc.on('exit', code => {
+      onData(`\r\n[Process exited]\r\n`);
+      if (onExit) onExit(code);
+      sessions.delete(id);
+    });
   }
 }
 
@@ -56,31 +106,23 @@ function input(id, data) {
   if (!s) return;
   if (s.type === 'pty') {
     s.proc.write(data);
+  } else if (s.type === 'bridge') {
+    // Python PTY bridge handles echo and everything else naturally
+    if (data === '\r' || data === '\n') {
+      s.proc.stdin.write('\n');
+    } else {
+      s.proc.stdin.write(data);
+    }
   } else {
-    // command runner: accumulate until newline
-    if (!s._buf) s._buf = '';
-    s._buf += data;
-    if (s._buf.includes('\n') || s._buf.includes('\r')) {
-      const cmd = s._buf.trim();
-      s._buf = '';
-      runCommand(s, cmd);
+    // basic runner fallback
+    if (data === '\r' || data === '\n') {
+      s.onData('\r\n');
+      s.proc.stdin.write('\n');
+    } else {
+      s.onData(data);
+      s.proc.stdin.write(data);
     }
   }
-}
-
-function runCommand(session, cmd) {
-  const { shell, cwd, onData, onExit } = session;
-  const isWin = process.platform === 'win32';
-  const proc = spawn(
-    isWin ? 'cmd.exe' : shell,
-    isWin ? ['/c', cmd] : ['-c', cmd],
-    { cwd, env: process.env, shell: false }
-  );
-  proc.stdout.on('data', d => onData(d.toString()));
-  proc.stderr.on('data', d => onData(d.toString()));
-  proc.on('close', code => {
-    onData(`\r\n${shell}> `);
-  });
 }
 
 function resize(id, cols, rows) {
@@ -91,23 +133,14 @@ function resize(id, cols, rows) {
 function switchShell(id, shellName) {
   const s = sessions.get(id);
   if (!s) return;
-  const { onData, onExit } = s.type === 'pty'
-    ? { onData: s.proc._listeners?.data?.[0], onExit: s.proc._listeners?.exit?.[0] }
-    : s;
   destroy(id);
-  // re-create with new shell, preserving callbacks
-  if (s.type === 'pty') {
-    // callbacks need to be passed again — caller handles this
-  }
   return resolveShell(shellName);
 }
 
 function destroy(id) {
   const s = sessions.get(id);
   if (!s) return;
-  if (s.type === 'pty') {
-    try { s.proc.kill(); } catch {}
-  }
+  try { s.proc.kill(); } catch {}
   sessions.delete(id);
 }
 
