@@ -1,0 +1,40 @@
+:root {
+  --bg-base:       #ffffff;
+  --bg-surface:    #e0e0e0;
+  --bg-panel:      #ececec;
+  --bg-hover:      #d4d4d4;
+  --bg-selected:   #c2c2c2;
+  --bg-active:     #b0b0b0;
+
+  --border:        #d8d8d8;
+  --border-focus:  #444444;
+
+  --text-primary:   #1a1a1a;
+  --text-secondary: #5a5a5a;
+  --text-muted:     #9c9c9c;
+  --text-inverse:   #fff;
+
+  --accent:         #444444;
+  --accent-hover:   #5d5d5d;
+  --accent-dim:     rgba(68,68,68,.12);
+  --accent-2:       #666666;
+  --accent-2-hover: #7e7e7e;
+
+  --danger:         #c92a2a;
+  --warn:           #a86a14;
+  --success:        #2c8a37;
+
+  --scrollbar-track: #ececec;
+  --scrollbar-thumb: #bbbbbb;
+  --scrollbar-thumb-hover: #444444;
+
+  --shadow:         0 4px 24px rgba(0,0,0,.08);
+  --shadow-sm:      0 2px 8px rgba(0,0,0,.06);
+
+  --radius:         8px;
+  --radius-sm:      5px;
+  --radius-lg:      12px;
+
+  --font-size:      13px;
+  --font-mono:      'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+}

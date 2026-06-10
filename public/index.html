@@ -17,7 +17,8 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <link id="hljs-dark"  rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <link id="hljs-light" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-light.min.css" disabled>
 </head>
 <body>
 
@@ -26,8 +27,6 @@
 
     <div class="toolbar-left">
       <button class="icon-btn" id="btn-toggle-tree" title="Toggle tree panel">☰</button>
-      <span class="logo-icon">⬡</span>
-      <span class="toolbar-sep"></span>
       <button class="icon-btn" id="btn-back"    title="Back (Alt+Left)">&#8592;</button>
       <button class="icon-btn" id="btn-forward" title="Forward (Alt+Right)">&#8594;</button>
       <button class="icon-btn" id="btn-up"      title="Up (Alt+Up)">&#8593;</button>
@@ -60,7 +59,16 @@
       </button>
       <button class="icon-btn" id="btn-upload"     title="Upload files">↑</button>
       <span class="toolbar-sep"></span>
-      <button class="icon-btn" id="btn-theme"        title="Theme">◑</button>
+      <button class="icon-btn" id="btn-theme"        title="Toggle dark / light">◑</button>
+      <button class="icon-btn" id="btn-theme-picker" title="Pick a theme">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 2C6.49 2 2 6.49 2 12s4.49 10 10 10c1.38 0 2.5-1.12 2.5-2.5 0-.61-.23-1.17-.64-1.6-.39-.41-.39-1.07.02-1.45.21-.2.5-.32.82-.32H16c3.31 0 6-2.69 6-6 0-4.96-4.49-9-10-9z"/>
+          <circle cx="6.5"  cy="12.5" r="1.2" fill="currentColor" stroke="none"/>
+          <circle cx="9.5"  cy="7.5"  r="1.2" fill="currentColor" stroke="none"/>
+          <circle cx="14.5" cy="7.5"  r="1.2" fill="currentColor" stroke="none"/>
+          <circle cx="17.5" cy="12.5" r="1.2" fill="currentColor" stroke="none"/>
+        </svg>
+      </button>
       <button class="icon-btn" id="btn-settings"     title="Settings">⚙</button>
     </div>
 

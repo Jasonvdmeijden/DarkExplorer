@@ -5,6 +5,34 @@ const Term = (() => {
   let sid      = null;
   let resizeObs = null;
 
+  // Build an xterm theme from the current page CSS vars so the terminal matches
+  // the active app theme (and in particular flips with the light/dark toggle).
+  function _themeForXterm() {
+    const s = getComputedStyle(document.documentElement);
+    const v = (n, fallback) => (s.getPropertyValue(n).trim() || fallback);
+    const mode = document.documentElement.dataset.mode || 'dark';
+    // Use --bg-base for background (the muted main-view colour) and --text-primary
+    // for foreground. Selection/cursor use the theme accent.
+    const bg = v('--bg-base', mode === 'light' ? '#ffffff' : '#12121a');
+    const fg = v('--text-primary', mode === 'light' ? '#1a1a2e' : '#e2e2f0');
+    const cursor = v('--accent', '#7c6ef5');
+    const selBg  = v('--accent-dim', 'rgba(124,110,245,.35)');
+    return {
+      background: bg,
+      foreground: fg,
+      cursor: cursor,
+      cursorAccent: bg,
+      selectionBackground: selBg,
+      selectionForeground: fg
+    };
+  }
+  // React to app theme changes — flip the xterm theme without reattaching the PTY
+  document.addEventListener('themechange', () => {
+    if (term) {
+      try { term.options.theme = _themeForXterm(); } catch {}
+    }
+  });
+
   WS.on('terminal:data', (d) => {
     if (d.sid !== sid) return;
     if (term) term.write(d.data);
@@ -67,7 +95,7 @@ const Term = (() => {
 
     const isMobile = window.innerWidth <= 768;
     term = new Terminal({
-      theme: { background: '#12121a', foreground: '#e2e2f0', cursor: '#7c6ef5' },
+      theme: _themeForXterm(),
       fontSize: isMobile ? 10 : 13,
       lineHeight: isMobile ? 1.1 : 1.2,
       fontFamily: "'JetBrains Mono', 'Cascadia Code', 'SF Mono', Menlo, Monaco, Consolas, 'DejaVu Sans Mono', 'Ubuntu Mono', monospace",

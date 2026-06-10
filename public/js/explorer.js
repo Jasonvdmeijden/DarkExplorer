@@ -1116,7 +1116,7 @@ const Explorer = (() => {
   document.getElementById('btn-back').addEventListener('click', goBack);
   document.getElementById('btn-forward').addEventListener('click', goForward);
   document.getElementById('btn-up').addEventListener('click', goUp);
-  document.getElementById('btn-theme').addEventListener('click', () => Theme.toggle());
+  // #btn-theme + #btn-theme-picker are wired by theme.js
   document.getElementById('btn-new-folder').addEventListener('click', newFolder);
   
   const btnFilter = document.getElementById('btn-filter');

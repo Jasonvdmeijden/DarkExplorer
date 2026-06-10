@@ -392,7 +392,7 @@ const Preview = (() => {
     const token = localStorage.getItem('de_token') || '';
     const slide = document.createElement('div');
     slide.className = 'preview-swipe-slide';
-    slide.style.cssText = 'flex:0 0 33.3333%;width:33.3333%;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#000;position:relative';
+    slide.style.cssText = 'flex:0 0 33.3333%;width:33.3333%;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;background:var(--bg-base);position:relative';
     if (!item) return slide;
 
     const ext = (item.ext || '').replace('.','').toLowerCase();
@@ -414,7 +414,7 @@ const Preview = (() => {
       // is silently rejected. With playsinline, fullscreen becomes opt-in (controls button).
       v.setAttribute('playsinline', '');
       v.setAttribute('webkit-playsinline', '');
-      v.style.cssText = 'max-width:100%;max-height:100%;width:100%;height:100%;object-fit:contain;background:#000';
+      v.style.cssText = 'max-width:100%;max-height:100%;width:100%;height:100%;object-fit:contain;background:var(--bg-base)';
       v.addEventListener('loadedmetadata', clearSpinner, { once: true });
       v.addEventListener('canplay',        clearSpinner, { once: true });
       // If direct serve fails, transparently retry through the transcoder.
@@ -448,7 +448,7 @@ const Preview = (() => {
       vid.autoplay    = true;
       vid.muted       = true;
       vid.setAttribute('playsinline', '');
-      vid.style.cssText = 'max-width:100%;max-height:100%;width:100%;height:100%;object-fit:contain;display:block;background:#000';
+      vid.style.cssText = 'max-width:100%;max-height:100%;width:100%;height:100%;object-fit:contain;display:block;background:var(--bg-base)';
       vid.addEventListener('loadeddata', clearSpinner, { once: true });
       const swapToStill = () => {
         const img = document.createElement('img');
@@ -587,7 +587,7 @@ const Preview = (() => {
       vid.src = `/serve?path=${encodeURIComponent(currentFile.livePhotoMov)}&token=${token}`;
       vid.autoplay = true; vid.muted = true;
       vid.setAttribute('playsinline', '');
-      vid.style.cssText = 'display:block;width:100%;height:100%;object-fit:contain;background:#000';
+      vid.style.cssText = 'display:block;width:100%;height:100%;object-fit:contain;background:var(--bg-base)';
       const swapToStill = () => {
         const img = document.createElement('img');
         img.src = `/serve?path=${encodeURIComponent(currentFile.path)}&token=${token}`;

@@ -1,7 +1,17 @@
 /* ── Reset ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { height: 100%; overflow: hidden; }
+html, body {
+  height: 100%;
+  overflow: hidden;
+  /* Stop iOS Safari from rubber-banding / bouncing the whole document
+     when scrolling past the top or bottom edge of any inner scroller. */
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: auto;
+}
 html { touch-action: pan-x pan-y; } /* prevent pinch-zoom at OS level */
+/* Apply the no-chain rule to every inner scroll container too — bounce can leak
+   from a child if any ancestor allows scroll-chaining. */
+* { overscroll-behavior: contain; }
 
 /* Prevent text/image selection everywhere except interactive text areas */
 body { user-select: none; -webkit-user-select: none; }
@@ -79,6 +89,8 @@ body {
 /* Search icon inherits stroke color from button */
 #btn-search svg { display: block; }
 #btn-search { color: var(--text-secondary); }
+#btn-theme-picker svg { display: block; }
+#btn-theme-picker { color: var(--text-secondary); }
 
 /* ── Path bar ── */
 #pathbar {
@@ -1247,12 +1259,41 @@ dialog#preview-modal::backdrop {
 /* ── Mobile responsive ── */
 @media (max-width: 768px) {
   /* Compact toolbar */
-  #toolbar { padding: 0 .4rem; gap: .2rem; }
+  #toolbar { padding: 0 .4rem; gap: .2rem; position: relative; }
   .toolbar-sep { display: none; }
-  #btn-new-folder, #btn-upload, #btn-settings { display: none; }
+  /* Hide back/forward, new-folder, upload, settings, view-details, theme toggle on phone */
+  #btn-new-folder, #btn-upload, #btn-settings, #btn-theme,
+  #btn-back, #btn-forward, #btn-view-details { display: none; }
   /* Keep toolbar-center visible — it holds the search button */
   .toolbar-center { flex: 0 0 auto; padding: 0; }
-  #pathbar { min-width: 0; }
+
+  /* Pathbar gets its own row above the icon buttons so the breadcrumb has real space.
+     Up-directory sits to its left, search to its right — all absolutely positioned
+     so they don't disturb the flex order of toolbar-left/center/right. */
+  #pathbar {
+    position: absolute;
+    top:   calc(max(env(safe-area-inset-top, 0px), 8px) + 4px);
+    /* Reserve 38 px on each side for the flanking buttons */
+    left:  calc(max(env(safe-area-inset-left,  0px), 12px) + 38px);
+    right: calc(max(env(safe-area-inset-right, 0px), 12px) + 38px);
+    width: auto;
+    flex: none;
+    height: 32px;
+    min-width: 0;
+  }
+  #btn-up,
+  #btn-search {
+    position: absolute;
+    top:    calc(max(env(safe-area-inset-top, 0px), 8px) + 4px);
+    height: 32px;
+    min-width: 32px;
+    z-index: 2;
+  }
+  #btn-up     { left:  calc(max(env(safe-area-inset-left,  0px), 12px)); }
+  #btn-search { right: calc(max(env(safe-area-inset-right, 0px), 12px)); }
+  /* The center wrapper around search now has nothing visible; keep it from
+     reserving space in the icon row below. */
+  .toolbar-center { width: 0; padding: 0; }
 
   /* Left panel becomes a fixed drawer — 75% of the screen on mobile, capped at 420px on tablets */
   #panel-left {
@@ -1354,10 +1395,11 @@ dialog#preview-modal::backdrop {
   /* `max(env(...), <fallback>)` guarantees a minimum clearance even on browsers that
      report 0 for safe-area-inset (older Android Chrome, gesture nav, etc). */
   #toolbar {
-    padding-top:   max(env(safe-area-inset-top,    0px), 8px);
-    padding-left:  calc(max(env(safe-area-inset-left,  0px), 0px) + .4rem);
-    padding-right: calc(max(env(safe-area-inset-right, 0px), 0px) + .4rem);
-    height: calc(44px + max(env(safe-area-inset-top, 0px), 8px));
+    /* Top padding = safe-area + 8px gap + 32px pathbar + 4px breathing room */
+    padding-top:   calc(max(env(safe-area-inset-top, 0px), 8px) + 32px + 8px);
+    padding-left:  calc(max(env(safe-area-inset-left,  0px), 12px) + .25rem);
+    padding-right: calc(max(env(safe-area-inset-right, 0px), 12px) + .25rem);
+    height: calc(44px + max(env(safe-area-inset-top, 0px), 8px) + 32px + 8px);
   }
   #statusbar {
     padding-bottom: max(env(safe-area-inset-bottom, 0px), 20px);
@@ -1509,6 +1551,81 @@ dialog#props-dialog::backdrop { background: rgba(6,6,16,.6); backdrop-filter: bl
   font-size: .8rem;
 }
 
+/* ── Theme picker popover ── */
+#theme-picker-popover {
+  display: none;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  z-index: 500;
+  padding: .35rem;
+  min-width: 220px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+.theme-picker-header {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .35rem .55rem .5rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: .35rem;
+}
+.theme-picker-title {
+  font-size: .72rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-weight: 700;
+  flex: 1;
+}
+.theme-mode-toggle {
+  display: inline-flex;
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+  gap: 2px;
+}
+.theme-mode-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: .72rem;
+  padding: .2rem .5rem;
+  border-radius: 3px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.theme-mode-btn:hover  { color: var(--text-primary); }
+.theme-mode-btn.active { background: var(--accent); color: #fff; }
+
+.theme-swatch.muted { opacity: .35; }
+.theme-picker-list { display: flex; flex-direction: column; gap: 2px; }
+.theme-picker-row {
+  display: flex; align-items: center; gap: .6rem;
+  padding: .45rem .55rem;
+  background: none; border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--text-primary);
+  font-size: .82rem;
+  text-align: left;
+  width: 100%;
+}
+.theme-picker-row:hover  { background: var(--bg-hover); }
+.theme-picker-row.active { background: var(--bg-selected); }
+.theme-picker-swatches { display: inline-flex; gap: 3px; flex-shrink: 0; }
+.theme-swatch {
+  width: 14px; height: 14px;
+  border-radius: 4px;
+  border: 1px solid;
+  display: inline-block;
+}
+.theme-picker-name  { flex: 1; }
+.theme-picker-check { color: var(--accent); font-weight: 700; }
+
 /* ── Sys stats chips in status bar ── */
 #sys-stats { display: flex; align-items: center; gap: .3rem; }
 .stat-chip {
@@ -1517,6 +1634,13 @@ dialog#props-dialog::backdrop { background: rgba(6,6,16,.6); backdrop-filter: bl
   cursor: default; white-space: nowrap;
 }
 .stat-chip b { font-weight: 700; margin-left: .15rem; }
+
+/* In light mode the heat-colour palette (Tailwind 400-shade reds/oranges/yellows/greens)
+   is too pale against the bright chrome. Darken via filter so JS-set inline colours
+   stay legible without having to rewrite stats.js. */
+html[data-mode="light"] .stat-chip b {
+  filter: brightness(0.6) saturate(1.4);
+}
 
 /* ── Bookmark add bar ── */
 .bookmark-add-bar {
