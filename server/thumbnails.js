@@ -12,7 +12,8 @@ try { sharp = require('sharp'); } catch { sharp = null; }
 try { ffmpeg = require('fluent-ffmpeg'); } catch { ffmpeg = null; }
 try { ({ createCanvas } = require('canvas')); } catch { createCanvas = null; }
 
-const IMAGE_EXTS = new Set(['.jpg','.jpeg','.png','.gif','.webp','.avif','.tiff','.bmp']);
+const IMAGE_EXTS = new Set(['.jpg','.jpeg','.png','.gif','.webp','.avif','.tiff','.bmp','.heic','.heif']);
+const HEIC_EXTS  = new Set(['.heic','.heif']);
 const VIDEO_EXTS = new Set(['.mp4','.webm','.mov','.mkv','.avi','.m4v']);
 const TEXT_EXTS  = new Set([
   '.txt','.md','.js','.mjs','.ts','.tsx','.jsx','.json','.yaml','.yml',
@@ -196,4 +197,23 @@ function tokenise(line) {
   return tokens;
 }
 
-module.exports = { get };
+// Convert a HEIC/HEIF file to a cached JPEG and return the cached path.
+// For non-HEIC images, returns the original path so the caller can sendFile() directly.
+async function getViewableImage(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  if (!HEIC_EXTS.has(ext)) return filePath;
+  if (!sharp) return null;
+  try {
+    const stat = await fsp.stat(filePath);
+    const key  = cacheKey(filePath, stat.mtimeMs, 'fulljpg');
+    const cp   = path.join(CACHE_DIR, key + '.jpg');
+    if (fs.existsSync(cp)) return cp;
+    await sharp(filePath).rotate().jpeg({ quality: 88 }).toFile(cp);
+    return cp;
+  } catch (e) {
+    console.warn('[thumbs] HEIC convert failed:', e.message);
+    return null;
+  }
+}
+
+module.exports = { get, getViewableImage };

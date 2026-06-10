@@ -1362,7 +1362,58 @@ dialog#props-dialog::backdrop { background: rgba(6,6,16,.6); backdrop-filter: bl
   transition: all .15s; flex-shrink: 0;
 }
 #btn-props-close:hover { background: rgba(255,107,107,.1); border-color: rgba(255,107,107,.25); color: var(--danger); }
-#props-body { padding: .75rem 1rem 1rem; overflow-y: auto; }
+
+#props-tabs {
+  display: flex; gap: .2rem;
+  padding: 0 .75rem; background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.props-tab {
+  background: none; border: none; color: var(--text-secondary);
+  font-size: .78rem; padding: .5rem .8rem;
+  border-bottom: 2px solid transparent;
+  cursor: pointer; transition: color .12s, border-color .12s;
+}
+.props-tab:hover { color: var(--text-primary); }
+.props-tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+
+#props-body { padding: .75rem 1rem 1rem; overflow-y: auto; flex: 1; }
+
+/* Sharing tab content */
+.share-row {
+  display: flex; align-items: center; gap: .5rem;
+  padding: .4rem 0; border-bottom: 1px solid var(--border);
+  font-size: .78rem;
+}
+.share-row:last-child { border-bottom: none; }
+.share-link {
+  flex: 1; font-family: var(--font-mono); font-size: .72rem;
+  background: var(--bg-base); padding: .3rem .5rem;
+  border-radius: var(--radius-sm); border: 1px solid var(--border);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  cursor: pointer;
+}
+.share-meta { color: var(--text-muted); font-size: .7rem; flex-shrink: 0; }
+.share-btn {
+  background: var(--accent); color: #fff; border: none;
+  padding: .35rem .7rem; border-radius: var(--radius-sm);
+  font-size: .78rem; cursor: pointer; transition: opacity .12s;
+}
+.share-btn:hover { opacity: .85; }
+.share-btn.danger { background: var(--danger); }
+.share-btn.secondary { background: var(--bg-hover); color: var(--text-primary); }
+.share-form {
+  display: flex; flex-direction: column; gap: .5rem;
+  padding: .75rem; background: var(--bg-base);
+  border-radius: var(--radius-sm); margin-bottom: .75rem;
+}
+.share-form label { font-size: .75rem; color: var(--text-secondary); display: flex; flex-direction: column; gap: .25rem; }
+.share-form select, .share-form input {
+  background: var(--bg-surface); border: 1px solid var(--border);
+  color: var(--text-primary); padding: .3rem .5rem; border-radius: var(--radius-sm);
+  font-size: .8rem;
+}
 
 /* ── Sys stats chips in status bar ── */
 #sys-stats { display: flex; align-items: center; gap: .3rem; }

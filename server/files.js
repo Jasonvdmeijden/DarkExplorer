@@ -41,13 +41,35 @@ async function stat(filePath) {
   };
 }
 
+// Hard cap: anything bigger than this is refused outright for preview
+const PREVIEW_MAX_BYTES = 5 * 1024 * 1024;   // 5 MB
+// Soft cap: files between SOFT and MAX are read partially (head only)
+const PREVIEW_SOFT_BYTES = 256 * 1024;       // 256 KB
+
 async function read(filePath) {
-  return fsp.readFile(filePath, 'utf8');
+  const s = await fsp.stat(filePath);
+  if (s.size > PREVIEW_MAX_BYTES) {
+    return { tooLarge: true, size: s.size, limit: PREVIEW_MAX_BYTES };
+  }
+  if (s.size > PREVIEW_SOFT_BYTES) {
+    // Read only first PREVIEW_SOFT_BYTES bytes
+    const fh = await fsp.open(filePath, 'r');
+    try {
+      const buf = Buffer.alloc(PREVIEW_SOFT_BYTES);
+      await fh.read(buf, 0, PREVIEW_SOFT_BYTES, 0);
+      return { content: buf.toString('utf8'), truncated: true, size: s.size, shown: PREVIEW_SOFT_BYTES };
+    } finally { await fh.close(); }
+  }
+  return { content: await fsp.readFile(filePath, 'utf8') };
 }
 
 async function readBinary(filePath) {
+  const s = await fsp.stat(filePath);
+  if (s.size > PREVIEW_MAX_BYTES) {
+    return { tooLarge: true, size: s.size, limit: PREVIEW_MAX_BYTES };
+  }
   const buf = await fsp.readFile(filePath);
-  return buf.toString('base64');
+  return { content: buf.toString('base64') };
 }
 
 async function write(filePath, content) {

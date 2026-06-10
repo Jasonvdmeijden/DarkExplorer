@@ -476,7 +476,7 @@ const Explorer = (() => {
     layoutMosaic(mosaicContainer);
   }
 
-  const GALLERY_IMG_EXTS = new Set(['.jpg','.jpeg','.png','.gif','.webp','.avif','.bmp']);
+  const GALLERY_IMG_EXTS = new Set(['.jpg','.jpeg','.png','.gif','.webp','.avif','.bmp','.heic','.heif','.tiff','.tif']);
   const GALLERY_VID_EXTS = new Set(['.mp4','.webm','.mov','.mkv','.avi','.m4v']);
 
   function layoutMosaic(container) {
@@ -504,10 +504,10 @@ const Explorer = (() => {
 
     container.style.gridTemplateColumns = `repeat(${mosaicCols}, 1fr)`;
 
-    sorted.forEach(item => container.appendChild(makeMosaicTile(item, tileW, Math.round(tileW * 0.75))));
+    sorted.forEach(item => container.appendChild(makeMosaicTile(item, tileW, Math.round(tileW * 0.75), sorted)));
   }
 
-  function makeMosaicTile(item, tileW, tileH) {
+  function makeMosaicTile(item, tileW, tileH, navList) {
     const tile = document.createElement('div');
     tile.className = 'mosaic-item' + (selected.has(item.path) ? ' selected' : '');
     tile.dataset.path = item.path;
@@ -548,7 +548,7 @@ const Explorer = (() => {
     label.textContent = item.name;
     tile.appendChild(label);
 
-    attachRowEvents(tile, item);
+    attachRowEvents(tile, item, navList);
     return tile;
   }
 
@@ -560,7 +560,9 @@ const Explorer = (() => {
   }
 
   // ── Row interaction ──────────────────────────────────────
-  function attachRowEvents(el, item) {
+  // navList: optional restricted list for preview prev/next navigation (e.g. gallery passes media-only)
+  function attachRowEvents(el, item, navList) {
+    const previewList = () => navList || items;
     el.addEventListener('click', (e) => {
       setFocusedPane(pane1);
       if (e.shiftKey && lastClickedPath !== null) {
@@ -592,7 +594,7 @@ const Explorer = (() => {
         if (['exe','msi','bat','cmd','com','ps1','sh','app'].includes(ext)) {
           WS.send('fs:exec', { path: item.path });
         } else {
-          Preview.open(item, items);
+          Preview.open(item, previewList());
         }
       }
     });
@@ -606,7 +608,7 @@ const Explorer = (() => {
       if (item.isDir) { navigate(item.path); return; }
       const ext = (item.ext || '').replace('.', '').toLowerCase();
       if (['exe','msi','bat','cmd','com','ps1','sh','app'].includes(ext)) WS.send('fs:exec', { path: item.path });
-      else Preview.open(item, items);
+      else Preview.open(item, previewList());
     };
     el.addEventListener('touchstart', (e) => {
       const t = e.changedTouches[0];

@@ -64,6 +64,19 @@ db.exec(`
     label      TEXT,
     updated_at INTEGER NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS shares (
+    id           TEXT PRIMARY KEY,
+    token        TEXT UNIQUE NOT NULL,
+    path         TEXT NOT NULL,
+    is_dir       INTEGER NOT NULL DEFAULT 0,
+    expires_at   INTEGER,                 -- NULL = never
+    max_uses     INTEGER,                 -- NULL = unlimited
+    used_count   INTEGER NOT NULL DEFAULT 0,
+    created_by   TEXT,
+    created_at   INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_shares_token ON shares(token);
 `);
 
 // Migrations for schema additions

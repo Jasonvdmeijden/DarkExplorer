@@ -173,7 +173,7 @@ const Preview = (() => {
     content.style.flexDirection = '';
 
     if (currentFile.url) return renderUrl();
-    if (['jpg','jpeg','png','gif','webp','avif','svg','bmp','ico','tiff','tif'].includes(ext)) return renderImage();
+    if (['jpg','jpeg','png','gif','webp','avif','svg','bmp','ico','tiff','tif','heic','heif'].includes(ext)) return renderImage();
     if (['mp4','webm','mov','mkv','avi','m4v','3gp','flv','ogv'].includes(ext))               return renderVideo();
     if (['mp3','ogg','wav','flac','aac','m4a','m4b','opus'].includes(ext))                    return renderAudio();
     if (ext === 'pdf')                                                                        return renderPdf();
@@ -192,11 +192,47 @@ const Preview = (() => {
 
   // ── content fetchers ─────────────────────────────────────────────────────────
 
+  let _readMeta = null; // { tooLarge?, truncated?, size?, shown?, limit? }
+
+  function _renderTooLarge(meta) {
+    const token = localStorage.getItem('de_token') || '';
+    content.style.display       = 'flex';
+    content.style.flexDirection = 'column';
+    content.style.alignItems    = 'center';
+    content.style.justifyContent= 'center';
+    content.style.gap           = '.8rem';
+    content.style.padding       = '2rem';
+    content.style.textAlign     = 'center';
+    const fmt = (b) => b < 1024*1024 ? (b/1024).toFixed(1)+' KB' : (b/1048576).toFixed(1)+' MB';
+    content.innerHTML = `
+      <div style="font-size:3rem;opacity:.6">📄</div>
+      <div style="font-size:.95rem;color:var(--text-primary)">File is too large to preview</div>
+      <div style="font-size:.8rem;color:var(--text-muted)">${fmt(meta.size)} (limit ${fmt(meta.limit)})</div>
+      <div style="display:flex;gap:.5rem;margin-top:.5rem">
+        <a href="/serve?path=${encodeURIComponent(currentFile.path)}&token=${token}" target="_blank" rel="noopener" style="padding:.4rem .9rem;background:var(--accent);color:#fff;border-radius:var(--radius-sm);text-decoration:none;font-size:.85rem">Open in new tab</a>
+        <a href="/download?path=${encodeURIComponent(currentFile.path)}&token=${token}" style="padding:.4rem .9rem;background:var(--bg-hover);color:var(--text-primary);border-radius:var(--radius-sm);text-decoration:none;font-size:.85rem">Download</a>
+      </div>`;
+  }
+
+  function _renderTruncatedBanner(meta) {
+    const banner = document.createElement('div');
+    const fmt = (b) => b < 1024*1024 ? (b/1024).toFixed(1)+' KB' : (b/1048576).toFixed(1)+' MB';
+    banner.style.cssText = 'position:sticky;top:0;background:var(--accent-dim);color:var(--accent);padding:.4rem .8rem;font-size:.78rem;border-bottom:1px solid var(--border);z-index:5';
+    const token = localStorage.getItem('de_token') || '';
+    banner.innerHTML = `Showing first ${fmt(meta.shown)} of ${fmt(meta.size)} —
+      <a href="/download?path=${encodeURIComponent(currentFile.path)}&token=${token}" style="color:inherit;font-weight:600">download full file</a>`;
+    content.insertBefore(banner, content.firstChild);
+  }
+
   async function getContent() {
     if (rawContent !== null) return rawContent;
     try {
       const res = await WS.send('fs:read', { path: currentFile.path });
+      _readMeta = res;
+      if (res.tooLarge) { _renderTooLarge(res); return null; }
       rawContent = res.content;
+      // Defer banner insertion until renderer's synchronous content write is done
+      if (res.truncated) setTimeout(() => _renderTruncatedBanner(res), 0);
       return rawContent;
     } catch {
       return null;
@@ -206,6 +242,7 @@ const Preview = (() => {
   async function getBase64() {
     try {
       const res = await WS.send('fs:readBase64', { path: currentFile.path });
+      if (res.tooLarge) { _renderTooLarge(res); return null; }
       return res.content;
     } catch {
       return null;
@@ -300,9 +337,35 @@ const Preview = (() => {
 
   function renderAudio() {
     const token = localStorage.getItem('de_token') || '';
+    content.style.display       = 'flex';
+    content.style.flexDirection = 'column';
+    content.style.alignItems    = 'center';
+    content.style.justifyContent= 'center';
+    content.style.gap           = '1rem';
+    content.style.padding       = '2rem';
+
+    const icon = document.createElement('div');
+    icon.textContent = '🎵';
+    icon.style.cssText = 'font-size:5rem;opacity:.8';
+
+    const name = document.createElement('div');
+    name.textContent = currentFile.name || '';
+    name.style.cssText = 'font-size:.95rem;color:var(--text-secondary);max-width:90%;text-align:center;word-break:break-all';
+
     const audio = document.createElement('audio');
-    audio.src = `/serve?path=${encodeURIComponent(currentFile.path)}&token=${token}`;
+    audio.src      = `/serve?path=${encodeURIComponent(currentFile.path)}&token=${token}`;
     audio.controls = true;
+    audio.preload  = 'metadata';
+    audio.style.cssText = 'width:min(90%,560px);outline:none';
+    audio.addEventListener('error', () => {
+      const err = document.createElement('div');
+      err.textContent = 'Could not play this audio file (unsupported codec or browser restriction).';
+      err.style.cssText = 'color:var(--danger);font-size:.85rem';
+      content.appendChild(err);
+    });
+
+    content.appendChild(icon);
+    content.appendChild(name);
     content.appendChild(audio);
   }
 
@@ -692,10 +755,27 @@ const Preview = (() => {
   }
 
   // ── Properties popup ────────────────────────────────────────
+  let _propsItem = null;
+
   function showProperties(item) {
-    const d    = document.getElementById('props-dialog');
-    const body = document.getElementById('props-body');
+    _propsItem = item;
+    const d = document.getElementById('props-dialog');
     document.getElementById('props-title').textContent = item.name || item.url || 'Properties';
+    // Default to General tab on each open
+    _setPropsTab('general');
+    if (!d.open) d.showModal();
+  }
+
+  function _setPropsTab(tab) {
+    document.querySelectorAll('.props-tab').forEach(b =>
+      b.classList.toggle('active', b.dataset.tab === tab));
+    if (tab === 'general')  return _renderPropsGeneral(_propsItem);
+    if (tab === 'sharing')  return _renderPropsSharing(_propsItem);
+    if (tab === 'security') return _renderPropsSecurity(_propsItem);
+  }
+
+  function _renderPropsGeneral(item) {
+    const body = document.getElementById('props-body');
     const sizeVal = item.isDir
       ? '<span id="props-size-val" style="color:var(--text-muted)">Calculating…</span>'
       : formatSize(item.size);
@@ -712,19 +792,125 @@ const Preview = (() => {
         `<div class="meta-row"><span class="meta-key">${k}</span><span class="meta-val">${v}</span></div>`
       ).join('')
     }</div>`;
-    d.showModal();
     if (item.isDir && item.path) {
       WS.send('fs:folder-size', { path: item.path })
-        .then(r => {
-          const el = document.getElementById('props-size-val');
-          if (el) el.textContent = formatSize(r.size);
-        })
-        .catch(() => {
-          const el = document.getElementById('props-size-val');
-          if (el) el.textContent = '—';
-        });
+        .then(r => { const el = document.getElementById('props-size-val'); if (el) el.textContent = formatSize(r.size); })
+        .catch(() => { const el = document.getElementById('props-size-val'); if (el) el.textContent = '—'; });
     }
   }
+
+  async function _renderPropsSharing(item) {
+    const body = document.getElementById('props-body');
+    if (!item.path || item.url) {
+      body.innerHTML = '<p style="color:var(--text-muted);font-size:.8rem">Sharing is not available for this item.</p>';
+      return;
+    }
+    body.innerHTML = `
+      <div class="share-form">
+        <div style="font-weight:600;font-size:.8rem;color:var(--text-primary)">Create a share link</div>
+        <label>Expires in
+          <select id="share-expiry">
+            <option value="3600000">1 hour</option>
+            <option value="86400000" selected>1 day</option>
+            <option value="604800000">7 days</option>
+            <option value="">Never</option>
+          </select>
+        </label>
+        <label>Max uses (optional)
+          <input id="share-maxuses" type="number" min="1" placeholder="unlimited">
+        </label>
+        <button class="share-btn" id="share-create-btn">Create link</button>
+      </div>
+      <div style="font-weight:600;font-size:.8rem;color:var(--text-primary);margin-bottom:.4rem">Existing links</div>
+      <div id="share-list"><span style="color:var(--text-muted);font-size:.78rem">Loading…</span></div>`;
+
+    document.getElementById('share-create-btn').addEventListener('click', async () => {
+      const expSel = document.getElementById('share-expiry').value;
+      const maxUsesInput = document.getElementById('share-maxuses').value;
+      const expiresAt = expSel ? Date.now() + parseInt(expSel, 10) : null;
+      const maxUses   = maxUsesInput ? parseInt(maxUsesInput, 10) : null;
+      try {
+        await WS.send('share:create', { path: item.path, expiresAt, maxUses });
+        _refreshShareList(item.path);
+      } catch (e) { alert('Failed to create share: ' + e.message); }
+    });
+
+    _refreshShareList(item.path);
+  }
+
+  async function _refreshShareList(path) {
+    const list = document.getElementById('share-list');
+    if (!list) return;
+    try {
+      const res = await WS.send('share:list', { path });
+      const items = res.items || [];
+      if (!items.length) {
+        list.innerHTML = '<p style="color:var(--text-muted);font-size:.78rem">No active share links.</p>';
+        return;
+      }
+      const origin = window.location.origin;
+      list.innerHTML = items.map(s => {
+        const url = `${origin}/share/${s.token}`;
+        const expiry = s.expires_at ? new Date(s.expires_at).toLocaleString() : 'Never';
+        const uses   = s.max_uses ? `${s.used_count}/${s.max_uses} uses` : `${s.used_count} uses`;
+        return `<div class="share-row">
+          <div class="share-link" data-url="${url}" title="Click to copy">${escHtml(url)}</div>
+          <span class="share-meta">${expiry} · ${uses}</span>
+          <button class="share-btn danger" data-revoke="${s.id}">Revoke</button>
+        </div>`;
+      }).join('');
+      list.querySelectorAll('.share-link').forEach(el => {
+        el.addEventListener('click', async () => {
+          try { await navigator.clipboard.writeText(el.dataset.url); el.style.background = 'var(--accent-dim)'; setTimeout(() => el.style.background = '', 500); } catch {}
+        });
+      });
+      list.querySelectorAll('[data-revoke]').forEach(b => {
+        b.addEventListener('click', async () => {
+          if (!confirm('Revoke this share link?')) return;
+          await WS.send('share:revoke', { id: b.dataset.revoke });
+          _refreshShareList(path);
+        });
+      });
+    } catch (e) {
+      list.innerHTML = `<p style="color:var(--danger);font-size:.78rem">Failed to load: ${escHtml(e.message)}</p>`;
+    }
+  }
+
+  async function _renderPropsSecurity(item) {
+    const body = document.getElementById('props-body');
+    if (!item.path || item.url) {
+      body.innerHTML = '<p style="color:var(--text-muted);font-size:.8rem">Security info not available for this item.</p>';
+      return;
+    }
+    body.innerHTML = '<span style="color:var(--text-muted);font-size:.78rem">Loading…</span>';
+    try {
+      const info = await WS.send('fs:security', { path: item.path });
+      const rows = [
+        ['Platform', info.platform],
+        ['Owner',    info.owner?.name || '—'],
+      ];
+      if (info.platform === 'win32') {
+        rows.push(['Read-only', info.readOnly ? 'Yes' : 'No']);
+        rows.push(['Note', '<span style="color:var(--text-muted);font-size:.72rem">Windows ACLs are not surfaced through Node.js. Edit via Explorer → Properties → Security for full control.</span>']);
+      } else {
+        rows.push(['Permissions', `<span style="font-family:var(--font-mono)">${info.rwx} (${info.octal})</span>`]);
+        rows.push(['UID',         info.uid]);
+        rows.push(['GID',         info.gid]);
+      }
+      body.innerHTML = `<div class="meta-table">${
+        rows.map(([k, v]) =>
+          `<div class="meta-row"><span class="meta-key">${k}</span><span class="meta-val">${v}</span></div>`
+        ).join('')
+      }</div>`;
+    } catch (e) {
+      body.innerHTML = `<p style="color:var(--danger);font-size:.78rem">${escHtml(e.message)}</p>`;
+    }
+  }
+
+  // Wire props tab switching once
+  document.querySelectorAll('.props-tab').forEach(btn => {
+    btn.addEventListener('click', () => _setPropsTab(btn.dataset.tab));
+  });
 
   // ── Diff viewer ─────────────────────────────────────────────
   function showDiff(filePath, diffText) {

@@ -19,6 +19,8 @@ const upload   = require('./upload');
 const zipOps   = require('./zip');
 const gitOps   = require('./git');
 const sysStats = require('./stats');
+const shares   = require('./shares');
+const security = require('./security');
 
 if (process.argv.includes('--gen-otp')) {
   const code = auth.generateOtp();
@@ -99,15 +101,38 @@ app.get('/download', requireAuth, async (req, res) => {
   } catch { res.status(404).json({ error: 'Not found' }); }
 });
 
+const AUDIO_MIME = {
+  mp3: 'audio/mpeg', m4a: 'audio/mp4', m4b: 'audio/mp4', aac: 'audio/aac',
+  ogg: 'audio/ogg',  opus: 'audio/ogg', wav: 'audio/wav', flac: 'audio/flac'
+};
+const VIDEO_MIME = {
+  mp4: 'video/mp4', m4v: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime',
+  mkv: 'video/x-matroska', avi: 'video/x-msvideo', '3gp': 'video/3gpp', ogv: 'video/ogg'
+};
+
 app.get('/serve', requireAuth, async (req, res) => {
   const filePath = req.query.path;
   if (!filePath) return res.status(400).json({ error: 'Missing path' });
   try {
     const stat = await files.stat(filePath);
+    const name = stat.name.toLowerCase();
+    const ext  = name.includes('.') ? name.split('.').pop() : '';
     res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(stat.name)}"`);
-    if (stat.name.toLowerCase().endsWith('.pdf')) {
-      res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Accept-Ranges', 'bytes');
+
+    // HEIC/HEIF: convert to JPEG on the fly (cached) so browsers can display it
+    if (ext === 'heic' || ext === 'heif') {
+      const jpg = await thumbs.getViewableImage(filePath);
+      if (jpg) {
+        res.setHeader('Content-Type', 'image/jpeg');
+        return res.sendFile(jpg);
+      }
+      // fall through if conversion failed — browser will likely show broken-image
     }
+
+    if (ext === 'pdf')           res.setHeader('Content-Type', 'application/pdf');
+    else if (AUDIO_MIME[ext])    res.setHeader('Content-Type', AUDIO_MIME[ext]);
+    else if (VIDEO_MIME[ext])    res.setHeader('Content-Type', VIDEO_MIME[ext]);
     res.sendFile(filePath);
   } catch { res.status(404).json({ error: 'Not found' }); }
 });
@@ -136,6 +161,34 @@ app.get('/zip-download', requireAuth, async (req, res) => {
 
 app.get('/enroll', (_req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'enroll.html'));
+});
+
+// Public share endpoint — token-gated, no device enrollment needed.
+// Files: streams the file inline. Folders: streams a zip on the fly.
+app.get('/share/:token', async (req, res) => {
+  const share = shares.resolveToken(req.params.token);
+  if (!share) return res.status(404).send('Share link invalid, expired, or revoked.');
+  try {
+    if (share.is_dir) {
+      const buf = await zipOps.createZipBuffer([share.path]);
+      const name = path.basename(share.path) || 'shared';
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(name)}.zip"`);
+      shares.recordUse(share.id);
+      return res.end(buf);
+    }
+    const stat = await files.stat(share.path);
+    const ext  = (stat.name.split('.').pop() || '').toLowerCase();
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(stat.name)}"`);
+    if (ext === 'pdf')        res.setHeader('Content-Type', 'application/pdf');
+    else if (AUDIO_MIME[ext]) res.setHeader('Content-Type', AUDIO_MIME[ext]);
+    else if (VIDEO_MIME[ext]) res.setHeader('Content-Type', VIDEO_MIME[ext]);
+    shares.recordUse(share.id);
+    res.sendFile(share.path);
+  } catch (e) {
+    res.status(500).send('Failed to serve shared file: ' + e.message);
+  }
 });
 
 // --- HTTP + WS server ---
@@ -200,8 +253,8 @@ async function handle(type, payload, reply, ws, device) {
     }
     case 'fs:folder-size': reply({ size: await files.folderSize(payload.path) }); break;
     case 'fs:stat':       reply(await files.stat(payload.path)); break;
-    case 'fs:read':       reply({ content: await files.read(payload.path) }); break;
-    case 'fs:readBase64': reply({ content: await files.readBinary(payload.path) }); break;
+    case 'fs:read':       reply(await files.read(payload.path)); break;
+    case 'fs:readBase64': reply(await files.readBinary(payload.path)); break;
     case 'fs:write':  await files.write(payload.path, payload.content); reply({ ok: true }); break;
     case 'fs:mkdir':  await files.mkdir(payload.path); reply({ ok: true }); break;
     case 'fs:delete': await files.remove(payload.paths); reply({ ok: true }); break;
@@ -212,6 +265,17 @@ async function handle(type, payload, reply, ws, device) {
     case 'fs:set-tag':  reply(files.setTag(payload.path, payload.color, payload.label)); broadcastAll(JSON.stringify({ type: 'tags:update', data: { path: payload.path, color: payload.color, label: payload.label } })); break;
     case 'fs:get-tags':  reply(files.getTags(payload.paths)); break;
     case 'fs:list-tags': reply(files.listTags()); break;
+    case 'fs:security':  reply(await security.info(payload.path)); break;
+
+    // --- shares ---
+    case 'share:create': reply(await shares.create({
+      path: payload.path,
+      expiresAt: payload.expiresAt || null,
+      maxUses: payload.maxUses || null,
+      deviceId: device.id
+    })); break;
+    case 'share:list':   reply({ items: shares.listForPath(payload.path) }); break;
+    case 'share:revoke': shares.revoke(payload.id); reply({ ok: true }); break;
     case 'fs:roots':  reply(files.roots().map(r => ({ name: r, path: r, isDir: true }))); break;
 
     case 'fs:exec': {
