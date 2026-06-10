@@ -481,7 +481,12 @@ const Explorer = (() => {
   function layoutMosaic(container) {
     container.innerHTML = '';
     const containerW = container.clientWidth || 800;
-    const tileW = Math.round((containerW - 3 * (mosaicCols - 1)) / mosaicCols);
+    
+    // Dynamic gap that scales with column count: 12px for 1 col, down to 3px for 8 cols
+    const gap = Math.max(3, Math.round(14 - (mosaicCols * 1.3)));
+    container.style.gap = gap + 'px';
+
+    const tileW = Math.round((containerW - gap * (mosaicCols - 1)) / mosaicCols);
 
     const filtered = sortItems(items);
     const sorted = filtered
@@ -498,13 +503,14 @@ const Explorer = (() => {
 
     container.style.gridTemplateColumns = `repeat(${mosaicCols}, 1fr)`;
 
-    sorted.forEach(item => container.appendChild(makeMosaicTile(item, tileW)));
+    sorted.forEach(item => container.appendChild(makeMosaicTile(item, tileW, Math.round(tileW * 0.75))));
   }
 
-  function makeMosaicTile(item, tileW) {
+  function makeMosaicTile(item, tileW, tileH) {
     const tile = document.createElement('div');
     tile.className = 'mosaic-item' + (selected.has(item.path) ? ' selected' : '');
     tile.dataset.path = item.path;
+    tile.style.height = tileH + 'px';
 
     const token = localStorage.getItem('de_token') || '';
     const ext   = (item.ext || '').toLowerCase();
@@ -993,7 +999,20 @@ const Explorer = (() => {
     if (e.key === 'Delete' && selected.size) deleteSelected();
     if (e.ctrlKey && e.key === 'c' && selected.size) Clipboard.set(Array.from(selected), 'copy');
     if (e.ctrlKey && e.key === 'x' && selected.size) Clipboard.set(Array.from(selected), 'cut');
-    if (e.ctrlKey && e.key === 'v') Clipboard.paste(currentPath);
+    if (e.key === 'v' && e.ctrlKey) Clipboard.paste(currentPath);
+    if (e.key === 'p' || e.key === 'P') {
+      const sel = Array.from(selected);
+      if (sel.length === 1) {
+        const item = items.find(i => i.path === sel[0]);
+        if (item && !item.isDir) {
+          e.preventDefault();
+          Preview.open(item, items, { 
+            view: view, 
+            cols: mosaicCols 
+          });
+        }
+      }
+    }
     if (e.altKey && e.key === 'ArrowLeft')  goBack();
     if (e.altKey && e.key === 'ArrowRight') goForward();
     if (e.altKey && e.key === 'ArrowUp')    goUp();

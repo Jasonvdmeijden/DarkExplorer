@@ -383,7 +383,6 @@ aside, #panel-left, #panel-right {
 /* ── Mosaic view ── */
 .view-mosaic {
   display: grid;
-  gap: 3px;
   align-content: start;
 }
 .mosaic-item {
@@ -393,7 +392,6 @@ aside, #panel-left, #panel-right {
   cursor: pointer;
   background: var(--bg-surface);
   transition: transform .1s;
-  aspect-ratio: 4 / 3;
   width: 100%;
 }
 .mosaic-item:hover { transform: scale(1.01); z-index: 1; }
@@ -448,8 +446,9 @@ aside, #panel-left, #panel-right {
   display: flex;
   align-items: center;
   gap: .5rem;
-  padding: .3rem .6rem;
-  border-top: 1px solid var(--border);
+  padding: .4rem .75rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
   flex-shrink: 0;
 }
 .mosaic-slider-wrap input { flex: 1; accent-color: var(--accent); }

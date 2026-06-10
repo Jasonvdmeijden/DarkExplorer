@@ -11,6 +11,7 @@ const Preview = (() => {
   let rawContent  = null;
   let navItems    = [];
   let navIdx      = -1;
+  let navLayout   = { view: 'details', cols: 4 }; // Added layout tracking
   let _zoomCleanup = null;
   let _fromRemote  = false;
 
@@ -54,10 +55,12 @@ const Preview = (() => {
     'zip','rar','7z','tar','gz','exe','msi','dll','app','dmg','pkg'
   ]);
 
-  async function open(fileStat, newNavItems) {
+  async function open(fileStat, newNavItems, layout) {
     if (_zoomCleanup) { _zoomCleanup(); _zoomCleanup = null; }
     currentFile = fileStat;
     rawContent  = null;
+    if (layout) navLayout = layout; // Save layout context
+
     titleEl.textContent = fileStat.name || fileStat.url || 'Preview';
     iconEl.textContent  = fileIcon(fileStat);
     if (!_fromRemote) State.set('activePreview', fileStat);
@@ -119,8 +122,22 @@ const Preview = (() => {
   document.addEventListener('keydown', (e) => {
     if (!modal.open) return;
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    
+    // Left/Right: Standard sequence
     if (e.key === 'ArrowLeft')  { e.preventDefault(); openItem(navIdx - 1); }
     if (e.key === 'ArrowRight') { e.preventDefault(); openItem(navIdx + 1); }
+
+    // Up/Down: Multi-directional grid navigation
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (navLayout.view === 'mosaic') openItem(navIdx - navLayout.cols);
+      else openItem(navIdx - 1);
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (navLayout.view === 'mosaic') openItem(navIdx + navLayout.cols);
+      else openItem(navIdx + 1);
+    }
   });
 
   function close(_fromRemoteClose = false) {
@@ -495,7 +512,7 @@ const Preview = (() => {
     }</div>`;
   }
 
-  // ── zoom / pan ───────────────────────────────────────────────────────────────
+  // ── zoom / pan ───────────────────────────────────────────────
 
   function makeZoomable(el) {
     let scale = 1, ox = 0, oy = 0;
@@ -552,7 +569,7 @@ const Preview = (() => {
     };
   }
 
-  // ── mode & events ─────────────────────────────────────────────────────────────
+  // ── mode & events ─────────────────────────────────────────────
 
   function setMode(mode) {
     currentMode = mode;
