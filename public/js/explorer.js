@@ -598,17 +598,32 @@ const Explorer = (() => {
     });
 
     // Touch: double-tap → context menu; single-tap → open/navigate
+    // Scroll-detection: if finger moves > TAP_SLOP px between touchstart and touchend, treat as scroll.
     let _lastTap = 0, _tapTimer = null;
+    let _touchStart = null;
+    const TAP_SLOP = 10; // px
     const _openItem = () => {
       if (item.isDir) { navigate(item.path); return; }
       const ext = (item.ext || '').replace('.', '').toLowerCase();
       if (['exe','msi','bat','cmd','com','ps1','sh','app'].includes(ext)) WS.send('fs:exec', { path: item.path });
       else Preview.open(item, items);
     };
-    el.addEventListener('touchmove', () => {
-      if (_tapTimer) { clearTimeout(_tapTimer); _tapTimer = null; _lastTap = 0; }
+    el.addEventListener('touchstart', (e) => {
+      const t = e.changedTouches[0];
+      _touchStart = { x: t.clientX, y: t.clientY };
+    }, { passive: true });
+    el.addEventListener('touchmove', (e) => {
+      if (!_touchStart) return;
+      const t = e.changedTouches[0];
+      if (Math.hypot(t.clientX - _touchStart.x, t.clientY - _touchStart.y) > TAP_SLOP) {
+        // Convert to scroll: cancel pending taps and stop tracking
+        if (_tapTimer) { clearTimeout(_tapTimer); _tapTimer = null; _lastTap = 0; }
+        _touchStart = null;
+      }
     }, { passive: true });
     el.addEventListener('touchend', (e) => {
+      if (!_touchStart) return;  // was a scroll — do nothing, let the browser handle it
+      _touchStart = null;
       e.preventDefault();
       const now = Date.now(), touch = e.changedTouches[0];
       if (now - _lastTap < 280) {
@@ -925,28 +940,40 @@ const Explorer = (() => {
           }
         });
 
-        // Touch: double-tap → context menu; single-tap → open/navigate
+        // Touch: double-tap → context menu; single-tap → open/navigate (scroll-aware)
         let _lastPTap = 0, _pTapTimer = null;
+        let _pTouchStart = null;
         const _pOpen = () => {
           if (item.isDir) { paneNavigate(item.path); return; }
           const ext = (item.ext || '').replace('.', '').toLowerCase();
           if (['exe','msi','bat','cmd','com','ps1','sh','app'].includes(ext)) WS.send('fs:exec', { path: item.path });
           else Preview.open(item, paneItems);
         };
-        row.addEventListener('touchmove', () => {
-          if (_pTapTimer) { clearTimeout(_pTapTimer); _pTapTimer = null; _lastPTap = 0; }
+        row.addEventListener('touchstart', (e) => {
+          const t = e.changedTouches[0];
+          _pTouchStart = { x: t.clientX, y: t.clientY };
+        }, { passive: true });
+        row.addEventListener('touchmove', (e) => {
+          if (!_pTouchStart) return;
+          const t = e.changedTouches[0];
+          if (Math.hypot(t.clientX - _pTouchStart.x, t.clientY - _pTouchStart.y) > 10) {
+            if (_pTapTimer) { clearTimeout(_pTapTimer); _pTapTimer = null; _lastPTap = 0; }
+            _pTouchStart = null;
+          }
         }, { passive: true });
         row.addEventListener('touchend', (e) => {
+          if (!_pTouchStart) return;
+          _pTouchStart = null;
           e.preventDefault();
           const now = Date.now(), touch = e.changedTouches[0];
-          if (now - _lastTap < 280) {
+          if (now - _lastPTap < 280) {
             if (_pTapTimer) { clearTimeout(_pTapTimer); _pTapTimer = null; }
-            _lastTap = 0;
+            _lastPTap = 0;
             setFocusedPane(pane);
             showContextMenu(touch.clientX, touch.clientY, item);
           } else {
-            _lastTap = now;
-            _pTapTimer = setTimeout(() => { _pTapTimer = null; _lastTap = 0; _pOpen(); }, 280);
+            _lastPTap = now;
+            _pTapTimer = setTimeout(() => { _pTapTimer = null; _lastPTap = 0; _pOpen(); }, 280);
           }
         }, { passive: false });
 
