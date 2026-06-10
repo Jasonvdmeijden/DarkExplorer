@@ -138,7 +138,6 @@ const Explorer = (() => {
     if (activeTabId) {
       Tabs.updateName(activeTabId, path ? path.split(/[\\/]/).pop() || path : 'Home', path);
     }
-    document.getElementById('status-path').textContent = path || 'Home';
     _navListeners.forEach(fn => { try { fn(path); } catch {} });
   }
 
@@ -171,7 +170,10 @@ const Explorer = (() => {
     }
   }
 
-  function goBack()    { if (historyIdx > 0)                  window.history.back(); }
+  function goBack() {
+    if (historyIdx > 0) window.history.back();
+    else                goUp();  // No more back history → climb to parent directory
+  }
   function goForward() { if (historyIdx < history.length - 1) window.history.forward(); }
   function goUp() {
     if (!currentPath) return;
@@ -180,8 +182,15 @@ const Explorer = (() => {
     navigate(parent);
   }
 
+  // Whether the current path still has a parent we can climb to (i.e. not at a root)
+  function _hasParentDir() {
+    if (!currentPath) return false;
+    const parts = currentPath.replace(/[\\/]+$/, '').split(/[\\/]/);
+    return parts.length > 1 && parts[parts.length - 1] !== '';
+  }
   function updateNavButtons() {
-    document.getElementById('btn-back').disabled    = historyIdx <= 0;
+    // Back is enabled if either there's history to pop OR a parent directory to climb into
+    document.getElementById('btn-back').disabled    = historyIdx <= 0 && !_hasParentDir();
     document.getElementById('btn-forward').disabled = historyIdx >= history.length - 1;
   }
 
@@ -476,7 +485,11 @@ const Explorer = (() => {
     layoutMosaic(mosaicContainer);
   }
 
-  const GALLERY_IMG_EXTS = new Set(['.jpg','.jpeg','.png','.gif','.webp','.avif','.bmp','.heic','.heif','.tiff','.tif']);
+  const GALLERY_IMG_EXTS = new Set([
+    '.jpg','.jpeg','.png','.gif','.webp','.avif','.bmp','.tiff','.tif',
+    '.heic','.heif',
+    '.dng','.cr2','.cr3','.nef','.arw','.raf','.orf','.rw2'
+  ]);
   const GALLERY_VID_EXTS = new Set(['.mp4','.webm','.mov','.mkv','.avi','.m4v']);
 
   function layoutMosaic(container) {
@@ -515,7 +528,10 @@ const Explorer = (() => {
 
     const token = localStorage.getItem('de_token') || '';
     const ext   = (item.ext || '').toLowerCase();
-    const src    = `/thumbnail?path=${encodeURIComponent(item.path)}&width=${Math.round(tileW * 1.5)}&token=${token}`;
+    // Include mtime in the URL so browsers don't reuse stale cached responses
+    // (notably old 204s from before the heic-convert HEIC fallback was added).
+    const ver   = item.mtime ? Math.floor(item.mtime) : 0;
+    const src    = `/thumbnail?path=${encodeURIComponent(item.path)}&width=${Math.round(tileW * 1.5)}&token=${token}&v=${ver}`;
 
     const loader = document.createElement('div');
     loader.className = 'mosaic-loader';
@@ -534,6 +550,28 @@ const Explorer = (() => {
       vid.addEventListener('loadeddata', removeLoader, { once: true });
       vid.onerror  = () => { removeLoader(); vid.replaceWith(makeIconTile(item)); };
       tile.appendChild(vid);
+    } else if (item.livePhotoMov) {
+      // iPhone Live Photo (HEIC + sibling .MOV) — play the live photo on loop
+      const vid = document.createElement('video');
+      vid.autoplay = true;
+      vid.muted    = true;
+      vid.loop     = true;
+      vid.setAttribute('playsinline', '');
+      vid.preload  = 'auto';
+      vid.poster   = src; // HEIC thumbnail behind the video until it loads
+      vid.src      = `/serve?path=${encodeURIComponent(item.livePhotoMov)}&token=${token}`;
+      vid.addEventListener('loadeddata', removeLoader, { once: true });
+      vid.onerror  = () => {
+        // Fall back to the still HEIC thumbnail if the MOV won't play
+        const img = document.createElement('img');
+        img.src = src; img.style.cssText = vid.style.cssText;
+        vid.replaceWith(img);
+      };
+      tile.appendChild(vid);
+      const badge = document.createElement('span');
+      badge.className = 'live-photo-badge';
+      badge.textContent = 'LIVE';
+      tile.appendChild(badge);
     } else {
       const img = document.createElement('img');
       img.loading = 'lazy';
@@ -647,6 +685,10 @@ const Explorer = (() => {
       if (!selected.has(item.path)) { selected.clear(); selected.add(item.path); updateSelectionUI(); }
       showContextMenu(e.clientX, e.clientY, item);
     });
+
+    // Middle-click (desktop) / Ctrl+click / triple-tap (mobile) → open folder in a new tab.
+    // No-op for files since tabs represent folder views.
+    Tabs.attachOpenInNewTab(el, () => item);
   }
 
   function updateSelectionUI() {
@@ -1173,9 +1215,9 @@ const Explorer = (() => {
     if (item.isDir) return `<span ${colorStyle}>📁</span>`;
     const ext = (item.ext || '').toLowerCase();
     let icon = '📄';
-    if (['.jpg','.jpeg','.png','.gif','.webp','.svg'].includes(ext)) icon = '🖼';
-    else if (['.mp4','.webm','.mov','.avi'].includes(ext)) icon = '🎬';
-    else if (['.mp3','.ogg','.wav','.flac'].includes(ext)) icon = '🎵';
+    if (['.jpg','.jpeg','.png','.gif','.webp','.svg','.avif','.bmp','.ico','.tiff','.tif','.heic','.heif','.dng','.cr2','.cr3','.nef','.arw','.raf','.orf','.rw2'].includes(ext)) icon = '🖼';
+    else if (['.mp4','.webm','.mov','.avi','.mkv','.m4v','.3gp','.flv','.ogv'].includes(ext)) icon = '🎬';
+    else if (['.mp3','.ogg','.wav','.flac','.aac','.m4a','.m4b','.opus'].includes(ext)) icon = '🎵';
     else if (ext === '.pdf') icon = '📕';
     else if (['.zip','.rar','.7z','.tar','.gz'].includes(ext)) icon = '🗜';
     else if (['.js','.ts','.py','.rb','.go','.rs'].includes(ext)) icon = '📝';

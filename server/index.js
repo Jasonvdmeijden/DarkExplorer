@@ -120,11 +120,13 @@ app.get('/serve', requireAuth, async (req, res) => {
     res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(stat.name)}"`);
     res.setHeader('Accept-Ranges', 'bytes');
 
-    // HEIC/HEIF: convert to JPEG on the fly (cached) so browsers can display it
-    if (ext === 'heic' || ext === 'heif') {
+    // HEIC/HEIF and RAW (dng/cr2/nef/arw/raf/orf/rw2): convert to JPEG (cached)
+    if (['heic','heif','dng','cr2','cr3','nef','arw','raf','orf','rw2'].includes(ext)) {
       const jpg = await thumbs.getViewableImage(filePath);
       if (jpg) {
         res.setHeader('Content-Type', 'image/jpeg');
+        // The cached jpg key is path+mtime so it's safe to cache aggressively in the browser
+        res.setHeader('Cache-Control', 'private, max-age=3600');
         return res.sendFile(jpg);
       }
       // fall through if conversion failed — browser will likely show broken-image
@@ -137,15 +139,129 @@ app.get('/serve', requireAuth, async (req, res) => {
   } catch { res.status(404).json({ error: 'Not found' }); }
 });
 
+// Transcoder for browser-unfriendly containers/audio.
+// Writes a +faststart MP4 to disk (cached by path+mtime), then sendFile() with full
+// HTTP Range support — way more reliable across browsers than streaming fragmented MP4.
+const TRANSCODE_DIR = path.join(__dirname, '..', 'data', 'transcodecache');
+const fs_ = require('fs');
+if (!fs_.existsSync(TRANSCODE_DIR)) fs_.mkdirSync(TRANSCODE_DIR, { recursive: true });
+
+// One ffmpeg per source file at a time; concurrent requests for the same file share the promise
+const _transcodeInflight = new Map();
+
+async function _ensureTranscoded(srcPath) {
+  const stat = await files.stat(srcPath);
+  const crypto = require('crypto');
+  const key = crypto.createHash('md5').update(`${srcPath}:${stat.mtime || stat.mtimeMs}`).digest('hex');
+  const outPath = path.join(TRANSCODE_DIR, key + '.mp4');
+  if (fs_.existsSync(outPath)) return { outPath, fromCache: true };
+  if (_transcodeInflight.has(outPath)) return _transcodeInflight.get(outPath);
+
+  const promise = (async () => {
+    const { spawn } = require('child_process');
+    // Probe codecs
+    let probed = { streams: [], format: {} };
+    try {
+      probed = await new Promise((resolve, reject) => {
+        const p = spawn('ffprobe', ['-v','error','-print_format','json','-show_streams','-show_format', srcPath]);
+        let buf = ''; p.stdout.on('data', d => buf += d);
+        p.on('close', () => { try { resolve(JSON.parse(buf)); } catch (e) { reject(e); } });
+        p.on('error', reject);
+      });
+    } catch {}
+    const v = (probed.streams || []).find(s => s.codec_type === 'video');
+    const a = (probed.streams || []).find(s => s.codec_type === 'audio');
+    const vIsH264 = v && v.codec_name === 'h264';
+    const aIsAac  = a && (a.codec_name === 'aac' || a.codec_name === 'mp3');
+    console.log(`[transcode] building cache for ${path.basename(srcPath)} (video=${v?.codec_name}${vIsH264?' copy':' reencode'}, audio=${a?.codec_name}${aIsAac?' copy':' aac'})`);
+
+    const args = ['-hide_banner','-loglevel','warning','-y','-i', srcPath];
+    if (vIsH264) args.push('-c:v','copy'); else args.push('-c:v','libx264','-preset','veryfast','-crf','23');
+    if (aIsAac)  args.push('-c:a','copy'); else args.push('-c:a','aac','-b:a','192k');
+    // +faststart writes the moov atom to the start of the file after encoding completes →
+    // browsers can start playback immediately and seek freely.
+    args.push('-movflags','+faststart', outPath);
+
+    return await new Promise((resolve, reject) => {
+      const t0 = Date.now();
+      const child = spawn('ffmpeg', args, { stdio: ['ignore','ignore','pipe'] });
+      let errBuf = '';
+      child.stderr.on('data', d => { errBuf += d; if (errBuf.length > 4096) errBuf = errBuf.slice(-4096); });
+      child.on('error', reject);
+      child.on('close', (code) => {
+        if (code === 0 && fs_.existsSync(outPath)) {
+          console.log(`[transcode] cached ${path.basename(outPath)} in ${((Date.now()-t0)/1000).toFixed(1)}s`);
+          resolve({ outPath, fromCache: false });
+        } else {
+          try { fs_.unlinkSync(outPath); } catch {}
+          reject(new Error(`ffmpeg exited ${code}: ${errBuf.split('\n').filter(Boolean).slice(-2).join(' | ')}`));
+        }
+      });
+    });
+  })().finally(() => _transcodeInflight.delete(outPath));
+
+  _transcodeInflight.set(outPath, promise);
+  return promise;
+}
+
+// LRU-evict the cache when it grows too large. Run after each new entry is added.
+const TRANSCODE_CACHE_MAX_BYTES = 20 * 1024 * 1024 * 1024; // 20 GB
+async function _pruneTranscodeCache() {
+  try {
+    const entries = await fsp.readdir(TRANSCODE_DIR);
+    const items = await Promise.all(entries.map(async (name) => {
+      const fp = path.join(TRANSCODE_DIR, name);
+      try { const st = await fsp.stat(fp); return { fp, size: st.size, atime: st.atimeMs }; }
+      catch { return null; }
+    }));
+    const valid = items.filter(Boolean).sort((a, b) => a.atime - b.atime); // oldest access first
+    let total = valid.reduce((s, i) => s + i.size, 0);
+    while (total > TRANSCODE_CACHE_MAX_BYTES && valid.length) {
+      const v = valid.shift();
+      try { await fsp.unlink(v.fp); total -= v.size; console.log(`[transcode] evicted ${path.basename(v.fp)} (LRU)`); }
+      catch {}
+    }
+  } catch {}
+}
+
+const fsp = require('fs/promises');
+
+app.get('/transcode', requireAuth, async (req, res) => {
+  const filePath = req.query.path;
+  if (!filePath) return res.status(400).json({ error: 'Missing path' });
+  console.log(`[transcode] request: ${path.basename(filePath)}`);
+  try {
+    const { outPath, fromCache } = await _ensureTranscoded(filePath);
+    if (!fromCache) _pruneTranscodeCache(); // fire-and-forget
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.sendFile(outPath); // Express handles Range requests automatically
+  } catch (e) {
+    console.error('[transcode] failed:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/thumbnail', requireAuth, async (req, res) => {
   const filePath = req.query.path;
   const width = parseInt(req.query.width) || 300;
   if (!filePath) return res.status(400).json({ error: 'Missing path' });
+  const ext = path.extname(filePath).toLowerCase();
+  const isHeic = ext === '.heic' || ext === '.heif';
   try {
     const thumbPath = await thumbs.get(filePath, width);
-    if (!thumbPath) return res.status(204).end();
+    if (!thumbPath) {
+      console.warn(`[thumbnail] FAILED → 204 for ${path.basename(filePath)}`);
+      res.setHeader('Cache-Control', 'no-store, must-revalidate');
+      return res.status(204).end();
+    }
+    if (isHeic) console.log(`[thumbnail] OK ${path.basename(filePath)} → ${path.basename(thumbPath)}`);
+    res.setHeader('Cache-Control', 'private, max-age=3600');
     res.sendFile(thumbPath);
-  } catch { res.status(204).end(); }
+  } catch (e) {
+    console.warn(`[thumbnail] EXCEPTION for ${path.basename(filePath)}: ${e.message}`);
+    res.setHeader('Cache-Control', 'no-store, must-revalidate');
+    res.status(204).end();
+  }
 });
 
 app.get('/zip-download', requireAuth, async (req, res) => {
@@ -307,7 +423,24 @@ async function handle(type, payload, reply, ws, device) {
     // --- bookmarks ---
     case 'bookmark:list': {
       const db = require('./db');
-      reply(db.prepare('SELECT * FROM bookmarks WHERE device_id = ?').all(device.id));
+      const fs_ = require('fs');
+      const all = db.prepare('SELECT * FROM bookmarks WHERE device_id = ? ORDER BY created_at DESC').all(device.id);
+      // Prune bookmarks whose target no longer exists; annotate path bookmarks with isDir.
+      const alive = [];
+      let pruned = 0;
+      for (const b of all) {
+        if (b.url) { alive.push(b); continue; }
+        if (!b.path) { db.prepare('DELETE FROM bookmarks WHERE id = ?').run(b.id); pruned++; continue; }
+        try {
+          const s = fs_.statSync(b.path);
+          alive.push({ ...b, isDir: s.isDirectory() });
+        } catch {
+          db.prepare('DELETE FROM bookmarks WHERE id = ?').run(b.id);
+          pruned++;
+        }
+      }
+      if (pruned) console.log(`[bookmarks] pruned ${pruned} broken entries for device ${device.id.slice(0,8)}`);
+      reply(alive);
       break;
     }
     case 'bookmark:add': {
@@ -371,6 +504,10 @@ async function handle(type, payload, reply, ws, device) {
     case 'git:commit':        gitOps.commit(payload.cwd, payload.message); reply({ ok: true }); break;
     case 'git:checkout':      gitOps.checkout(payload.cwd, payload.branch); reply({ ok: true }); break;
     case 'git:create-branch': gitOps.createBranch(payload.cwd, payload.name); reply({ ok: true }); break;
+    case 'git:clone':         reply(gitOps.cloneRepo(payload.cwd, payload.url)); break;
+    case 'git:init-link':     reply(gitOps.initAndLink(payload.cwd, payload.url)); break;
+    case 'git:submodule-add': reply(gitOps.addSubmodule(payload.cwd, payload.url, payload.path)); break;
+    case 'git:submodules':    reply({ items: gitOps.listSubmodules(payload.cwd) }); break;
 
     // --- stats ---
     case 'stats:get': sysStats.getStats().then(reply).catch(() => reply({})); break;

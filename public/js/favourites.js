@@ -1,8 +1,7 @@
-/* Favourites — tracks top 10 most accessed folders with tree-like expansion */
+/* Favourites — flat list of the top-10 most-accessed folders */
 const Favourites = (() => {
   const panel = document.getElementById('favourites-panel');
   let counts = JSON.parse(localStorage.getItem('de_fav_counts') || '{}');
-  const nodeMap = new Map(); // path -> { element, open }
 
   function logAccess(path) {
     if (!path) return;
@@ -12,95 +11,82 @@ const Favourites = (() => {
       counts = Object.fromEntries(sorted.slice(0, 50));
     }
     localStorage.setItem('de_fav_counts', JSON.stringify(counts));
-    if (panel.style.display !== 'none') render();
+    // Deliberately no re-render — items would shuffle under the user's finger.
+    // The new ordering is picked up the next time the panel is opened.
   }
 
   async function render() {
+    panel.innerHTML = '';
+
+    // Stat ALL tracked paths so we can drop any that no longer exist.
+    // counts may grow well past 10; we sort + slice the survivors afterwards.
+    const allPaths = Object.keys(counts);
+    if (allPaths.length === 0) {
+      panel.innerHTML = '<div style="padding:1rem;color:var(--text-muted);font-size:.8rem">No frequent folders yet.</div>';
+      return;
+    }
+    const stats = await Promise.all(allPaths.map(async (p) => {
+      try { return await WS.send('fs:stat', { path: p }); }
+      catch { return null; }
+    }));
+
+    // Prune dead entries from counts (file/folder no longer exists)
+    let pruned = 0;
+    allPaths.forEach((p, i) => { if (stats[i] === null) { delete counts[p]; pruned++; } });
+    if (pruned) {
+      localStorage.setItem('de_fav_counts', JSON.stringify(counts));
+      console.log(`[favourites] pruned ${pruned} dead entries`);
+    }
+
+    // Build a path → stat map for the survivors, then render the top 10
+    const statByPath = new Map();
+    allPaths.forEach((p, i) => { if (stats[i] !== null) statByPath.set(p, stats[i]); });
+
     const sorted = Object.entries(counts)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10);
 
-    panel.innerHTML = '';
     if (sorted.length === 0) {
       panel.innerHTML = '<div style="padding:1rem;color:var(--text-muted);font-size:.8rem">No frequent folders yet.</div>';
       return;
     }
 
-    for (const [path, count] of sorted) {
-      const name = path.split(/[\\/]/).pop() || path;
-      const node = await makeNode(path, name, 0);
-      panel.appendChild(node);
-    }
+    sorted.forEach(([path]) => {
+      const stat   = statByPath.get(path);
+      const name   = path.split(/[\\/]/).pop() || path;
+      const isDir  = stat ? !!stat.isDir : true;
+      panel.appendChild(makeRow(path, name, isDir, stat));
+    });
   }
 
-  async function makeNode(path, name, depth) {
-    const wrapper = document.createElement('div');
-    const node = document.createElement('div');
-    node.className = 'tree-node';
-    node.dataset.path = path;
-    node.style.paddingLeft = (depth * 12 + 6) + 'px';
+  function makeRow(path, name, isDir, item) {
+    const row = document.createElement('div');
+    row.className = 'tree-node';
+    row.style.cursor = 'pointer';
+    row.dataset.path = path;
+    const icon = isDir ? '📁' : '📄';
+    row.innerHTML = `<span class="tree-icon">${icon}</span> <span class="tree-label">${name}</span>`;
+    row.title = path;
+    // Middle-click / triple-tap → open folder in a new tab (folders only)
+    if (isDir) Tabs.attachOpenInNewTab(row, () => ({ name, path, isDir: true }));
 
-    const toggle = document.createElement('span');
-    toggle.className = 'tree-toggle';
-    toggle.textContent = '▶';
-
-    const label = document.createElement('span');
-    label.className = 'tree-label';
-    label.innerHTML = `<span class="tree-icon">📁</span> ` + name;
-
-    node.append(toggle, label);
-    wrapper.appendChild(node);
-
-    let open = false;
-    let childrenLoaded = false;
-    const childContainer = document.createElement('div');
-    childContainer.style.display = 'none';
-    wrapper.appendChild(childContainer);
-
-    const toggleNode = async (e) => {
-      if (e) e.stopPropagation();
-      open = !open;
-      toggle.classList.toggle('expanded', open);
-      childContainer.style.display = open ? 'block' : 'none';
-
-      if (open && !childrenLoaded) {
-        childrenLoaded = true;
+    row.addEventListener('click', async () => {
+      if (isDir) {
+        Explorer.navigateFocused(path);
+      } else {
+        // File: navigate to its parent folder, then open the file in preview
+        const parent = path.replace(/[\\/][^\\/]+$/, '');
         try {
-          const items = await WS.send('fs:list', { path });
-          const sorted = items.sort((a, b) => (b.isDir - a.isDir) || a.name.localeCompare(b.name));
-          for (const item of sorted) {
-            if (item.isDir) {
-              const childNode = await makeNode(item.path, item.name, depth + 1);
-              childContainer.appendChild(childNode);
-            } else {
-              const fileEl = document.createElement('div');
-              fileEl.className = 'tree-node';
-              fileEl.style.paddingLeft = ((depth + 1) * 12 + 18) + 'px';
-              fileEl.innerHTML = `<span class="tree-icon">📄</span> <span class="tree-label">${item.name}</span>`;
-              fileEl.addEventListener('click', (ev) => {
-                ev.stopPropagation();
-                Explorer.navigateFocused(item.path);
-              });
-              childContainer.appendChild(fileEl);
-            }
-          }
-          if (sorted.length === 0) {
-            toggle.classList.add('leaf');
-            toggle.textContent = '▸';
-          }
+          await Explorer.navigate(parent || path);
+          const siblings = await WS.send('fs:list', { path: parent });
+          const file = (Array.isArray(siblings) ? siblings.find(s => s.path === path) : null) || item || { name, path, isDir: false };
+          Preview.open(file, Array.isArray(siblings) ? siblings : [file]);
         } catch {
-          childrenLoaded = false;
+          Preview.open(item || { name, path, isDir: false }, [item || { name, path, isDir: false }]);
         }
       }
-    };
-
-    toggle.addEventListener('click', toggleNode);
-    label.addEventListener('click', (e) => {
-      e.stopPropagation();
-      Explorer.navigateFocused(path);
     });
-
-    return wrapper;
+    return row;
   }
 
   return { logAccess, render };

@@ -38,6 +38,7 @@ const Preview = (() => {
     'xlsx', 'xls', 'xlsm', 'ods',
     'pptx', 'ppt', 'odp',
     'zip', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'svg', 'bmp', 'ico', 'tiff', 'tif',
+    'heic', 'heif', 'dng', 'cr2', 'cr3', 'nef', 'arw', 'raf', 'orf', 'rw2',
     'mp4', 'webm', 'mov', 'mkv', 'avi', 'm4v', '3gp', 'flv', 'ogv',
     'mp3', 'ogg', 'wav', 'flac', 'aac', 'm4a', 'm4b', 'opus'
   ]);
@@ -49,6 +50,7 @@ const Preview = (() => {
   // File types with no useful plain-text content (suppress Edit button)
   const BINARY_EXTS = new Set([
     'jpg','jpeg','png','gif','webp','avif','svg','bmp','ico','tiff','tif',
+    'heic','heif','dng','cr2','cr3','nef','arw','raf','orf','rw2',
     'mp4','webm','mov','mkv','avi','m4v','3gp','flv','ogv',
     'mp3','ogg','wav','flac','aac','m4a','m4b','opus','mid',
     'pdf','docx','doc','odt','xlsx','xls','xlsm','ods','pptx','ppt','odp',
@@ -140,6 +142,66 @@ const Preview = (() => {
     }
   });
 
+  // Find the nearest scrollable ancestor up to (but not including) `stopAt`.
+  // Used to suppress swipe-to-close when the user is mid-scroll inside content.
+  function _getScrollableAncestor(el, stopAt) {
+    let cur = el;
+    while (cur && cur !== stopAt && cur !== document.body) {
+      const cs = getComputedStyle(cur);
+      if (/auto|scroll/.test(cs.overflowY) && cur.scrollHeight > cur.clientHeight + 1) return cur;
+      cur = cur.parentElement;
+    }
+    return null;
+  }
+
+  // ── Touch swipe navigation + swipe-down-to-close (mobile) ─────────────
+  (function attachSwipe() {
+    let start = null;
+    const NAV_DX_MIN  = 50;     // px — horizontal distance for prev/next
+    const NAV_DY_MAX  = 40;     // px — max vertical drift for horizontal swipe
+    const CLOSE_DY    = 120;    // px — downward distance to trigger close
+    const CLOSE_DX_MAX= 80;     // px — max horizontal drift for vertical swipe
+    const GESTURE_MS_MAX = 600; // ms — max gesture duration
+    const blockSel = 'audio, video, input, textarea, select, button, a, #preview-resize-handle';
+
+    modal.addEventListener('touchstart', (e) => {
+      if (!modal.open || e.touches.length !== 1)          { start = null; return; }
+      if (e.target.closest(blockSel))                     { start = null; return; }
+      // Carousel strip handles its own touches
+      if (document.getElementById('preview-swipe-strip')) { start = null; return; }
+      const t = e.touches[0];
+      const scroller = _getScrollableAncestor(e.target, modal);
+      start = { x: t.clientX, y: t.clientY, t: Date.now(), scrollTopAtStart: scroller?.scrollTop ?? 0 };
+    }, { passive: true });
+
+    modal.addEventListener('touchmove', (e) => {
+      if (!start) return;
+      if (e.touches.length > 1) start = null;
+    }, { passive: true });
+
+    modal.addEventListener('touchend', (e) => {
+      if (!start) return;
+      const t = e.changedTouches[0];
+      const dx = t.clientX - start.x;
+      const dy = t.clientY - start.y;
+      const dt = Date.now() - start.t;
+      const wasAtTop = start.scrollTopAtStart <= 0;
+      start = null;
+      if (dt > GESTURE_MS_MAX) return;
+
+      // Horizontal: prev/next navigation (requires >1 nav items)
+      if (Math.abs(dx) >= NAV_DX_MIN && Math.abs(dy) < NAV_DY_MAX && navItems.length > 1) {
+        if (dx > 0) openItem(navIdx - 1);
+        else        openItem(navIdx + 1);
+        return;
+      }
+      // Vertical down: close — only if user wasn't mid-scroll
+      if (dy >= CLOSE_DY && Math.abs(dx) < CLOSE_DX_MAX && wasAtTop) {
+        close();
+      }
+    }, { passive: true });
+  })();
+
   function close(_fromRemoteClose = false) {
     if (_zoomCleanup) { _zoomCleanup(); _zoomCleanup = null; }
     if (!_fromRemoteClose) State.set('activePreview', null);
@@ -173,7 +235,7 @@ const Preview = (() => {
     content.style.flexDirection = '';
 
     if (currentFile.url) return renderUrl();
-    if (['jpg','jpeg','png','gif','webp','avif','svg','bmp','ico','tiff','tif','heic','heif'].includes(ext)) return renderImage();
+    if (['jpg','jpeg','png','gif','webp','avif','svg','bmp','ico','tiff','tif','heic','heif','dng','cr2','cr3','nef','arw','raf','orf','rw2'].includes(ext)) return renderImage();
     if (['mp4','webm','mov','mkv','avi','m4v','3gp','flv','ogv'].includes(ext))               return renderVideo();
     if (['mp3','ogg','wav','flac','aac','m4a','m4b','opus'].includes(ext))                    return renderAudio();
     if (ext === 'pdf')                                                                        return renderPdf();
@@ -303,13 +365,249 @@ const Preview = (() => {
     content.appendChild(iframe);
   }
 
+  const IMG_EXT_SET = new Set(['jpg','jpeg','png','gif','webp','avif','svg','bmp','ico','tiff','tif','heic','heif','dng','cr2','cr3','nef','arw','raf','orf','rw2']);
+  const VID_EXT_SET = new Set(['mp4','webm','mov','mkv','avi','m4v','3gp','flv','ogv','wmv','ts','m2ts']);
+  // Containers Chrome can't reliably play (or fails silently on) → eagerly route to /transcode,
+  // which writes a +faststart MP4 to disk and serves with full Range support.
+  // Native-playable containers stay on /serve for instant playback.
+  const VIDEO_DIRECT_OK_EXTS = new Set(['mp4','webm','m4v']);
+  function _videoSrc(item) {
+    const ext = (item.ext || '').replace('.','').toLowerCase();
+    const token = localStorage.getItem('de_token') || '';
+    const route = VIDEO_DIRECT_OK_EXTS.has(ext) ? '/serve' : '/transcode';
+    return `${route}?path=${encodeURIComponent(item.path)}&token=${token}`;
+  }
+  function _videoTranscodeSrc(item) {
+    const token = localStorage.getItem('de_token') || '';
+    return `/transcode?path=${encodeURIComponent(item.path)}&token=${token}`;
+  }
+
+  function _isMediaItem(item) {
+    if (!item || item.isDir) return false;
+    const e = (item.ext || '').replace('.','').toLowerCase();
+    return IMG_EXT_SET.has(e) || VID_EXT_SET.has(e);
+  }
+
+  function _makeMediaSlide(item, isCurrent) {
+    const token = localStorage.getItem('de_token') || '';
+    const slide = document.createElement('div');
+    slide.className = 'preview-swipe-slide';
+    slide.style.cssText = 'flex:0 0 33.3333%;width:33.3333%;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#000;position:relative';
+    if (!item) return slide;
+
+    const ext = (item.ext || '').replace('.','').toLowerCase();
+    const isVideo = VID_EXT_SET.has(ext);
+
+    // Loading spinner (removed on first frame / load event)
+    const spinner = document.createElement('div');
+    spinner.className = 'preview-slide-loader';
+    slide.appendChild(spinner);
+    const clearSpinner = () => { if (spinner.parentNode) spinner.remove(); };
+
+    if (isVideo && isCurrent) {
+      const v = document.createElement('video');
+      v.src         = _videoSrc(item);
+      v.controls    = true;
+      v.preload     = 'metadata';
+      // iOS Safari: keep playback inline. Without this, iOS hijacks into its native
+      // fullscreen player, and after exit the element ends up in a state where play()
+      // is silently rejected. With playsinline, fullscreen becomes opt-in (controls button).
+      v.setAttribute('playsinline', '');
+      v.setAttribute('webkit-playsinline', '');
+      v.style.cssText = 'max-width:100%;max-height:100%;width:100%;height:100%;object-fit:contain;background:#000';
+      v.addEventListener('loadedmetadata', clearSpinner, { once: true });
+      v.addEventListener('canplay',        clearSpinner, { once: true });
+      // If direct serve fails, transparently retry through the transcoder.
+      // Some MKVs/AVIs need server-side remux to be browser-playable.
+      let _retried = false;
+      v.addEventListener('error', () => {
+        if (_retried) { clearSpinner(); return; }
+        _retried = true;
+        if (v.src.indexOf('/transcode') === -1) {
+          console.warn('[preview] direct serve failed for', item.name, '— retrying with /transcode');
+          v.src = _videoTranscodeSrc(item);
+          v.load();
+        } else {
+          clearSpinner();
+        }
+      });
+      slide.appendChild(v);
+    } else if (isVideo) {
+      // Adjacent video → cheap thumbnail preview only
+      const img = document.createElement('img');
+      img.src = `/thumbnail?path=${encodeURIComponent(item.path)}&width=800&token=${token}`;
+      img.style.cssText = 'max-width:100%;max-height:100%;object-fit:contain;display:block;user-select:none;-webkit-user-drag:none';
+      img.draggable = false;
+      img.addEventListener('load',  clearSpinner, { once: true });
+      img.addEventListener('error', clearSpinner, { once: true });
+      slide.appendChild(img);
+    } else if (item.livePhotoMov && isCurrent) {
+      // iPhone Live Photo (current slide): play the .MOV once, then swap to the still image.
+      const vid = document.createElement('video');
+      vid.src         = `/serve?path=${encodeURIComponent(item.livePhotoMov)}&token=${token}`;
+      vid.autoplay    = true;
+      vid.muted       = true;
+      vid.setAttribute('playsinline', '');
+      vid.style.cssText = 'max-width:100%;max-height:100%;width:100%;height:100%;object-fit:contain;display:block;background:#000';
+      vid.addEventListener('loadeddata', clearSpinner, { once: true });
+      const swapToStill = () => {
+        const img = document.createElement('img');
+        img.src = `/serve?path=${encodeURIComponent(item.path)}&token=${token}`;
+        img.style.cssText = vid.style.cssText + ';object-fit:contain';
+        vid.replaceWith(img);
+      };
+      vid.addEventListener('ended', swapToStill, { once: true });
+      vid.addEventListener('error', () => { clearSpinner(); swapToStill(); }, { once: true });
+      slide.appendChild(vid);
+      const badge = document.createElement('span');
+      badge.className = 'live-photo-badge';
+      badge.textContent = 'LIVE';
+      slide.appendChild(badge);
+    } else {
+      // Image (current or adjacent — preloaded by simply being in the DOM)
+      const img = document.createElement('img');
+      img.src = `/serve?path=${encodeURIComponent(item.path)}&token=${token}`;
+      img.style.cssText = 'max-width:100%;max-height:100%;width:100%;height:100%;object-fit:contain;display:block;user-select:none;-webkit-user-drag:none';
+      img.draggable = false;
+      img.addEventListener('load',  clearSpinner, { once: true });
+      img.addEventListener('error', clearSpinner, { once: true });
+      slide.appendChild(img);
+    }
+    return slide;
+  }
+
+  // Build the swipe strip for the current media item. Called from renderImage / renderVideo on mobile.
+  function _renderMediaCarousel() {
+    content.style.padding  = '0';
+    content.style.overflow = 'hidden';
+    content.style.position = 'relative';
+
+    const strip = document.createElement('div');
+    strip.id = 'preview-swipe-strip';
+    strip.style.cssText = 'display:flex;width:300%;height:100%;transform:translateX(-33.3333%);will-change:transform;touch-action:pan-y';
+
+    const prev = navItems[navIdx - 1] || null;
+    const curr = navItems[navIdx];
+    const next = navItems[navIdx + 1] || null;
+
+    strip.appendChild(_makeMediaSlide(prev, false));
+    strip.appendChild(_makeMediaSlide(curr, true));
+    strip.appendChild(_makeMediaSlide(next, false));
+
+    content.appendChild(strip);
+    _attachStripSwipe(strip);
+  }
+
+  function _attachStripSwipe(strip) {
+    let startX = null, startY = null;
+    let width = 0;
+    let locked = null; // 'x' | 'y' | null — gesture axis once decided
+    const DECIDE_PX = 8;
+
+    const onStart = (e) => {
+      if (e.touches.length !== 1) { startX = null; return; }
+      const t = e.touches[0];
+      startX = t.clientX; startY = t.clientY;
+      width  = strip.offsetWidth / 3;
+      locked = null;
+      strip.style.transition = 'none';
+    };
+
+    const onMove = (e) => {
+      if (startX === null || e.touches.length > 1) { startX = null; return; }
+      const t = e.touches[0];
+      const dx = t.clientX - startX;
+      const dy = t.clientY - startY;
+      if (!locked) {
+        if (Math.abs(dx) > DECIDE_PX || Math.abs(dy) > DECIDE_PX) {
+          locked = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+        } else return;
+      }
+      if (locked !== 'x') return;
+      // Resist swiping past the ends
+      let useDx = dx;
+      if ((dx > 0 && navIdx <= 0) || (dx < 0 && navIdx >= navItems.length - 1)) {
+        useDx = dx * 0.3; // rubber-band
+      }
+      strip.style.transform = `translate3d(calc(-33.3333% + ${useDx}px), 0, 0)`;
+    };
+
+    const onEnd = (e) => {
+      if (startX === null) { return; }
+      const t = e.changedTouches[0];
+      const dx = t.clientX - startX;
+      const dy = t.clientY - startY;
+      const lockedAxis = locked;
+      startX = null;
+
+      // Vertical-down swipe closes the modal (no inner scroll to worry about — strip has overflow hidden)
+      if (lockedAxis === 'y' && dy > 120 && Math.abs(dx) < 80) {
+        close();
+        return;
+      }
+      if (lockedAxis !== 'x') return;
+
+      strip.style.transition = 'transform .22s cubic-bezier(.2,.9,.3,1)';
+      const threshold = Math.min(80, width * 0.2);
+
+      const goingPrev = dx > threshold && navIdx > 0;
+      const goingNext = dx < -threshold && navIdx < navItems.length - 1;
+
+      if (goingPrev) {
+        strip.style.transform = 'translate3d(0, 0, 0)';
+        strip.addEventListener('transitionend', () => openItem(navIdx - 1), { once: true });
+      } else if (goingNext) {
+        strip.style.transform = 'translate3d(-66.6666%, 0, 0)';
+        strip.addEventListener('transitionend', () => openItem(navIdx + 1), { once: true });
+      } else {
+        strip.style.transform = 'translate3d(-33.3333%, 0, 0)';
+      }
+    };
+
+    strip.addEventListener('touchstart', onStart, { passive: true });
+    strip.addEventListener('touchmove',  onMove,  { passive: true });
+    strip.addEventListener('touchend',   onEnd,   { passive: true });
+    strip.addEventListener('touchcancel',onEnd,   { passive: true });
+  }
+
+  function _useMobileCarousel() {
+    return window.innerWidth <= 768 && navItems.length > 1 && _isMediaItem(currentFile);
+  }
+
   function renderImage() {
+    if (_useMobileCarousel()) return _renderMediaCarousel();
     const token = localStorage.getItem('de_token') || '';
     content.style.padding  = '0';
     content.style.overflow = 'hidden';
+    content.style.position = 'relative';
+
+    // iPhone Live Photo: play the .MOV once, then swap to the still HEIC
+    if (currentFile.livePhotoMov) {
+      const vid = document.createElement('video');
+      vid.src = `/serve?path=${encodeURIComponent(currentFile.livePhotoMov)}&token=${token}`;
+      vid.autoplay = true; vid.muted = true;
+      vid.setAttribute('playsinline', '');
+      vid.style.cssText = 'display:block;width:100%;height:100%;object-fit:contain;background:#000';
+      const swapToStill = () => {
+        const img = document.createElement('img');
+        img.src = `/serve?path=${encodeURIComponent(currentFile.path)}&token=${token}`;
+        img.style.cssText = 'display:block;width:100%;height:100%;object-fit:contain;cursor:grab;transform-origin:center center';
+        vid.replaceWith(img);
+        if (_zoomCleanup) { _zoomCleanup(); _zoomCleanup = null; }
+        _zoomCleanup = makeZoomable(img);
+      };
+      vid.addEventListener('ended', swapToStill, { once: true });
+      vid.addEventListener('error', swapToStill, { once: true });
+      content.appendChild(vid);
+      const badge = document.createElement('span');
+      badge.className = 'live-photo-badge';
+      badge.textContent = 'LIVE';
+      content.appendChild(badge);
+      return;
+    }
+
     const img = document.createElement('img');
     img.src = `/serve?path=${encodeURIComponent(currentFile.path)}&token=${token}`;
-    // width/height 100% fills the flex container; object-fit:contain keeps aspect ratio
     img.style.display         = 'block';
     img.style.width           = '100%';
     img.style.height          = '100%';
@@ -321,17 +619,31 @@ const Preview = (() => {
   }
 
   function renderVideo() {
+    if (_useMobileCarousel()) return _renderMediaCarousel();
     const token = localStorage.getItem('de_token') || '';
     content.style.padding  = '0';
     content.style.overflow = 'hidden';
     const video = document.createElement('video');
-    video.src = `/serve?path=${encodeURIComponent(currentFile.path)}&token=${token}`;
+    video.src = _videoSrc(currentFile);
     video.controls = true;
+    video.setAttribute('playsinline', '');
+    video.setAttribute('webkit-playsinline', '');
     video.style.display    = 'block';
     video.style.width      = '100%';
     video.style.height     = '100%';
     video.style.objectFit  = 'contain';
     video.style.background = '#000';
+    // Fall back to /transcode if direct serve fails
+    let _retried = false;
+    video.addEventListener('error', () => {
+      if (_retried) return;
+      _retried = true;
+      if (video.src.indexOf('/transcode') === -1) {
+        console.warn('[preview] direct serve failed for', currentFile.name, '— retrying with /transcode');
+        video.src = _videoTranscodeSrc(currentFile);
+        video.load();
+      }
+    });
     content.appendChild(video);
   }
 
@@ -976,6 +1288,32 @@ const Preview = (() => {
   document.getElementById('props-dialog').addEventListener('click', (e) => {
     if (e.target === document.getElementById('props-dialog')) document.getElementById('props-dialog').close();
   });
+
+  // Swipe down on props-dialog to close (mobile gesture)
+  (function attachPropsSwipeClose() {
+    const dlg = document.getElementById('props-dialog');
+    let s = null;
+    const blockSel = 'audio, video, input, textarea, select, button, a';
+    dlg.addEventListener('touchstart', (e) => {
+      if (!dlg.open || e.touches.length !== 1) { s = null; return; }
+      if (e.target.closest(blockSel))           { s = null; return; }
+      const t = e.touches[0];
+      const scroller = _getScrollableAncestor(e.target, dlg);
+      s = { x: t.clientX, y: t.clientY, t: Date.now(), scrollTopAtStart: scroller?.scrollTop ?? 0 };
+    }, { passive: true });
+    dlg.addEventListener('touchmove', (e) => {
+      if (s && e.touches.length > 1) s = null;
+    }, { passive: true });
+    dlg.addEventListener('touchend', (e) => {
+      if (!s) return;
+      const t = e.changedTouches[0];
+      const dx = t.clientX - s.x, dy = t.clientY - s.y, dt = Date.now() - s.t;
+      const wasAtTop = s.scrollTopAtStart <= 0;
+      s = null;
+      if (dt > 600) return;
+      if (dy >= 120 && Math.abs(dx) < 80 && wasAtTop) dlg.close();
+    }, { passive: true });
+  })();
 
   modal.addEventListener('click', (e) => { if (e.target === modal && !_resizing) close(); });
   modal.addEventListener('cancel', (e) => { e.preventDefault(); close(); });

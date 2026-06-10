@@ -911,6 +911,52 @@ dialog#preview-modal::backdrop {
 #preview-content::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 4px; }
 #preview-content::-webkit-scrollbar-thumb:hover { background: var(--accent); }
 
+/* iPhone Live Photo badge (gallery tile + preview overlay) */
+.live-photo-badge {
+  position: absolute;
+  top: 6px; left: 6px;
+  background: rgba(0, 0, 0, .55);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 2;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* Swipe carousel slides — neutralise the global img/video margins so they fill the slide */
+#preview-swipe-strip { margin: 0; }
+#preview-swipe-strip img,
+#preview-swipe-strip video {
+  margin: 0 !important;
+  border-radius: 0 !important;
+  max-width: 100%;
+  max-height: 100%;
+}
+.preview-swipe-slide { margin: 0; padding: 0; }
+.preview-slide-loader {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 1;
+}
+.preview-slide-loader::after {
+  content: '';
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(255,255,255,.15);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .8s linear infinite;
+}
+
 #preview-content pre  { margin: 0; border-radius: var(--radius-sm); overflow-x: auto; }
 #preview-content code { font-family: var(--font-mono); font-size: .8rem; }
 #preview-content img  { max-width: 100%; display: block; margin: .5rem auto; border-radius: var(--radius-sm); }
@@ -1208,13 +1254,13 @@ dialog#preview-modal::backdrop {
   .toolbar-center { flex: 0 0 auto; padding: 0; }
   #pathbar { min-width: 0; }
 
-  /* Left panel becomes a fixed drawer */
+  /* Left panel becomes a fixed drawer — 75% of the screen on mobile, capped at 420px on tablets */
   #panel-left {
     display: flex !important; /* override display:none from earlier media block */
     position: fixed !important;
     left: 0; top: 0; bottom: 0;
     z-index: 200;
-    width: 280px !important;
+    width: min(75dvw, 420px) !important;
     transform: translateX(-100%);
     transition: transform .25s ease;
     box-shadow: 4px 0 20px rgba(0, 0, 0, .4);
@@ -1303,6 +1349,54 @@ dialog#preview-modal::backdrop {
     border-top: none !important;
   }
   #splitter-bottom { display: none !important; }
+
+  /* ── Safe-area insets for notches, dynamic islands, curved edges, home indicator ── */
+  /* `max(env(...), <fallback>)` guarantees a minimum clearance even on browsers that
+     report 0 for safe-area-inset (older Android Chrome, gesture nav, etc). */
+  #toolbar {
+    padding-top:   max(env(safe-area-inset-top,    0px), 8px);
+    padding-left:  calc(max(env(safe-area-inset-left,  0px), 0px) + .4rem);
+    padding-right: calc(max(env(safe-area-inset-right, 0px), 0px) + .4rem);
+    height: calc(44px + max(env(safe-area-inset-top, 0px), 8px));
+  }
+  #statusbar {
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), 20px);
+    padding-left:   calc(max(env(safe-area-inset-left,  0px), 0px) + .6rem);
+    padding-right:  calc(max(env(safe-area-inset-right, 0px), 0px) + .6rem);
+    height: calc(28px + max(env(safe-area-inset-bottom, 0px), 20px));
+  }
+  #tabs-bar {
+    padding-left:  calc(max(env(safe-area-inset-left,  0px), 0px) + .25rem);
+    padding-right: calc(max(env(safe-area-inset-right, 0px), 0px) + .25rem);
+  }
+
+  /* Compact status-bar stats on mobile: hide labels (CPU/MEM/DSK/NET), keep values only.
+     The `font-size: 0` trick collapses the bare text label; the <b> value resets to a
+     readable size. Long-press the chip still shows the descriptive title tooltip. */
+  #sys-stats { gap: .2rem; }
+  .stat-chip {
+    font-size: 0;
+    padding: 0 .25rem;
+    border-left: 1px solid var(--border);
+  }
+  .stat-chip:first-child { border-left: none; }
+  .stat-chip b {
+    font-size: .7rem;
+    font-weight: 600;
+    margin-left: 0;
+  }
+
+  /* Fixed-positioned full-screen modals — pad inner content while keeping background edge-to-edge */
+  dialog#preview-modal[open],
+  dialog#props-dialog[open],
+  #panel-bottom,
+  #search-panel,
+  #panel-left {
+    padding-top:    max(env(safe-area-inset-top,    0px), 8px)  !important;
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), 20px) !important;
+    padding-left:   max(env(safe-area-inset-left,   0px), 0px)  !important;
+    padding-right:  max(env(safe-area-inset-right,  0px), 0px)  !important;
+  }
 }
 
 /* ── Open-in-tab button (replaces download) ── */
@@ -1444,6 +1538,76 @@ dialog#props-dialog::backdrop { background: rgba(6,6,16,.6); backdrop-filter: bl
   padding: .75rem .8rem; font-size: .8rem; color: var(--text-muted);
 }
 .git-error { color: var(--danger); }
+
+/* Link-this-folder-to-a-remote-repo form (shown when the folder isn't a git repo yet) */
+.git-clone-form {
+  padding: .25rem .8rem .8rem;
+  display: flex; flex-direction: column; gap: .5rem;
+  border-top: 1px solid var(--border);
+}
+.git-clone-label {
+  font-size: .78rem; font-weight: 600; color: var(--text-primary);
+  margin-top: .4rem;
+}
+.git-clone-form input[type="text"] {
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: .78rem;
+  padding: .4rem .55rem;
+  outline: none;
+}
+.git-clone-form input[type="text"]:focus { border-color: var(--accent); }
+.git-clone-hint {
+  font-size: .7rem; color: var(--text-muted); margin: 0; line-height: 1.4;
+}
+.git-clone-hint code {
+  background: var(--bg-base); padding: 0 .25rem; border-radius: 3px;
+  font-size: .68rem;
+}
+.git-clone-status {
+  font-size: .72rem; color: var(--text-muted); margin: 0; min-height: 1em;
+  white-space: pre-wrap; word-break: break-word;
+}
+.git-clone-status.ok  { color: var(--success, #58c478); }
+.git-clone-status.err { color: var(--danger); }
+.git-clone-actions {
+  display: flex; gap: .4rem; flex-wrap: wrap;
+}
+
+/* Submodule / main-repo selector — appears above the branch bar when submodules exist */
+.git-repo-bar {
+  display: flex; align-items: center; gap: .4rem;
+  padding: .4rem .6rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-base);
+}
+.git-repo-label {
+  font-size: .72rem; color: var(--text-muted); font-weight: 600;
+  letter-spacing: .05em; text-transform: uppercase;
+}
+.git-repo-select {
+  flex: 1;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: .2rem .4rem;
+  font-size: .78rem;
+  font-family: var(--font-mono);
+  outline: none;
+  min-width: 0;
+}
+.git-repo-select:focus { border-color: var(--accent); }
+.git-clone-actions .git-commit-btn { flex: 1; min-width: 0; font-size: .78rem; }
+.git-clone-actions .git-commit-btn.secondary {
+  background: var(--bg-hover); color: var(--text-primary);
+}
+.git-clone-actions .git-commit-btn.secondary:hover:not(:disabled) {
+  background: var(--bg-selected);
+}
 .git-branch-bar {
   display: flex; align-items: center; gap: .3rem;
   padding: .4rem .6rem;

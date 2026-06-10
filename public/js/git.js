@@ -1,8 +1,10 @@
 /* Git panel — VS Code-style git operations for the current directory */
 const Git = (() => {
   const panel = document.getElementById('git-panel');
-  let _cwd    = null;
-  let _root   = null;
+  let _cwd       = null;  // The folder the user is in (informational)
+  let _root      = null;  // Root the panel currently operates against (main repo OR a submodule)
+  let _mainRoot  = null;  // Top-level repo root, used to populate the submodule dropdown
+  let _submodules = [];   // [{ path, relPath, name, sha }, ...]
 
   const STATUS_COLOR = { M: '#e2a44f', A: '#5cb85c', D: '#e05252', R: '#7c6ef5', '?': '#5cb85c', C: '#5cb85c', U: '#e05252' };
   const STATUS_LABEL = { M: 'M', A: 'A', D: 'D', R: 'R', '?': 'C', C: 'C', U: 'U' };
@@ -10,14 +12,22 @@ const Git = (() => {
   function _esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   function _fmtHash(h) { return `<span class="git-hash">${_esc(h)}</span>`; }
 
-  async function refresh(dirPath) {
+  async function refresh(dirPath, opts = {}) {
     if (!dirPath) { _showEmpty('Navigate to a folder to see git status.'); return; }
-    _cwd = dirPath;
+    if (!opts.keepMainRoot) _cwd = dirPath;
 
     let repoInfo;
     try { repoInfo = await WS.send('git:is-repo', { cwd: dirPath }); } catch { _showError('Git not available.'); return; }
-    if (!repoInfo.isRepo) { _showEmpty('Not a git repository.'); return; }
+    if (!repoInfo.isRepo) { _showNotRepo(dirPath); return; }
     _root = repoInfo.root || dirPath;
+    if (!opts.keepMainRoot) {
+      // First-time enter (or normal nav): treat this as the main repo and discover its submodules
+      _mainRoot = _root;
+      try {
+        const subs = await WS.send('git:submodules', { cwd: _mainRoot });
+        _submodules = subs.items || [];
+      } catch { _submodules = []; }
+    }
 
     panel.innerHTML = '<div class="git-loading">Loading…</div>';
     try {
@@ -30,6 +40,12 @@ const Git = (() => {
     } catch (e) { _showError(e.message); }
   }
 
+  // Swap the panel to operate against a submodule (or back to the main repo if path === _mainRoot)
+  function _switchRoot(newRoot) {
+    if (!newRoot || newRoot === _root) return;
+    refresh(newRoot, { keepMainRoot: true });
+  }
+
   function _showEmpty(msg) {
     panel.innerHTML = `<p class="git-empty">${_esc(msg)}</p>`;
   }
@@ -37,8 +53,86 @@ const Git = (() => {
     panel.innerHTML = `<p class="git-empty git-error">${_esc(msg)}</p>`;
   }
 
+  function _showNotRepo(dirPath) {
+    panel.innerHTML = `
+      <p class="git-empty">Not a git repository.</p>
+      <div class="git-clone-form">
+        <div class="git-clone-label">Remote repository URL</div>
+        <input type="text" id="git-clone-url" placeholder="https://github.com/user/repo.git" spellcheck="false" autocomplete="off">
+        <div class="git-clone-actions">
+          <button id="git-clone-btn" class="git-commit-btn" title="Clone the repo into this folder (folder must be empty)">⬇ Clone repo here</button>
+          <button id="git-link-btn"  class="git-commit-btn secondary" title="Run git init in this folder and set origin to the URL above">🔗 Init &amp; link</button>
+        </div>
+        <p class="git-clone-hint">
+          <b>Clone repo here</b> — pulls the remote repo into this folder. Folder must be empty.<br>
+          <b>Init &amp; link</b> — runs <code>git init</code> + <code>git remote add origin &lt;url&gt;</code>. Use when the folder already has files you want to push.
+        </p>
+        <p id="git-clone-status" class="git-clone-status"></p>
+      </div>`;
+
+    const input    = panel.querySelector('#git-clone-url');
+    const cloneBtn = panel.querySelector('#git-clone-btn');
+    const linkBtn  = panel.querySelector('#git-link-btn');
+    const status   = panel.querySelector('#git-clone-status');
+
+    const setBusy = (busy) => {
+      cloneBtn.disabled = busy; linkBtn.disabled = busy; input.disabled = busy;
+    };
+
+    const run = async (op, label) => {
+      const url = input.value.trim();
+      if (!url) { input.focus(); return; }
+      setBusy(true);
+      status.textContent = `${label}…`;
+      status.className = 'git-clone-status';
+      try {
+        await WS.send(op, { cwd: dirPath, url });
+        status.textContent = 'Done. Refreshing…';
+        status.className = 'git-clone-status ok';
+        try { await Explorer.refresh(); } catch {}
+        refresh(dirPath);
+      } catch (e) {
+        status.textContent = (e.message || 'Failed').split('\n')[0];
+        status.className = 'git-clone-status err';
+        setBusy(false);
+      }
+    };
+
+    cloneBtn.addEventListener('click', () => run('git:clone',     'Cloning repo (can take a minute for large repos)'));
+    linkBtn .addEventListener('click', () => run('git:init-link', 'Initialising & linking'));
+    // Enter defaults to clone (most common case)
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') cloneBtn.click(); });
+  }
+
   function _render(branchRes, statusRes, commits) {
     panel.innerHTML = '';
+
+    // ── Repo selector (only when there are submodules) ──
+    if (_submodules.length) {
+      const repoBar = document.createElement('div');
+      repoBar.className = 'git-repo-bar';
+      const label = document.createElement('span');
+      label.className = 'git-repo-label';
+      label.textContent = 'Repo:';
+      const sel = document.createElement('select');
+      sel.className = 'git-repo-select';
+      const optMain = document.createElement('option');
+      optMain.value = _mainRoot;
+      optMain.textContent = '⊕ Main repo';
+      if (_root === _mainRoot) optMain.selected = true;
+      sel.appendChild(optMain);
+      _submodules.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.path;
+        opt.textContent = '↳ ' + s.relPath;
+        if (s.path === _root) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      sel.addEventListener('change', () => _switchRoot(sel.value));
+      repoBar.appendChild(label);
+      repoBar.appendChild(sel);
+      panel.appendChild(repoBar);
+    }
 
     // ── Branch bar ──
     const branchBar = document.createElement('div');
@@ -128,6 +222,72 @@ const Git = (() => {
     if (commits.length) {
       panel.appendChild(_makeCommitLog(commits));
     }
+
+    // ── Add submodule (collapsible) ──
+    panel.appendChild(_makeSubmoduleSection());
+  }
+
+  function _makeSubmoduleSection() {
+    const section = document.createElement('div');
+    section.className = 'git-section';
+
+    const header = document.createElement('div');
+    header.className = 'git-section-header';
+    header.innerHTML = '<span class="git-section-arrow">▸</span> Add submodule';
+    let collapsed = true;
+
+    const body = document.createElement('div');
+    body.className = 'git-section-body';
+    body.style.display = 'none';
+    body.innerHTML = `
+      <div class="git-clone-form" style="border-top:none;padding:.5rem .8rem">
+        <input type="text" id="git-sub-url"  placeholder="https://github.com/user/repo.git" spellcheck="false" autocomplete="off">
+        <input type="text" id="git-sub-path" placeholder="Optional path (defaults to repo name)" spellcheck="false" autocomplete="off">
+        <button id="git-sub-btn" class="git-commit-btn">📦 Clone as submodule</button>
+        <p class="git-clone-hint">Runs <code>git submodule add &lt;url&gt; [path]</code>. The submodule is added at the repo root.</p>
+        <p id="git-sub-status" class="git-clone-status"></p>
+      </div>`;
+
+    header.addEventListener('click', () => {
+      collapsed = !collapsed;
+      body.style.display = collapsed ? 'none' : '';
+      header.querySelector('.git-section-arrow').textContent = collapsed ? '▸' : '▾';
+    });
+
+    section.appendChild(header);
+    section.appendChild(body);
+
+    // Wire form (lazy — happens once)
+    queueMicrotask(() => {
+      const urlEl    = body.querySelector('#git-sub-url');
+      const pathEl   = body.querySelector('#git-sub-path');
+      const btn      = body.querySelector('#git-sub-btn');
+      const statusEl = body.querySelector('#git-sub-status');
+      const submit = async () => {
+        const url = urlEl.value.trim();
+        if (!url) { urlEl.focus(); return; }
+        const subPath = pathEl.value.trim() || null;
+        btn.disabled = true; urlEl.disabled = true; pathEl.disabled = true;
+        statusEl.textContent = 'Cloning submodule (can take a minute for large repos)…';
+        statusEl.className = 'git-clone-status';
+        try {
+          await WS.send('git:submodule-add', { cwd: _root, url, path: subPath });
+          statusEl.textContent = 'Submodule added. Refreshing…';
+          statusEl.className = 'git-clone-status ok';
+          try { await Explorer.refresh(); } catch {}
+          refresh(_cwd);
+        } catch (e) {
+          statusEl.textContent = (e.message || 'Failed').split('\n')[0];
+          statusEl.className = 'git-clone-status err';
+          btn.disabled = false; urlEl.disabled = false; pathEl.disabled = false;
+        }
+      };
+      btn.addEventListener('click', submit);
+      urlEl.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
+      pathEl.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
+    });
+
+    return section;
   }
 
   function _makeSection(title, fileList, staged) {

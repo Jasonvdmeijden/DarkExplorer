@@ -168,5 +168,45 @@ const Tabs = (() => {
     create('Home', null);
   });
 
-  return { create, activate, close, updateName, getActive, restore };
+  // Attach "open folder in new tab" behaviour to an element.
+  //   - Desktop:  middle-click (auxclick button 1) or Ctrl+click
+  //   - Mobile:   triple-tap within 600ms
+  // `getTarget(event)` should return { name, path, isDir } or null. We only act on folders.
+  function attachOpenInNewTab(el, getTarget) {
+    el.addEventListener('auxclick', (e) => {
+      if (e.button !== 1) return;
+      const t = getTarget(e);
+      if (!t || !t.isDir) return;
+      e.preventDefault();
+      create(t.name || (t.path || '').split(/[\\/]/).pop() || 'Tab', t.path);
+    });
+    el.addEventListener('click', (e) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const t = getTarget(e);
+      if (!t || !t.isDir) return;
+      e.preventDefault();
+      e.stopPropagation();
+      create(t.name || (t.path || '').split(/[\\/]/).pop() || 'Tab', t.path);
+    });
+
+    // Triple-tap on touchscreens
+    let _taps = 0, _tapTimer = null;
+    el.addEventListener('touchend', (e) => {
+      _taps++;
+      if (_tapTimer) clearTimeout(_tapTimer);
+      if (_taps >= 3) {
+        _taps = 0;
+        const t = getTarget(e);
+        if (t && t.isDir) {
+          e.preventDefault();
+          e.stopPropagation();
+          create(t.name || (t.path || '').split(/[\\/]/).pop() || 'Tab', t.path);
+        }
+      } else {
+        _tapTimer = setTimeout(() => { _taps = 0; }, 600);
+      }
+    }, { passive: false });
+  }
+
+  return { create, activate, close, updateName, getActive, restore, attachOpenInNewTab };
 })();

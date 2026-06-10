@@ -23,7 +23,27 @@ async function list(dirPath) {
       return null;
     }
   }));
-  return items.filter(Boolean);
+  const filtered = items.filter(Boolean);
+
+  // Detect iPhone Live Photo pairs: <basename>.HEIC + <basename>.MOV in the same folder.
+  // Attach the MOV's full path to the HEIC item so the client can play it as a looping live photo.
+  const movByBase = new Map();
+  for (const it of filtered) {
+    if (it.isDir) continue;
+    if (it.ext === '.mov') {
+      const base = path.basename(it.name, path.extname(it.name)).toLowerCase();
+      movByBase.set(base, it.path);
+    }
+  }
+  for (const it of filtered) {
+    if (it.isDir) continue;
+    if (it.ext === '.heic' || it.ext === '.heif') {
+      const base = path.basename(it.name, path.extname(it.name)).toLowerCase();
+      const mov  = movByBase.get(base);
+      if (mov) it.livePhotoMov = mov;
+    }
+  }
+  return filtered;
 }
 
 async function stat(filePath) {

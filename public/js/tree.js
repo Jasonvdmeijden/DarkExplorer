@@ -102,6 +102,9 @@ const Tree = (() => {
       if (!open) await expand();
     });
 
+    // Middle-click / Ctrl+click / triple-tap → open this folder in a new tab
+    Tabs.attachOpenInNewTab(label, () => ({ name, path, isDir: true }));
+
     label.addEventListener('contextmenu', (e) => {
       e.stopPropagation();
       e.preventDefault();

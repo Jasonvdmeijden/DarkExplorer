@@ -16,26 +16,51 @@ const Bookmarks = (() => {
     if (!list) return;
     list.innerHTML = '';
     if (!items.length) {
-      list.innerHTML = '<p style="padding:.6rem .75rem;font-size:.8rem;color:var(--text-muted)">No bookmarks yet.<br>Right-click a folder to add one.</p>';
+      list.innerHTML = '<p style="padding:.6rem .75rem;font-size:.8rem;color:var(--text-muted)">No bookmarks yet.<br>Right-click a folder or file to add one,<br>or paste a path/URL above.</p>';
       return;
     }
     items.forEach(b => {
       const isUrl = !!b.url;
-      const icon  = isUrl ? '🌐' : (b.path && b.path.endsWith('\\') ? '💾' : '📌');
+      const isDir = isUrl ? false : (b.isDir !== false);   // default to folder if not annotated
+      const icon  = isUrl
+        ? '🌐'
+        : (b.path && b.path.endsWith('\\')) ? '💾'         // drive root
+        : isDir ? '📁' : '📄';
       const el = document.createElement('div');
       el.className = 'bookmark-item';
       el.innerHTML = `<span>${icon}</span>
         <span class="bookmark-label">${escHtml(b.label || b.path || b.url)}</span>
         <button class="bookmark-remove icon-btn" title="Remove">✕</button>`;
-      el.addEventListener('click', (e) => {
+      el.addEventListener('click', async (e) => {
         if (e.target.classList.contains('bookmark-remove')) {
           remove(b.id);
-        } else if (isUrl) {
+          return;
+        }
+        if (isUrl) {
           Preview.open({ name: b.label || b.url, url: b.url, isDir: false, path: null });
-        } else {
+          return;
+        }
+        if (isDir) {
           Explorer.navigate(b.path);
+          return;
+        }
+        // File bookmark — navigate to its parent folder, then open it in preview
+        const parent = b.path.replace(/[\\/][^\\/]+$/, '');
+        try {
+          await Explorer.navigate(parent || b.path);
+          const siblings = await WS.send('fs:list', { path: parent });
+          const file = (Array.isArray(siblings) ? siblings.find(s => s.path === b.path) : null)
+                        || { name: b.label || b.path.split(/[\\/]/).pop(), path: b.path, isDir: false };
+          Preview.open(file, Array.isArray(siblings) ? siblings : [file]);
+        } catch {
+          Preview.open({ name: b.label || b.path.split(/[\\/]/).pop(), path: b.path, isDir: false },
+                       [{ name: b.label || b.path.split(/[\\/]/).pop(), path: b.path, isDir: false }]);
         }
       });
+      // Folder path bookmarks: middle-click / triple-tap → open in new tab
+      if (!isUrl && isDir && b.path) {
+        Tabs.attachOpenInNewTab(el, () => ({ name: b.label || b.path.split(/[\\/]/).pop(), path: b.path, isDir: true }));
+      }
       list.appendChild(el);
     });
   }
@@ -71,7 +96,7 @@ const Bookmarks = (() => {
   // Build panel structure: URL add bar + scrollable list
   panel.innerHTML = `
     <div class="bookmark-add-bar">
-      <input id="bookmark-url-input" type="text" placeholder="Add URL or paste path…" spellcheck="false">
+      <input id="bookmark-url-input" type="text" placeholder="URL, folder, or file path…" spellcheck="false">
       <button id="btn-add-url-bm" class="icon-btn" title="Add bookmark">+</button>
     </div>
     <span id="bm-status" style="font-size:.74rem;padding:.1rem .75rem;min-height:1.1rem;display:block"></span>

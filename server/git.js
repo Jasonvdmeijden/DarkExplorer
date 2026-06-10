@@ -2,8 +2,13 @@ const { execFileSync } = require('child_process');
 const fs   = require('fs');
 const path = require('path');
 
-function _git(cwd, args) {
-  return execFileSync('git', args, { cwd, encoding: 'utf8', timeout: 10000, windowsHide: true });
+function _git(cwd, args, opts = {}) {
+  return execFileSync('git', args, {
+    cwd, encoding: 'utf8',
+    timeout: opts.timeout || 10000,
+    maxBuffer: 50 * 1024 * 1024,
+    windowsHide: true
+  });
 }
 
 function _statusOf(cwd, file) {
@@ -102,4 +107,77 @@ function commit(cwd, msg)    { _git(cwd, ['commit', '-m', msg]); }
 function checkout(cwd, br)   { _git(cwd, ['checkout', br]); }
 function createBranch(cwd, n){ _git(cwd, ['checkout', '-b', n]); }
 
-module.exports = { isRepo, repoRoot, currentBranch, branches, status, log, diff, stage, unstage, revert, commit, checkout, createBranch };
+function _validateUrl(url) {
+  if (!url || !/^[a-z]+:\/\/|^git@/.test(url.trim())) {
+    throw new Error('Invalid git URL — expected https://, git://, ssh:// or git@host:repo');
+  }
+  return url.trim();
+}
+
+function _isFolderEmpty(cwd) {
+  const fs = require('fs');
+  let entries;
+  try { entries = fs.readdirSync(cwd); } catch { entries = []; }
+  return entries.filter(e => e !== '.DS_Store' && e !== 'Thumbs.db' && e !== '.git').length === 0;
+}
+
+// Clone an existing remote repo INTO this folder. Requires the folder to be empty.
+function cloneRepo(cwd, url) {
+  const cleanUrl = _validateUrl(url);
+  if (isRepo(cwd)) throw new Error('This folder is already a git repository.');
+  if (!_isFolderEmpty(cwd)) throw new Error('Folder is not empty. Use "Init + Link" instead, or pick an empty folder to clone into.');
+  _git(cwd, ['clone', cleanUrl, '.'], { timeout: 10 * 60 * 1000 });
+  return { ok: true, mode: 'clone', root: repoRoot(cwd) || cwd };
+}
+
+// Initialise git in an existing (possibly non-empty) folder and point origin at the given URL.
+// Files in the folder are left intact — user can pull/merge from origin manually if needed.
+function initAndLink(cwd, url) {
+  const cleanUrl = _validateUrl(url);
+  if (isRepo(cwd)) throw new Error('This folder is already a git repository.');
+  _git(cwd, ['init']);
+  try { _git(cwd, ['remote', 'add', 'origin', cleanUrl]); }
+  catch { _git(cwd, ['remote', 'set-url', 'origin', cleanUrl]); }
+  // Best-effort fetch so branches show up; if offline, just skip.
+  try { _git(cwd, ['fetch', 'origin'], { timeout: 5 * 60 * 1000 }); } catch { /* non-fatal */ }
+  return { ok: true, mode: 'init', root: repoRoot(cwd) || cwd };
+}
+
+// List git submodules under a repo. Returns [{ path, name, sha }, ...]
+// `path` is the absolute path to each submodule for the client to use as a new _root.
+function listSubmodules(cwd) {
+  if (!isRepo(cwd)) return [];
+  try {
+    const out = _git(cwd, ['submodule', 'status']).trim();
+    if (!out) return [];
+    const path = require('path');
+    const root = repoRoot(cwd) || cwd;
+    return out.split('\n').map(line => {
+      // Format: " <sha> <path> (<ref>)"   or "+<sha> <path>"  or "-<sha> <path>" (not initialised)
+      const m = line.match(/^[ +\-U]([0-9a-f]+)\s+(\S+)/);
+      if (!m) return null;
+      const relPath = m[2];
+      return {
+        sha: m[1],
+        relPath,
+        name: relPath.split(/[\\/]/).pop(),
+        path: path.join(root, relPath)
+      };
+    }).filter(Boolean);
+  } catch { return []; }
+}
+
+// Add a remote repo as a git submodule of the current repo.
+// `subPath` is optional — if omitted, git uses the basename of the URL (e.g. "bar"
+// from "https://github.com/foo/bar.git").
+function addSubmodule(cwd, url, subPath) {
+  const cleanUrl = _validateUrl(url);
+  if (!isRepo(cwd)) throw new Error('This folder is not a git repository.');
+  const args = ['submodule', 'add', cleanUrl];
+  if (subPath && subPath.trim()) args.push(subPath.trim());
+  // submodule add does a clone internally → give it room to breathe
+  _git(cwd, args, { timeout: 10 * 60 * 1000 });
+  return { ok: true };
+}
+
+module.exports = { isRepo, repoRoot, currentBranch, branches, status, log, diff, stage, unstage, revert, commit, checkout, createBranch, cloneRepo, initAndLink, addSubmodule, listSubmodules };
