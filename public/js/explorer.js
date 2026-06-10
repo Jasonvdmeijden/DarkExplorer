@@ -134,6 +134,7 @@ const Explorer = (() => {
     updateNavButtons();
     updateStatus();
     if (path) Tree.expandTo(path);
+    if (path) Favourites.logAccess(path);
     if (activeTabId) {
       Tabs.updateName(activeTabId, path ? path.split(/[\\/]/).pop() || path : 'Home', path);
     }
@@ -1058,7 +1059,8 @@ const Explorer = (() => {
     const colors = ['#ff5f56', '#ffbd2e', '#27c93f', '#42a5f5', '#a29bfe', '#abb2bf'];
     const menu = document.createElement('div');
     menu.className = 'filter-menu';
-    menu.style.cssText = `position:fixed; left:${x}px; top:${y}px; background:var(--bg-surface); border:1px solid var(--border); border-radius:var(--radius-md); box-shadow:var(--shadow-lg); z-index:1000; padding:.5rem; min-width:180px`;
+    // Position initially off-screen to measure, then move
+    menu.style.cssText = `position:fixed; left:-9999px; top:${y}px; background:var(--bg-surface); border:1px solid var(--border); border-radius:var(--radius-md); box-shadow:var(--shadow-lg); z-index:1000; padding:.5rem; min-width:180px`;
     
     let html = `
       <div style="margin-bottom:.5rem">
@@ -1075,6 +1077,14 @@ const Explorer = (() => {
     html += `</div>`;
     menu.innerHTML = html;
     document.body.appendChild(menu);
+
+    // Reposition safely within bounds (open left if near right edge)
+    const rect = menu.getBoundingClientRect();
+    let safeX = x;
+    if (x + rect.width > window.innerWidth) {
+      safeX = Math.max(0, window.innerWidth - rect.width - 10); // 10px padding from edge
+    }
+    menu.style.left = safeX + 'px';
 
     const input = menu.querySelector('#filter-input');
     input.focus();

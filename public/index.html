@@ -52,7 +52,11 @@
       <button class="icon-btn" id="btn-view-list"    title="List view"     data-view="list">≡</button>
       <span class="toolbar-sep"></span>
       <button class="icon-btn" id="btn-new-folder" title="New folder (Ctrl+Shift+N)">📁⁺</button>
-      <button class="icon-btn" id="btn-filter"     title="Filter current view">🔍</button>
+      <button class="icon-btn" id="btn-filter"     title="Filter current view">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+        </svg>
+      </button>
       <button class="icon-btn" id="btn-upload"     title="Upload files">↑</button>
       <span class="toolbar-sep"></span>
       <button class="icon-btn" id="btn-theme"        title="Theme">◑</button>
@@ -64,16 +68,29 @@
   <!-- ── Main layout ── -->
   <div id="layout">
 
-    <!-- Left panel: tree + bookmarks + git -->
+    <!-- Left panel: tree + booked + git + fav -->
     <aside id="panel-left">
-      <div class="panel-tabs">
-        <button class="ptab active" data-panel="tree">Tree</button>
-        <button class="ptab"        data-panel="bookmarks">Marks</button>
-        <button class="ptab"        data-panel="git">Git</button>
+      <div id="panel-left-top" class="panel-section">
+        <div class="panel-tabs" id="left-tabs-top">
+          <button class="ptab active" data-panel="tree">Tree</button>
+          <button class="ptab"        data-panel="favourites">Fav</button>
+          <button class="ptab"        data-panel="bookmarks">Booked</button>
+          <button class="ptab"        data-panel="git">Git</button>
+        </div>
+        <div id="tree-panel"       class="panel-content"></div>
+        <div id="favourites-panel" class="panel-content" style="display:none"></div>
+        <div id="bookmarks-panel"  class="panel-content" style="display:none;flex-direction:column"></div>
+        <div id="git-panel"        class="panel-content" style="display:none;overflow-y:auto"></div>
       </div>
-      <div id="tree-panel"      class="panel-content"></div>
-      <div id="bookmarks-panel" class="panel-content" style="display:none;flex-direction:column"></div>
-      <div id="git-panel"       class="panel-content" style="display:none;overflow-y:auto"></div>
+
+      <div id="splitter-side-v" class="splitter splitter-h" style="display:none"></div>
+
+      <div id="panel-left-bottom" class="panel-section" style="display:none;height:200px">
+        <div class="panel-tabs" id="left-tabs-bottom"></div>
+        <div class="panel-content-bottom"></div>
+      </div>
+      
+      <div id="side-split-dropzone" style="display:none">Drop here to split</div>
     </aside>
 
     <div id="splitter-left" class="splitter splitter-v"></div>
@@ -173,6 +190,7 @@
   <script src="/js/terminal.js"></script>
   <script src="/js/search.js"></script>
   <script src="/js/tree.js"></script>
+  <script src="/js/favourites.js"></script>
   <script src="/js/explorer.js"></script>
   <script src="/js/git.js"></script>
   <script src="/js/stats.js"></script>

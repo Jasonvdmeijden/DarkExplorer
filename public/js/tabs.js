@@ -107,16 +107,61 @@ const Tabs = (() => {
 
   function render() {
     list.innerHTML = '';
-    tabs.forEach(tab => {
+    tabs.forEach((tab, idx) => {
       const el = document.createElement('div');
       el.className = 'tab' + (tab.id === activeId ? ' active' : '');
       el.innerHTML = `<span class="tab-name" title="${tab.path || ''}">${tab.name}</span><span class="tab-close">✕</span>`;
+      
+      el.setAttribute('draggable', 'true');
+      el.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', idx);
+        el.classList.add('dragging');
+      });
+      el.addEventListener('dragend', () => el.classList.remove('dragging'));
+
       el.addEventListener('click', (e) => {
         if (e.target.classList.contains('tab-close')) close(tab.id);
         else activate(tab.id);
       });
       list.appendChild(el);
     });
+
+    list.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      const dragging = list.querySelector('.tab.dragging');
+      if (!dragging) return;
+      const afterElement = getDragAfterElement(list, e.clientX);
+      if (afterElement == null) {
+        list.appendChild(dragging);
+      } else {
+        list.insertBefore(dragging, afterElement);
+      }
+    });
+
+    list.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const oldIdx = parseInt(e.dataTransfer.getData('text/plain'));
+      const newIdx = [...list.children].indexOf(list.querySelector('.tab.dragging'));
+      
+      if (oldIdx !== newIdx) {
+        const [movedTab] = tabs.splice(oldIdx, 1);
+        tabs.splice(newIdx, 0, movedTab);
+        _saveState();
+      }
+    });
+  }
+
+  function getDragAfterElement(container, x) {
+    const draggableElements = [...container.querySelectorAll('.tab:not(.dragging)')];
+    return draggableElements.reduce((closest, child) => {
+      const box = child.getBoundingClientRect();
+      const offset = x - box.left - box.width / 2;
+      if (offset < 0 && offset > closest.offset) {
+        return { offset: offset, element: child };
+      } else {
+        return closest;
+      }
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
   }
 
   document.getElementById('btn-new-tab').addEventListener('click', () => {

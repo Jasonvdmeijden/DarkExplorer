@@ -9,6 +9,12 @@ const Panels = (() => {
   const splBottom   = document.getElementById('splitter-bottom');
   const panesEl     = document.getElementById('panes');
 
+  // New elements for split side panel
+  const leftTabsTop = document.getElementById('left-tabs-top');
+  const leftTabsBottom = document.getElementById('left-tabs-bottom');
+  const panelBottomLeft = document.getElementById('panel-left-bottom');
+  const splSideV = document.getElementById('splitter-side-v');
+
   let leftVisible   = !window.matchMedia('(max-width: 768px)').matches;
   let rightVisible  = false;
   let bottomVisible = false;
@@ -52,10 +58,10 @@ const Panels = (() => {
       startSize = axis === 'v' ? target.offsetWidth : target.offsetHeight;
       splitter.classList.add('dragging');
 
-      const onMove = (e) => {
-        const delta = (axis === 'v' ? e.clientX : e.clientY) - start;
-        const sign  = splitter === splRight || splitter === splBottom ? -1 : 1;
-        const size  = Math.max(140, Math.min(600, startSize + sign * delta));
+      const onMove = (ev) => {
+        const delta = (axis === 'v' ? ev.clientX : ev.clientY) - start;
+        const sign  = (splitter === splRight || splitter === splBottom || splitter === splSideV) ? -1 : 1;
+        const size  = Math.max(100, Math.min(800, startSize + sign * delta));
         if (axis === 'v') target.style.width  = size + 'px';
         else              target.style.height = size + 'px';
       };
@@ -74,6 +80,7 @@ const Panels = (() => {
   makeDraggable(splLeft,   panelLeft,   'v', () => State.set('panelLeftW', panelLeft.offsetWidth));
   makeDraggable(splRight,  panelRight,  'v');
   makeDraggable(splBottom, panelBottom, 'h');
+  makeDraggable(splSideV,  panelBottomLeft, 'h');
 
   function saveSplitState() {
     State.set('splitPanes', extraPanes.map(ep => ep.pane._explorer?.currentPath || null));
@@ -116,27 +123,202 @@ const Panels = (() => {
     splitPaths.forEach(p => addPane(p));
   }
 
-  // btn-split: add pane if below max, otherwise remove last
+  document.getElementById('btn-toggle-tree').addEventListener('click', toggleLeft);
+  
   document.getElementById('btn-split').addEventListener('click', () => {
     if (extraPanes.length < 2) addPane();
     else removePane(extraPanes[extraPanes.length - 1].pane);
   });
 
-  document.getElementById('btn-toggle-tree').addEventListener('click', toggleLeft);
-
   // panel tab switching (left panel)
-  document.querySelectorAll('.panel-tabs .ptab').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const panel = btn.dataset.panel;
-      if (!panel) return;
-      btn.closest('.panel-tabs').querySelectorAll('.ptab').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      document.getElementById('tree-panel').style.display      = panel === 'tree'      ? '' : 'none';
-      document.getElementById('bookmarks-panel').style.display = panel === 'bookmarks' ? '' : 'none';
-      document.getElementById('git-panel').style.display       = panel === 'git'       ? '' : 'none';
-      if (panel === 'git') Git.activate();
+  function initTabListeners(container) {
+    container.querySelectorAll('.ptab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const panelId = btn.dataset.panel;
+        if (!panelId) return;
+        
+        const isBottom = !!btn.closest('#left-tabs-bottom');
+        
+        // Deactivate other tabs in the SAME section container
+        container.querySelectorAll('.ptab').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        
+        const target = document.getElementById(panelId + '-panel');
+        if (target) {
+          // Hide all panels in the relevant section
+          const parentSection = isBottom ? document.getElementById('panel-left-bottom') : document.getElementById('panel-left-top');
+          parentSection.querySelectorAll('.panel-content, .panel-content-bottom > div').forEach(p => p.style.display = 'none');
+          
+          // Show the selected one
+          target.style.display = panelId === 'bookmarks' ? 'flex' : 'block';
+          
+          // Move the panel to the correct content area if it's not there
+          if (isBottom) {
+            const bottomContent = document.querySelector('.panel-content-bottom');
+            if (target.parentElement !== bottomContent) {
+              bottomContent.appendChild(target);
+            }
+          } else {
+            const topSection = document.getElementById('panel-left-top');
+            if (target.parentElement !== topSection) {
+              topSection.appendChild(target);
+            }
+          }
+          
+          if (panelId === 'git') Git.activate();
+          if (panelId === 'favourites') Favourites.render();
+        }
+      });
+
+      btn.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        showTabContextMenu(e.clientX, e.clientY, btn);
+      });
+
+      // Enable dragging for reordering and splitting
+      btn.setAttribute('draggable', 'true');
+      btn.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', btn.dataset.panel);
+        btn.classList.add('dragging');
+        // Show drop zone when dragging starts
+        document.getElementById('side-split-dropzone').style.display = 'flex';
+      });
+      btn.addEventListener('dragend', () => {
+        btn.classList.remove('dragging');
+        // Hide drop zone when dragging ends
+        document.getElementById('side-split-dropzone').style.display = 'none';
+        document.getElementById('side-split-dropzone').classList.remove('active');
+      });
     });
+  }
+
+  function initDragArea(container) {
+    container.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      const dragging = document.querySelector('.ptab.dragging');
+      if (!dragging) return;
+      
+      const afterElement = getDragAfterElement(container, e.clientX);
+      if (afterElement == null) {
+        container.appendChild(dragging);
+      } else {
+        container.insertBefore(dragging, afterElement);
+      }
+    });
+
+    container.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const panelId = e.dataTransfer.getData('text/plain');
+      const droppedTab = document.querySelector(`.ptab[data-panel="${panelId}"]`);
+      
+      const isToBottom = container.id === 'left-tabs-bottom';
+      
+      if (isToBottom) {
+        panelBottomLeft.style.display = 'flex';
+        splSideV.style.display = 'block';
+      } else {
+        if (leftTabsBottom.children.length === 0) {
+          panelBottomLeft.style.display = 'none';
+          splSideV.style.display = 'none';
+          document.getElementById('panel-left-top').style.flex = '1';
+          document.getElementById('panel-left-top').style.height = '';
+        }
+      }
+      
+      if (droppedTab) droppedTab.click();
+      
+      // Equalize heights on initial split
+      if (isToBottom && panelBottomLeft.style.display === 'flex') {
+        equalizeHeights();
+      }
+    });
+  }
+
+  const dropZone = document.getElementById('side-split-dropzone');
+  dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('active');
   });
+  dropZone.addEventListener('dragleave', () => {
+    dropZone.classList.remove('active');
+  });
+  dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    const panelId = e.dataTransfer.getData('text/plain');
+    const tab = document.querySelector(`.ptab[data-panel="${panelId}"]`);
+    if (tab) {
+      leftTabsBottom.appendChild(tab);
+      panelBottomLeft.style.display = 'flex';
+      splSideV.style.display = 'block';
+      equalizeHeights();
+      tab.click();
+    }
+    dropZone.classList.remove('active');
+    dropZone.style.display = 'none';
+  });
+
+  function equalizeHeights() {
+    const parentH = panelLeft.offsetHeight;
+    const topH = (parentH / 2) - 10;
+    document.getElementById('panel-left-top').style.flex = 'none';
+    document.getElementById('panel-left-top').style.height = topH + 'px';
+    panelBottomLeft.style.flex = 'none';
+    panelBottomLeft.style.height = topH + 'px';
+  }
+
+  function showTabContextMenu(x, y, btn) {
+    const isBottom = !!btn.closest('#left-tabs-bottom');
+    const menu = document.getElementById('context-menu');
+    menu.innerHTML = `<li class="ctx-item">Split</li>`;
+    const splitBtn = menu.querySelector('li');
+    
+    splitBtn.addEventListener('click', () => {
+      const panelId = btn.dataset.panel;
+      const targetContainer = isBottom ? leftTabsTop : leftTabsBottom;
+      
+      // Move tab
+      targetContainer.appendChild(btn);
+      
+      // Toggle containers
+      if (!isBottom) {
+        panelBottomLeft.style.display = 'flex';
+        splSideV.style.display = 'block';
+        equalizeHeights();
+      } else if (leftTabsBottom.children.length === 0) {
+        panelBottomLeft.style.display = 'none';
+        splSideV.style.display = 'none';
+        document.getElementById('panel-left-top').style.flex = '1';
+        document.getElementById('panel-left-top').style.height = '';
+      }
+
+      btn.click();
+      menu.classList.remove('visible');
+    });
+
+    menu.style.left = x + 'px';
+    menu.style.top  = y + 'px';
+    menu.classList.add('visible');
+  }
+
+  function getDragAfterElement(container, x) {
+    const draggableElements = [...container.querySelectorAll('.ptab:not(.dragging)')];
+    return draggableElements.reduce((closest, child) => {
+      const box = child.getBoundingClientRect();
+      const offset = x - box.left - box.width / 2;
+      if (offset < 0 && offset > closest.offset) {
+        return { offset: offset, element: child };
+      } else {
+        return closest;
+      }
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
+  }
+
+  // Initialize
+  initTabListeners(leftTabsTop);
+  initTabListeners(leftTabsBottom);
+  initDragArea(leftTabsTop);
+  initDragArea(leftTabsBottom);
 
   return { showRight, hideRight, toggleRight, showBottom, hideBottom, toggleBottom, toggleLeft, addPane, removePane, saveSplitState, restore };
 })();

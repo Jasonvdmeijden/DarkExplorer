@@ -51,6 +51,8 @@ const ThemeBuilder = (() => {
         <select id="tb-preset" style="background:var(--bg-base);border:1px solid var(--border);color:var(--text-primary);border-radius:var(--radius-sm);padding:.2rem .4rem;font-size:.8rem;margin-right:.5rem">
           <option value="dark">Vault Dark</option>
           <option value="light">Vault Light</option>
+          <option value="dracula">Dracula</option>
+          <option value="solarized-light">Solarized Light</option>
         </select>
         <button id="tb-close" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:16px">✕</button>
       </div>

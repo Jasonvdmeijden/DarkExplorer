@@ -1,6 +1,6 @@
 /* Theme management — switches CSS link, persists choice */
 const Theme = (() => {
-  const THEMES = ['dark', 'light'];
+  const THEMES = ['dark', 'light', 'dracula', 'solarized-light'];
   let current = localStorage.getItem('de_theme') || 'dark';
 
   function apply(name) {
