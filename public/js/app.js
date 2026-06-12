@@ -28,6 +28,7 @@
 
       Tree.init();
       Panels.restore();
+      if (window.DiskAnalyzer) DiskAnalyzer.init();
     });
   });
 })();

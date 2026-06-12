@@ -3,15 +3,17 @@
 html, body {
   height: 100%;
   overflow: hidden;
-  /* Stop iOS Safari from rubber-banding / bouncing the whole document
-     when scrolling past the top or bottom edge of any inner scroller. */
-  overscroll-behavior: none;
   -webkit-overflow-scrolling: auto;
 }
-html { touch-action: pan-x pan-y; } /* prevent pinch-zoom at OS level */
-/* Apply the no-chain rule to every inner scroll container too — bounce can leak
-   from a child if any ancestor allows scroll-chaining. */
-* { overscroll-behavior: contain; }
+
+/* Mobile-only scroll fixes to prevent rubber-banding without breaking desktop scroll */
+@media (max-width: 768px), (hover: none) and (pointer: coarse) {
+  html, body {
+    overscroll-behavior: none;
+  }
+  html { touch-action: pan-x pan-y; }
+  * { overscroll-behavior: contain; }
+}
 
 /* Prevent text/image selection everywhere except interactive text areas */
 body { user-select: none; -webkit-user-select: none; }
@@ -1454,6 +1456,87 @@ dialog#preview-modal::backdrop {
 }
 
 /* ── Properties dialog ── */
+/* ── Disk Analyzer ── */
+#disk-modal {
+  width: 100%;
+  height: 100%;
+  background: var(--bg-base);
+  display: flex;
+  flex-direction: column;
+}
+
+.disk-header {
+  display: flex;
+  align-items: center;
+  padding: .5rem 1rem;
+  background: rgba(0,0,0,0.2);
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  gap: .5rem;
+}
+#disk-tabs {
+  display: flex;
+  gap: .2rem;
+  margin-right: .5rem;
+  padding-right: .5rem;
+  border-right: 1px solid rgba(255,255,255,0.1);
+}
+.disk-tab {
+  background: none; border: none; color: #888; padding: .3rem .6rem;
+  font-size: .8rem; font-weight: 600; cursor: pointer; border-radius: 4px;
+}
+.disk-tab:hover { background: rgba(255,255,255,0.05); color: #ccc; }
+.disk-tab.active { background: #42a5f5; color: #fff; }
+
+#disk-breadcrumb { display: flex; font-size: .85rem; color: #aaa; flex: 1; align-items: center; overflow: hidden; }
+.disk-crumb { cursor: pointer; padding: .1rem .3rem; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px; }
+.disk-crumb:hover { color: #fff; background: rgba(255,255,255,0.1); }
+.disk-sep { margin: 0 .2rem; opacity: 0.5; }
+
+#btn-disk-close { background: none; border: none; color: #888; cursor: pointer; font-size: 16px; padding: 0 .3rem; }
+#btn-disk-close:hover { color: #fff; }
+
+.disk-body { display: flex; flex: 1; overflow: hidden; }
+
+.disk-svg-container { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; }
+#disk-svg { width: 100%; height: 100%; max-width: 600px; max-height: 600px; transition: transform 0.3s ease; }
+#disk-center { cursor: pointer; transition: fill 0.2s; }
+#disk-center:hover { fill: #333 !important; }
+#disk-center-text { pointer-events: none; }
+.disk-arc { transition: opacity 0.15s, transform 0.15s; transform-origin: center; }
+
+.disk-list-container {
+  width: 340px;
+  background: rgba(0,0,0,0.15);
+  border-left: 1px solid rgba(255,255,255,0.05);
+  display: flex;
+  flex-direction: column;
+}
+.disk-list-header {
+  padding: 1rem 1rem .5rem;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.disk-list-header .title { font-size: 1.1rem; font-weight: 600; margin-bottom: .2rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.disk-list-header .size { color: #aaa; font-size: .85rem; font-family: var(--font-mono); }
+
+#disk-list { flex: 1; overflow-y: auto; padding: .5rem; }
+.disk-list-item {
+  display: flex; align-items: center; gap: .6rem; padding: .4rem .5rem;
+  font-size: .85rem; color: #ccc; border-radius: 6px; margin-bottom: 2px;
+}
+.disk-list-item:hover { background: rgba(255,255,255,0.05); color: #fff; }
+.disk-list-item .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.disk-list-item .name:hover { text-decoration: underline; }
+.disk-list-item .size { font-family: var(--font-mono); opacity: 0.8; font-size: .8rem; }
+.disk-list-item .del-btn {
+  background: #ff5555; color: #fff; border: none; border-radius: 4px; padding: .1rem .4rem;
+  font-size: .7rem; font-weight: 600; cursor: pointer; opacity: 0; transition: opacity .15s;
+}
+.disk-list-item:hover .del-btn { opacity: 1; }
+.disk-list-item .del-btn:hover { background: #ff3333; box-shadow: 0 0 8px rgba(255,85,85,0.5); }
+.disk-list-item.group { opacity: 0.6; }
+.disk-list-item.group .name { cursor: default; }
+.disk-list-item.group .name:hover { text-decoration: none; }
+
 dialog#props-dialog {
   border: none; padding: 0; outline: none;
   width: 420px; max-width: 96vw;

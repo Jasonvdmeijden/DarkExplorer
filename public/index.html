@@ -138,7 +138,10 @@
 
   <!-- Status bar -->
   <footer id="statusbar">
-    <span id="status-items"></span>
+    <div style="display:flex;align-items:center;gap:.5rem">
+      <button class="icon-btn" id="btn-disk" title="Disk Usage">💽 Disk</button>
+      <span id="status-items"></span>
+    </div>
     <span class="flex-gap"></span>
     <div id="sys-stats">
       <span class="stat-chip" id="stat-cpu-tip"  title="CPU Usage">CPU <b id="stat-cpu-val">—</b></span>
@@ -151,6 +154,35 @@
 
   <!-- Context menu -->
   <ul id="context-menu" role="menu"></ul>
+
+  <!-- Disk Analyzer view (moved to pane when active) -->
+  <div id="disk-modal-wrapper" style="display:none">
+    <div id="disk-modal-content" style="display:flex; flex-direction:column; height:100%; width:100%; background:var(--bg-base)">
+      <div class="disk-header">
+        <div id="disk-tabs"></div>
+        <div id="disk-breadcrumb"></div>
+        <span class="flex-gap"></span>
+        <span id="disk-status" style="font-size:11px;color:var(--text-muted);margin-right:1rem"></span>
+        <button id="btn-disk-close" title="Close" style="display:none">&#x2715;</button>
+      </div>
+      <div class="disk-body">
+        <div class="disk-svg-container">
+          <svg id="disk-svg" viewBox="0 0 600 600">
+            <g id="disk-arcs"></g>
+            <circle id="disk-center" cx="300" cy="300" r="75" fill="var(--bg-panel)"></circle>
+            <text id="disk-center-text" x="300" y="300" text-anchor="middle" dominant-baseline="middle"></text>
+          </svg>
+        </div>
+        <div class="disk-list-container">
+          <div class="disk-list-header">
+             <div class="title" id="disk-list-title" style="flex:1; cursor:pointer;" title="Go up">...</div>
+             <div class="size" id="disk-list-size">...</div>
+          </div>
+          <div id="disk-list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Preview modal — uses <dialog> + showModal() for guaranteed top-layer rendering -->
   <dialog id="preview-modal">
@@ -202,6 +234,7 @@
   <script src="/js/preview.js"></script>
   <script src="/js/terminal.js"></script>
   <script src="/js/search.js"></script>
+  <script src="/js/disk.js"></script>
   <script src="/js/tree.js"></script>
   <script src="/js/favourites.js"></script>
   <script src="/js/explorer.js"></script>

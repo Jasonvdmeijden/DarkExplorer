@@ -129,6 +129,26 @@ const Explorer = (() => {
     currentPath = path;
     selected.clear();
     lastClickedPath = null;
+
+    if (path === '__disk__') {
+      pane1.innerHTML = '';
+      const diskView = document.getElementById('disk-modal-content');
+      if (diskView) {
+        pane1.appendChild(diskView);
+        if (window.DiskAnalyzer && typeof DiskAnalyzer.open === 'function') {
+          DiskAnalyzer.open();
+        }
+      }
+      if (activeTabId) Tabs.updateName(activeTabId, 'Disk Analyzer', '__disk__');
+      return;
+    }
+
+    // Restore disk view back to hidden container if we are leaving the __disk__ path
+    const diskView = pane1.querySelector('#disk-modal-content');
+    if (diskView) {
+      document.getElementById('disk-modal-wrapper').appendChild(diskView);
+    }
+
     await loadDir(path);
     updateBreadcrumb(path);
     updateNavButtons();

@@ -13,6 +13,7 @@ const config   = require('./config');
 const auth     = require('./auth');
 const files    = require('./files');
 const search   = require('./search');
+const disk     = require('./disk');
 const thumbs   = require('./thumbnails');
 const term     = require('./terminal');
 const upload   = require('./upload');
@@ -408,6 +409,17 @@ async function handle(type, payload, reply, ws, device) {
       }
       try { const p = spawn(cmd, args, opts); p.unref(); reply({ ok: true }); }
       catch (e) { reply({ ok: false, error: e.message }); }
+      break;
+    }
+
+    // --- disk ---
+    case 'disk:scan': {
+      try {
+        const tree = await disk.scan(payload.path, ws);
+        reply(tree);
+      } catch (e) {
+        reply({ error: e.message }, true);
+      }
       break;
     }
 
