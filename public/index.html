@@ -50,6 +50,14 @@
       <button class="icon-btn" id="btn-view-mosaic"  title="Gallery view"  data-view="mosaic">⊞</button>
       <button class="icon-btn" id="btn-view-details" title="Details view"  data-view="details">☰</button>
       <button class="icon-btn" id="btn-view-list"    title="List view"     data-view="list">≡</button>
+      <button class="icon-btn" id="btn-view-disk"    title="Disk usage analyser" data-view="disk">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"/>
+          <path d="M12 3 A9 9 0 0 1 21 12 L12 12 Z" fill="currentColor" stroke="none" opacity=".55"/>
+          <path d="M21 12 A9 9 0 0 1 14.5 20.7 L12 12 Z" fill="currentColor" stroke="none" opacity=".25"/>
+          <circle cx="12" cy="12" r="3" fill="var(--bg-surface)" stroke="currentColor" stroke-width="1.25"/>
+        </svg>
+      </button>
       <span class="toolbar-sep"></span>
       <button class="icon-btn" id="btn-new-folder" title="New folder (Ctrl+Shift+N)">📁⁺</button>
       <button class="icon-btn" id="btn-filter"     title="Filter current view">
@@ -138,10 +146,7 @@
 
   <!-- Status bar -->
   <footer id="statusbar">
-    <div style="display:flex;align-items:center;gap:.5rem">
-      <button class="icon-btn" id="btn-disk" title="Disk Usage">💽 Disk</button>
-      <span id="status-items"></span>
-    </div>
+    <span id="status-items"></span>
     <span class="flex-gap"></span>
     <div id="sys-stats">
       <span class="stat-chip" id="stat-cpu-tip"  title="CPU Usage">CPU <b id="stat-cpu-val">—</b></span>
@@ -154,35 +159,6 @@
 
   <!-- Context menu -->
   <ul id="context-menu" role="menu"></ul>
-
-  <!-- Disk Analyzer view (moved to pane when active) -->
-  <div id="disk-modal-wrapper" style="display:none">
-    <div id="disk-modal-content" style="display:flex; flex-direction:column; height:100%; width:100%; background:var(--bg-base)">
-      <div class="disk-header">
-        <div id="disk-tabs"></div>
-        <div id="disk-breadcrumb"></div>
-        <span class="flex-gap"></span>
-        <span id="disk-status" style="font-size:11px;color:var(--text-muted);margin-right:1rem"></span>
-        <button id="btn-disk-close" title="Close" style="display:none">&#x2715;</button>
-      </div>
-      <div class="disk-body">
-        <div class="disk-svg-container">
-          <svg id="disk-svg" viewBox="0 0 600 600">
-            <g id="disk-arcs"></g>
-            <circle id="disk-center" cx="300" cy="300" r="75" fill="var(--bg-panel)"></circle>
-            <text id="disk-center-text" x="300" y="300" text-anchor="middle" dominant-baseline="middle"></text>
-          </svg>
-        </div>
-        <div class="disk-list-container">
-          <div class="disk-list-header">
-             <div class="title" id="disk-list-title" style="flex:1; cursor:pointer;" title="Go up">...</div>
-             <div class="size" id="disk-list-size">...</div>
-          </div>
-          <div id="disk-list"></div>
-        </div>
-      </div>
-    </div>
-  </div>
 
   <!-- Preview modal — uses <dialog> + showModal() for guaranteed top-layer rendering -->
   <dialog id="preview-modal">

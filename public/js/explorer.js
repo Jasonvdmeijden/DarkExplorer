@@ -130,25 +130,6 @@ const Explorer = (() => {
     selected.clear();
     lastClickedPath = null;
 
-    if (path === '__disk__') {
-      pane1.innerHTML = '';
-      const diskView = document.getElementById('disk-modal-content');
-      if (diskView) {
-        pane1.appendChild(diskView);
-        if (window.DiskAnalyzer && typeof DiskAnalyzer.open === 'function') {
-          DiskAnalyzer.open();
-        }
-      }
-      if (activeTabId) Tabs.updateName(activeTabId, 'Disk Analyzer', '__disk__');
-      return;
-    }
-
-    // Restore disk view back to hidden container if we are leaving the __disk__ path
-    const diskView = pane1.querySelector('#disk-modal-content');
-    if (diskView) {
-      document.getElementById('disk-modal-wrapper').appendChild(diskView);
-    }
-
     await loadDir(path);
     updateBreadcrumb(path);
     updateNavButtons();
@@ -306,9 +287,27 @@ const Explorer = (() => {
   });
 
   function renderView() {
-    if (view === 'mosaic')  renderMosaic();
-    else if (view === 'list') renderList();
-    else                      renderDetails();
+    if (view === 'mosaic')      renderMosaic();
+    else if (view === 'list')   renderList();
+    else if (view === 'disk')   renderDisk();
+    else                        renderDetails();
+  }
+
+  // Disk-usage view — full-pane sunburst rooted at currentPath
+  function renderDisk() {
+    pane1.innerHTML = '';
+    const host = document.createElement('div');
+    host.className = 'file-pane view-disk';
+    pane1.appendChild(host);
+    if (!currentPath) {
+      host.innerHTML = '<div style="padding:1.5rem;color:var(--text-muted)">Navigate to a folder to analyse its disk usage.</div>';
+      return;
+    }
+    if (typeof DiskAnalyzer === 'undefined') {
+      host.innerHTML = '<div style="padding:1.5rem;color:var(--text-muted)">Disk analyser script failed to load — check console.</div>';
+      return;
+    }
+    DiskAnalyzer.render(host, currentPath);
   }
 
   function sortItems(arr) {

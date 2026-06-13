@@ -77,6 +77,15 @@ db.exec(`
     created_at   INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_shares_token ON shares(token);
+
+  CREATE TABLE IF NOT EXISTS disk_cache (
+    path        TEXT PRIMARY KEY,
+    tree_json   TEXT NOT NULL,
+    total_size  INTEGER NOT NULL,
+    file_count  INTEGER NOT NULL,
+    scanned_at  INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_disk_cache_scanned ON disk_cache(scanned_at);
 `);
 
 // Migrations for schema additions

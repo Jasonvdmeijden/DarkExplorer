@@ -1,381 +1,307 @@
-/* Disk Usage Analyzer — DaisyDisk-style visual sunburst chart */
+/* Disk Analyser — DaisyDisk-style sunburst rendered as one of the explorer views.
+ *
+ * Public API:
+ *   DiskAnalyzer.render(container, rootPath)   → fills `container` with the
+ *      sunburst + list for the recursive contents of `rootPath`. Re-rendering
+ *      with a different path is cheap if the server has it cached.
+ *   DiskAnalyzer.refresh()                     → force a re-scan of the current root
+ *
+ * The view is rooted at whatever folder the explorer is currently navigated to.
+ * Tree-panel navigation re-runs render() automatically because explorer.js
+ * calls renderView() on every folder change.
+ */
 const DiskAnalyzer = (() => {
-  let tabsEl, breadcrumbEl, statusEl, svg, arcsGroup, centerCircle, centerText, listContainer, listTitle, listSize;
-  let fullTree = null;
-  let currentRoot = null;
-  let activeRootPath = null;
-  
-  const COLORS = ['#ff5f56', '#ffbd2e', '#27c93f', '#42a5f5', '#a29bfe', '#fdcb6e', '#00b894', '#00cec9', '#0984e3', '#e84393'];
+  // Curated palette that reads well on both light and dark themes
+  const PALETTE = [
+    '#4f8ff7', '#f06595', '#ff8e3c', '#ffd43b',
+    '#51cf66', '#22b8cf', '#9775fa', '#ff6b6b',
+    '#94d82d', '#fcc2d7', '#69db7c', '#3bc9db'
+  ];
 
-  function init() {
-    tabsEl       = document.getElementById('disk-tabs');
-    breadcrumbEl = document.getElementById('disk-breadcrumb');
-    statusEl     = document.getElementById('disk-status');
-    svg          = document.getElementById('disk-svg');
-    arcsGroup    = document.getElementById('disk-arcs');
-    centerCircle = document.getElementById('disk-center');
-    centerText   = document.getElementById('disk-center-text');
-    listContainer= document.getElementById('disk-list');
-    
-    listTitle = document.getElementById('disk-list-title');
-    listSize  = document.getElementById('disk-list-size');
+  let _currentContainer = null;
+  let _currentRoot      = null;   // root node from server
+  let _currentRootPath  = null;   // path string
+  let _statusEl         = null;
+  let _refreshing       = false;
 
-    if (listTitle) listTitle.addEventListener('click', navigateUp);
+  // Listen for progress events as long as one render is active
+  WS.on('disk:progress', (d) => {
+    if (_statusEl && d?.current) {
+      _statusEl.textContent = `Scanning… ${d.scanned ? d.scanned + ' files · ' : ''}${_shortPath(d.current)}`;
+    }
+  });
 
-    document.getElementById('btn-disk').addEventListener('click', () => {
-      try {
-        console.log('[DiskAnalyzer] btn-disk clicked, creating tab...');
-        if (typeof Tabs !== 'undefined') {
-          Tabs.create('Disk Analyzer', '__disk__');
-        } else {
-          console.error('[DiskAnalyzer] Tabs module is not available.');
-        }
-      } catch (e) {
-        console.error('[DiskAnalyzer] Failed to create tab:', e);
-      }
-    });
-    
-    const closeBtn = document.getElementById('btn-disk-close');
-    if (closeBtn) closeBtn.style.display = 'none';
-    if (centerCircle) centerCircle.addEventListener('click', navigateUp);
-
-    WS.on('disk:progress', (data) => {
-      statusEl.textContent = `Scanning: ${data.scanned} items...`;
-    });
+  function _shortPath(p) {
+    if (!p) return '';
+    if (p.length <= 60) return p;
+    return '…' + p.slice(-58);
   }
 
-  function formatSize(b) {
+  function _formatSize(b) {
     if (!b) return '0 B';
     if (b < 1024) return b + ' B';
-    if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
-    if (b < 1073741824) return (b/1048576).toFixed(1) + ' MB';
-    return (b/1073741824).toFixed(1) + ' GB';
+    if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
+    if (b < 1073741824) return (b / 1048576).toFixed(1) + ' MB';
+    if (b < 1099511627776) return (b / 1073741824).toFixed(2) + ' GB';
+    return (b / 1099511627776).toFixed(2) + ' TB';
   }
 
-  async function open() {
-    const roots = await WS.send('fs:roots', {});
-    
-    tabsEl.innerHTML = '';
-    roots.forEach((r, idx) => {
-      const btn = document.createElement('button');
-      btn.className = 'disk-tab' + (idx === 0 ? ' active' : '');
-      btn.textContent = r.name || r.path;
-      btn.addEventListener('click', () => {
-        tabsEl.querySelectorAll('.disk-tab').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        scanDrive(r.path);
-      });
-      tabsEl.appendChild(btn);
-    });
-    
-    if (roots.length > 0) {
-      scanDrive(roots[0].path);
-    }
+  function _formatAge(ms) {
+    const s = Math.floor((Date.now() - ms) / 1000);
+    if (s < 60)   return 'just now';
+    if (s < 3600) return Math.floor(s/60) + ' min ago';
+    if (s < 86400) return Math.floor(s/3600) + ' h ago';
+    return Math.floor(s/86400) + ' d ago';
   }
 
-  function close() {
-    statusEl.textContent = '';
-  }
-
-  async function scanDrive(path) {
-    activeRootPath = path;
-    if (arcsGroup) arcsGroup.innerHTML = '';
-    listContainer.innerHTML = '';
-    breadcrumbEl.innerHTML = '';
-    statusEl.textContent = 'Preparing scan...';
-    if (listTitle) listTitle.textContent = 'Scanning...';
-    if (listSize) listSize.textContent = '';
-    if (centerText) centerText.innerHTML = `<tspan x="300" dy="-10">Scanning...</tspan>`;
-    if (centerCircle) centerCircle.setAttribute('fill', '#333');
-    
-    try {
-      fullTree = await WS.send('disk:scan', { path });
-      statusEl.textContent = 'Scan complete.';
-      linkParents(fullTree);
-      
-      // Assign persistent colors at depth 1 so they stay consistent while drilling down
-      if (fullTree && fullTree.children) {
-         fullTree.children.sort((a,b) => b.size - a.size).forEach((c, i) => {
-             assignColors(c, i);
-         });
-      }
-      
-      drillDown(fullTree);
-      setTimeout(() => { statusEl.textContent = ''; }, 3000);
-    } catch (e) {
-      statusEl.textContent = 'Error: ' + e.message;
-      if (listTitle) listTitle.textContent = 'Failed';
-      if (centerText) centerText.innerHTML = `<tspan x="300" dy="0">Failed</tspan>`;
-    }
-  }
-
-  function assignColors(node, colorIdx) {
-      if (node.fixedColor) {
-          node.color = node.fixedColor;
-      } else if (node.isGroup) {
-          node.color = '#555';
-      } else {
-          node.color = COLORS[colorIdx % COLORS.length];
-      }
-      if (node.children) {
-          node.children.forEach(c => assignColors(c, colorIdx));
-      }
-  }
-
-  function linkParents(node, parent = null) {
+  function _linkParents(node, parent = null) {
     node.parent = parent;
-    if (node.children) {
-      node.children.forEach(c => linkParents(c, node));
-    }
+    if (node.children) node.children.forEach(c => _linkParents(c, node));
   }
 
-  function drillDown(node) {
-    currentRoot = node;
-    renderBreadcrumbs(node);
-    renderList(node);
-    if (svg) renderSunburst(node);
-  }
-
-  function navigateUp() {
-    if (currentRoot && currentRoot.parent) {
-      drillDown(currentRoot.parent);
-    }
-  }
-
-  function renderBreadcrumbs(node) {
-    const parts = [];
-    let curr = node;
-    while(curr) {
-      parts.unshift(curr);
-      curr = curr.parent;
-    }
-    
-    breadcrumbEl.innerHTML = '';
-    parts.forEach((p, idx) => {
-      if (idx > 0) {
-        const sep = document.createElement('span');
-        sep.className = 'disk-sep';
-        sep.textContent = '›';
-        breadcrumbEl.appendChild(sep);
-      }
-      const crumb = document.createElement('span');
-      crumb.className = 'disk-crumb';
-      crumb.textContent = p.name || p.path;
-      crumb.addEventListener('click', () => drillDown(p));
-      breadcrumbEl.appendChild(crumb);
+  function _assignColors(node, color) {
+    node.color = color;
+    if (node.children) node.children.forEach((c, i) => {
+      const childColor = node === _currentRoot ? PALETTE[i % PALETTE.length] : color;
+      _assignColors(c, childColor);
     });
   }
 
-  // Math for SVG Arcs
-  function describeArc(x, y, innerRadius, outerRadius, startAngle, endAngle) {
-    // SVG arcs cannot draw a full 360 circle in one path command reliably.
-    if (endAngle - startAngle >= 360) endAngle = startAngle + 359.99;
-    
-    const startOut = polarToCartesian(x, y, outerRadius, endAngle);
-    const endOut   = polarToCartesian(x, y, outerRadius, startAngle);
-    const startIn  = polarToCartesian(x, y, innerRadius, endAngle);
-    const endIn    = polarToCartesian(x, y, innerRadius, startAngle);
-    
-    const largeArcFlag = endAngle - startAngle <= 180 ? "0" : "1";
-    
+  async function render(container, rootPath) {
+    _currentContainer = container;
+    _currentRootPath  = rootPath;
+
+    container.innerHTML = `
+      <div class="disk-view">
+        <div class="disk-header">
+          <div class="disk-info">
+            <span class="disk-title">Disk Usage</span>
+            <span class="disk-subtitle" id="disk-path-label">${_escape(rootPath || 'Home')}</span>
+          </div>
+          <div class="disk-actions">
+            <span id="disk-status" class="disk-status"></span>
+            <button class="icon-btn" id="disk-refresh" title="Force rescan">↻ Rescan</button>
+          </div>
+        </div>
+        <div class="disk-body">
+          <div class="disk-svg-container">
+            <svg id="disk-svg" viewBox="0 0 600 600" preserveAspectRatio="xMidYMid meet">
+              <g id="disk-arcs"></g>
+              <circle id="disk-center" cx="300" cy="300" r="78"></circle>
+              <text id="disk-center-text" x="300" y="300" text-anchor="middle" dominant-baseline="middle"></text>
+            </svg>
+          </div>
+          <aside class="disk-list-container">
+            <div class="disk-list-header">
+              <div class="disk-list-title" id="disk-list-title"></div>
+              <div class="disk-list-size"  id="disk-list-size"></div>
+              <div class="disk-list-meta"  id="disk-list-meta"></div>
+            </div>
+            <div id="disk-list" class="disk-list"></div>
+          </aside>
+        </div>
+      </div>`;
+
+    _statusEl = container.querySelector('#disk-status');
+    container.querySelector('#disk-refresh').addEventListener('click', refresh);
+
+    await _doScan(false);
+  }
+
+  async function refresh() {
+    if (_refreshing) return;
+    await _doScan(true);
+  }
+
+  async function _doScan(forceRefresh) {
+    if (!_currentContainer || !_currentRootPath) return;
+    _refreshing = true;
+
+    const listEl  = _currentContainer.querySelector('#disk-list');
+    const titleEl = _currentContainer.querySelector('#disk-list-title');
+    const sizeEl  = _currentContainer.querySelector('#disk-list-size');
+    const metaEl  = _currentContainer.querySelector('#disk-list-meta');
+    const arcsEl  = _currentContainer.querySelector('#disk-arcs');
+    const centerText = _currentContainer.querySelector('#disk-center-text');
+
+    if (arcsEl) arcsEl.innerHTML = '';
+    listEl.innerHTML = '<div class="disk-loading">Crawling…</div>';
+    titleEl.textContent = _currentRootPath.split(/[\\/]/).pop() || _currentRootPath;
+    sizeEl.textContent  = '—';
+    metaEl.textContent  = '';
+    centerText.innerHTML = `<tspan x="300" dy="0" class="disk-center-status">Scanning…</tspan>`;
+
+    try {
+      const tree = await WS.send('disk:scan', { path: _currentRootPath, refresh: !!forceRefresh });
+      _currentRoot = tree;
+      _linkParents(_currentRoot);
+      _assignColors(_currentRoot, 'var(--accent)');
+      _statusEl.textContent = '';
+      _renderSunburst(_currentRoot);
+      _renderList(_currentRoot);
+      _renderMeta(tree);
+    } catch (e) {
+      listEl.innerHTML = `<div class="disk-error">Scan failed: ${_escape(e.message || String(e))}</div>`;
+      centerText.innerHTML = `<tspan x="300" dy="0" class="disk-center-status">Error</tspan>`;
+    } finally {
+      _refreshing = false;
+    }
+  }
+
+  function _renderMeta(tree) {
+    if (!_currentContainer) return;
+    const metaEl = _currentContainer.querySelector('#disk-list-meta');
+    if (!metaEl) return;
+    const cached = tree._cached;
+    const fileCount = tree._fileCount || 0;
+    const scannedAt = tree._scannedAt;
+    metaEl.textContent = `${fileCount.toLocaleString()} files · ${cached ? 'cached ' + _formatAge(scannedAt) : 'just scanned'}`;
+  }
+
+  // ── Sunburst rendering ────────────────────────────────────────────
+  function _polar(cx, cy, r, deg) {
+    const rad = (deg - 90) * Math.PI / 180;
+    return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+  }
+
+  function _arcPath(cx, cy, rIn, rOut, startA, endA) {
+    if (endA - startA >= 360) endA = startA + 359.99;
+    const s = _polar(cx, cy, rOut, endA);
+    const e = _polar(cx, cy, rOut, startA);
+    const s2 = _polar(cx, cy, rIn, endA);
+    const e2 = _polar(cx, cy, rIn, startA);
+    const large = endA - startA <= 180 ? '0' : '1';
     return [
-      "M", startOut.x, startOut.y,
-      "A", outerRadius, outerRadius, 0, largeArcFlag, 0, endOut.x, endOut.y,
-      "L", endIn.x, endIn.y,
-      "A", innerRadius, innerRadius, 0, largeArcFlag, 1, startIn.x, startIn.y,
-      "Z"
-    ].join(" ");
+      'M', s.x, s.y,
+      'A', rOut, rOut, 0, large, 0, e.x, e.y,
+      'L', e2.x, e2.y,
+      'A', rIn, rIn, 0, large, 1, s2.x, s2.y,
+      'Z'
+    ].join(' ');
   }
 
-  function polarToCartesian(centerX, centerY, radius, angleInDegrees) {
-    const angleInRadians = (angleInDegrees - 90) * Math.PI / 180.0;
-    return {
-      x: centerX + (radius * Math.cos(angleInRadians)),
-      y: centerY + (radius * Math.sin(angleInRadians))
-    };
-  }
+  function _renderSunburst(node) {
+    const arcs = _currentContainer.querySelector('#disk-arcs');
+    const centerText = _currentContainer.querySelector('#disk-center-text');
+    arcs.innerHTML = '';
 
-  function renderSunburst(node) {
-    arcsGroup.innerHTML = '';
-    
-    centerCircle.setAttribute('fill', node.parent ? '#444' : '#333');
     centerText.innerHTML = `
-      <tspan x="300" dy="-10" font-size="22" font-weight="600" fill="#fff">${formatSize(node.size)}</tspan>
-      <tspan x="300" dy="24" font-size="12" fill="#aaa">${node.parent ? 'Back' : 'Total'}</tspan>
-    `;
+      <tspan x="300" dy="-10" class="disk-center-size">${_escape(_formatSize(node.size))}</tspan>
+      <tspan x="300" dy="26"   class="disk-center-label">${_escape(node.name || 'Total')}</tspan>`;
 
-    const MAX_DEPTH = 6;
-    const RADIUS_STEP = 35;
-    const CENTER_R = 75;
-    
-    if (!node.children || node.children.length === 0) return;
-    
+    const MAX_DEPTH   = 5;
+    const RADIUS_STEP = 38;
+    const CENTER_R    = 80;
+
+    if (!node.children || !node.children.length) return;
+
+    // Sort once so consistent ordering
     node.children.sort((a, b) => b.size - a.size);
-    
-    function assignLayout(n, startA, endA, depth) {
-      n.startA = startA;
-      n.endA = endA;
-      n.depth = depth;
-      
+
+    function layout(n, startA, endA, depth) {
       const sweep = endA - startA;
-      
-      // Only draw if the sweep is visibly large enough (e.g. > 0.1 degrees)
-      if (depth > 0 && depth <= MAX_DEPTH && sweep > 0.1) {
+      if (sweep < 0.15) return; // too thin to render
+      if (depth > 0 && depth <= MAX_DEPTH) {
+        const rIn  = CENTER_R + (depth - 1) * RADIUS_STEP;
+        const rOut = rIn + RADIUS_STEP - 2;  // visible gap between rings
+        // tiny gap between sibling slices
+        const gap = Math.min(0.5, sweep * 0.04);
         const arc = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        const rIn = CENTER_R + (depth - 1) * RADIUS_STEP;
-        const rOut = rIn + RADIUS_STEP - 1.5; // gap between rings
-        
-        const opacity = Math.max(0.3, 1 - ((depth - 1) * 0.18));
-        
-        try {
-          // -0.3 creates a tiny gap between adjacent slices on the same ring
-          arc.setAttribute('d', describeArc(300, 300, rIn, rOut, startA, Math.max(startA + 0.01, endA - 0.3)));
-          arc.setAttribute('fill', n.color || '#555');
-          arc.setAttribute('opacity', n.isGroup ? '0.4' : opacity.toString());
-          arc.setAttribute('class', 'disk-arc');
-          arc.dataset.path = n.path;
-          
-          if (n.isDir && !n.isGroup) {
-            arc.style.cursor = 'pointer';
-            arc.addEventListener('click', () => drillDown(n));
-          }
-
-          arc.addEventListener('mouseenter', () => {
-            arc.setAttribute('opacity', '1');
-            arc.style.transform = 'scale(1.03)';
-            const listItem = document.querySelector(`.disk-list-item[data-path="${CSS.escape(n.path)}"]`);
-            if (listItem) listItem.style.background = 'rgba(255,255,255,0.1)';
-          });
-          arc.addEventListener('mouseleave', () => {
-            arc.setAttribute('opacity', n.isGroup ? '0.4' : opacity.toString());
-            arc.style.transform = '';
-            const listItem = document.querySelector(`.disk-list-item[data-path="${CSS.escape(n.path)}"]`);
-            if (listItem) listItem.style.background = '';
-          });
-          
-          arcsGroup.appendChild(arc);
-        } catch (err) {
-          console.error('[DiskAnalyzer] Error drawing arc:', err);
+        arc.setAttribute('d', _arcPath(300, 300, rIn, rOut, startA, endA - gap));
+        const opacity = n.isGroup ? 0.25 : Math.max(0.45, 1 - (depth - 1) * 0.13);
+        arc.setAttribute('fill', n.color || 'var(--accent)');
+        arc.setAttribute('opacity', opacity.toString());
+        arc.setAttribute('class', 'disk-arc' + (n.isGroup ? ' is-group' : ''));
+        arc.dataset.path = n.path;
+        if (n.isDir && !n.isGroup) {
+          arc.style.cursor = 'pointer';
+          arc.addEventListener('click', () => _navigateTo(n));
+        }
+        arc.addEventListener('mouseenter', () => _hoverHighlight(n, true));
+        arc.addEventListener('mouseleave', () => _hoverHighlight(n, false));
+        arcs.appendChild(arc);
+      }
+      if (n.children && depth < MAX_DEPTH) {
+        let cur = startA;
+        for (const c of n.children) {
+          const childSweep = (c.size / (n.size || 1)) * sweep;
+          layout(c, cur, cur + childSweep, depth + 1);
+          cur += childSweep;
         }
       }
-      
-      if (n.children && depth < MAX_DEPTH && sweep > 0.1) {
-        let currA = startA;
-        n.children.forEach((c) => {
-          const safeNodeSize = n.size > 0 ? n.size : 1; 
-          const childSweep = (c.size / safeNodeSize) * sweep;
-          assignLayout(c, currA, currA + childSweep, depth + 1);
-          currA += childSweep;
+    }
+    layout(node, 0, 360, 0);
+  }
+
+  function _hoverHighlight(n, on) {
+    const arc = _currentContainer?.querySelector(`.disk-arc[data-path="${CSS.escape(n.path)}"]`);
+    const row = _currentContainer?.querySelector(`.disk-row[data-path="${CSS.escape(n.path)}"]`);
+    if (arc) arc.classList.toggle('arc-hover', on);
+    if (row) row.classList.toggle('row-hover', on);
+  }
+
+  // ── List rendering ────────────────────────────────────────────────
+  function _renderList(node) {
+    const listEl = _currentContainer.querySelector('#disk-list');
+    const titleEl = _currentContainer.querySelector('#disk-list-title');
+    const sizeEl  = _currentContainer.querySelector('#disk-list-size');
+
+    titleEl.textContent = node.name || _currentRootPath;
+    sizeEl.textContent  = _formatSize(node.size);
+
+    listEl.innerHTML = '';
+    if (!node.children || !node.children.length) {
+      listEl.innerHTML = '<div class="disk-empty">No files in this folder</div>';
+      return;
+    }
+    const total = node.size || 1;
+    for (const c of node.children) {
+      const pct = Math.min(100, (c.size / total) * 100);
+      const row = document.createElement('div');
+      row.className = 'disk-row' + (c.isGroup ? ' is-group' : '');
+      row.dataset.path = c.path;
+      row.innerHTML = `
+        <span class="disk-row-bar" style="width:${pct.toFixed(2)}%;background:${c.color || 'var(--accent)'};"></span>
+        <span class="disk-row-dot" style="background:${c.color || 'var(--accent)'};opacity:${c.isGroup ? 0.4 : 1}"></span>
+        <span class="disk-row-icon">${c.isDir ? (c.isGroup ? '…' : '📁') : '📄'}</span>
+        <span class="disk-row-name" title="${_escape(c.path)}">${_escape(c.name)}</span>
+        <span class="disk-row-pct">${pct.toFixed(1)}%</span>
+        <span class="disk-row-size">${_formatSize(c.size)}</span>`;
+
+      if (!c.isGroup) {
+        row.addEventListener('click', () => {
+          if (c.isDir) _navigateTo(c);
+          else _previewFile(c);
         });
       }
-    }
-    
-    assignLayout(node, 0, 359.99, 0);
-  }
-
-  function renderList(node) {
-    listContainer.innerHTML = '';
-    
-    if (listTitle) listTitle.innerHTML = node.parent ? `↑ ${node.name || node.path}` : (node.name || node.path);
-    if (listSize) listSize.textContent = formatSize(node.size);
-    
-    if (!node.children || node.children.length === 0) {
-        listContainer.innerHTML = '<div style="padding:1rem; color:#aaa; font-size:.85rem; text-align:center;">Folder is empty</div>';
-        return;
-    }
-
-    node.children.sort((a, b) => b.size - a.size);
-    
-    const maxVal = node.size > 0 ? node.size : 1;
-
-    node.children.forEach(c => {
-      const pct = Math.max(1, (c.size / maxVal) * 100);
-      const color = c.color || '#555';
-      
-      const div = document.createElement('div');
-      div.className = 'disk-list-item' + (c.isGroup ? ' group' : '');
-      div.dataset.path = c.path;
-      
-      div.style.cssText = `
-        position: relative;
-        overflow: hidden;
-        margin-bottom: 4px;
-        background: rgba(0,0,0,0.2);
-      `;
-
-      div.innerHTML = `
-        <div style="position:absolute; left:0; top:0; bottom:0; width:${pct}%; background:${color}; opacity:0.3; pointer-events:none;"></div>
-        <span class="color-dot" style="background:${color}; opacity:${c.isGroup ? '0.5' : '1'}; z-index:1; position:relative;"></span>
-        <span class="name" title="${c.name}" style="z-index:1; position:relative; ${c.isDir && !c.isGroup ? 'cursor:pointer' : ''}">${c.name}</span>
-        <span class="size" style="z-index:1; position:relative;">${formatSize(c.size)}</span>
-        ${c.isGroup ? '' : `<button class="del-btn" style="z-index:2; position:relative;" title="Delete forever">🗑</button>`}
-      `;
-      
-      if (c.isDir && !c.isGroup) {
-        div.querySelector('.name').addEventListener('click', () => drillDown(c));
-      }
-
-      // Link List Hover to SVG
-      div.addEventListener('mouseenter', () => {
-        const arc = document.querySelector(`.disk-arc[data-path="${CSS.escape(c.path)}"]`);
-        if (arc) { arc.setAttribute('opacity', '1'); arc.style.transform = 'scale(1.03)'; }
-      });
-      div.addEventListener('mouseleave', () => {
-        const arc = document.querySelector(`.disk-arc[data-path="${CSS.escape(c.path)}"]`);
-        if (arc) {
-          const opacity = Math.max(0.3, 1 - ((c.depth - 1) * 0.18));
-          arc.setAttribute('opacity', c.isGroup ? '0.4' : opacity.toString()); 
-          arc.style.transform = ''; 
-        }
-      });
-      
-      const delBtn = div.querySelector('.del-btn');
-      if (delBtn) {
-        delBtn.addEventListener('click', async (e) => {
-          e.stopPropagation();
-          if (confirm(`Delete ${c.name} (${formatSize(c.size)}) permanently?`)) {
-            try {
-              statusEl.textContent = 'Deleting...';
-              await WS.send('fs:delete', { paths: [c.path] });
-              // Locally update tree to avoid full rescan
-              removeNodeSize(c);
-              drillDown(node); // Re-render from current view
-              if (window.Explorer && Explorer.refresh) Explorer.refresh();
-              statusEl.textContent = `Deleted ${c.name}`;
-              setTimeout(() => { statusEl.textContent = ''; }, 3000);
-            } catch (err) {
-              alert('Delete failed: ' + err.message);
-              statusEl.textContent = '';
-            }
-          }
-        });
-      }
-      listContainer.appendChild(div);
-    });
-  }
-
-  function removeNodeSize(nodeToRemove) {
-    const parent = nodeToRemove.parent;
-    if (!parent) return; // Cannot delete root
-    
-    // Remove from parent's children
-    parent.children = parent.children.filter(c => c !== nodeToRemove);
-    
-    // Subtract size all the way up the tree
-    const sizeDiff = nodeToRemove.size;
-    let curr = parent;
-    while(curr) {
-      curr.size -= sizeDiff;
-      curr = curr.parent;
+      row.addEventListener('mouseenter', () => _hoverHighlight(c, true));
+      row.addEventListener('mouseleave', () => _hoverHighlight(c, false));
+      listEl.appendChild(row);
     }
   }
 
-  return { init, open, close };
+  function _navigateTo(n) {
+    // Defer to the explorer — it will re-call render() because disk is the active view
+    if (n.isDir && n.path && window.Explorer) {
+      Explorer.navigate(n.path);
+    }
+  }
+
+  async function _previewFile(n) {
+    if (!window.Preview) return;
+    try {
+      const stat = await WS.send('fs:stat', { path: n.path });
+      Preview.open(stat || { name: n.name, path: n.path, isDir: false }, []);
+    } catch {
+      Preview.open({ name: n.name, path: n.path, isDir: false }, []);
+    }
+  }
+
+  function _escape(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  return { render, refresh };
 })();
-
-// Self-initialize once the DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-  if (document.getElementById('btn-disk')) {
-    DiskAnalyzer.init();
-  }
-});

@@ -413,15 +413,8 @@ async function handle(type, payload, reply, ws, device) {
     }
 
     // --- disk ---
-    case 'disk:scan': {
-      try {
-        const tree = await disk.scan(payload.path, ws);
-        reply(tree);
-      } catch (e) {
-        reply({ error: e.message }, true);
-      }
-      break;
-    }
+    case 'disk:scan':         reply(await disk.scan(payload.path, { refresh: !!payload.refresh }, ws)); break;
+    case 'disk:clear-cache':  reply(disk.clearCache(payload.path || null)); break;
 
     // --- search ---
     case 'search:filename': reply({ results: search.searchFilename(payload.query, payload.limit) }); break;
