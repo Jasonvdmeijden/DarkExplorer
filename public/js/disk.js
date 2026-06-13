@@ -2,8 +2,10 @@
  *
  * Public API:
  *   DiskAnalyzer.render(container, rootPath)   → fills `container` with the
- *      sunburst + list for the recursive contents of `rootPath`. Re-rendering
- *      with a different path is cheap if the server has it cached.
+ *      sunburst + list for the recursive contents of `rootPath`. Reads come
+ *      straight from the server's whole-system cache, so they never block —
+ *      if the cache hasn't reached this path yet, an empty/partial tree is
+ *      shown immediately and fills in live as the background scan progresses.
  *   DiskAnalyzer.refresh()                     → force a re-scan of the current root
  *
  * The view is rooted at whatever folder the explorer is currently navigated to.
@@ -23,12 +25,61 @@ const DiskAnalyzer = (() => {
   let _currentRootPath  = null;   // path string
   let _statusEl         = null;
   let _refreshing       = false;
+  let _rescanTimer      = null;
 
-  // Listen for progress events as long as one render is active
-  WS.on('disk:progress', (d) => {
-    if (_statusEl && d?.current) {
-      _statusEl.textContent = `Scanning… ${d.scanned ? d.scanned + ' files · ' : ''}${_shortPath(d.current)}`;
+  function _isActive() {
+    return !!(_currentContainer && _currentContainer.isConnected && _currentRootPath);
+  }
+
+  function _norm(p) {
+    return (p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+  }
+
+  // Is `p` the current root, an ancestor of it, or a descendant of it?
+  function _isRelated(p) {
+    if (!p || !_currentRootPath) return true;
+    const a = _norm(p), b = _norm(_currentRootPath);
+    return a === b || a.startsWith(b + '/') || b.startsWith(a + '/');
+  }
+
+  // Throttle live re-renders so a flood of cache-update/progress events
+  // only triggers one cheap SQL read every ~1-2s.
+  function _scheduleRescan(delay) {
+    if (_rescanTimer) return;
+    _rescanTimer = setTimeout(() => {
+      _rescanTimer = null;
+      if (_isActive() && !_refreshing) _doScan(false);
+    }, delay);
+  }
+
+  // Background scan progress — update status text and schedule a live refresh
+  WS.on('disk:scan-progress', (d) => {
+    if (_statusEl && d) {
+      _statusEl.classList.add('scanning');
+      _statusEl.textContent = `Building cache… ${d.scanned ? d.scanned.toLocaleString() + ' files' : ''}${d.current ? ' · ' + _shortPath(d.current) : ''}`;
     }
+    if (!_isActive()) return;
+    _scheduleRescan(2000);
+  });
+
+  // Incremental recalculation pushed from notifyChange()'s bubble-up
+  WS.on('disk:cache-update', (d) => {
+    if (!_isActive()) return;
+    if (!_isRelated(d?.path)) return;
+    _scheduleRescan(1000);
+  });
+
+  // A full or subtree scan finished — do a final immediate refresh
+  WS.on('disk:scan-complete', (d) => {
+    const p = d ? d.path : null;
+    if (_statusEl && (p === null || _isRelated(p))) {
+      _statusEl.classList.remove('scanning');
+      _statusEl.textContent = '';
+    }
+    if (!_isActive()) return;
+    if (p !== null && !_isRelated(p)) return;
+    if (_rescanTimer) { clearTimeout(_rescanTimer); _rescanTimer = null; }
+    if (!_refreshing) _doScan(false);
   });
 
   function _shortPath(p) {
@@ -117,34 +168,34 @@ const DiskAnalyzer = (() => {
     if (!_currentContainer || !_currentRootPath) return;
     _refreshing = true;
 
-    const listEl  = _currentContainer.querySelector('#disk-list');
     const titleEl = _currentContainer.querySelector('#disk-list-title');
-    const sizeEl  = _currentContainer.querySelector('#disk-list-size');
-    const metaEl  = _currentContainer.querySelector('#disk-list-meta');
-    const arcsEl  = _currentContainer.querySelector('#disk-arcs');
-    const centerText = _currentContainer.querySelector('#disk-center-text');
-
-    if (arcsEl) arcsEl.innerHTML = '';
-    listEl.innerHTML = '<div class="disk-loading">Crawling…</div>';
     titleEl.textContent = _currentRootPath.split(/[\\/]/).pop() || _currentRootPath;
-    sizeEl.textContent  = '—';
-    metaEl.textContent  = '';
-    centerText.innerHTML = `<tspan x="300" dy="0" class="disk-center-status">Scanning…</tspan>`;
 
     try {
       const tree = await WS.send('disk:scan', { path: _currentRootPath, refresh: !!forceRefresh });
       _currentRoot = tree;
       _linkParents(_currentRoot);
       _assignColors(_currentRoot, 'var(--accent)');
-      _statusEl.textContent = '';
       _renderSunburst(_currentRoot);
       _renderList(_currentRoot);
       _renderMeta(tree);
+      _updateStatus(tree);
     } catch (e) {
+      const listEl = _currentContainer.querySelector('#disk-list');
       listEl.innerHTML = `<div class="disk-error">Scan failed: ${_escape(e.message || String(e))}</div>`;
-      centerText.innerHTML = `<tspan x="300" dy="0" class="disk-center-status">Error</tspan>`;
     } finally {
       _refreshing = false;
+    }
+  }
+
+  function _updateStatus(tree) {
+    if (!_statusEl) return;
+    if (tree.scanning) {
+      _statusEl.classList.add('scanning');
+      if (!_statusEl.textContent) _statusEl.textContent = 'Building cache…';
+    } else {
+      _statusEl.classList.remove('scanning');
+      _statusEl.textContent = '';
     }
   }
 
@@ -152,10 +203,15 @@ const DiskAnalyzer = (() => {
     if (!_currentContainer) return;
     const metaEl = _currentContainer.querySelector('#disk-list-meta');
     if (!metaEl) return;
-    const cached = tree._cached;
     const fileCount = tree._fileCount || 0;
     const scannedAt = tree._scannedAt;
-    metaEl.textContent = `${fileCount.toLocaleString()} files · ${cached ? 'cached ' + _formatAge(scannedAt) : 'just scanned'}`;
+    if (tree.scanning) {
+      metaEl.textContent = `${fileCount.toLocaleString()} files · building cache…`;
+    } else if (scannedAt) {
+      metaEl.textContent = `${fileCount.toLocaleString()} files · updated ${_formatAge(scannedAt)}`;
+    } else {
+      metaEl.textContent = `${fileCount.toLocaleString()} files`;
+    }
   }
 
   // ── Sunburst rendering ────────────────────────────────────────────
@@ -185,9 +241,16 @@ const DiskAnalyzer = (() => {
     const centerText = _currentContainer.querySelector('#disk-center-text');
     arcs.innerHTML = '';
 
-    centerText.innerHTML = `
-      <tspan x="300" dy="-10" class="disk-center-size">${_escape(_formatSize(node.size))}</tspan>
-      <tspan x="300" dy="26"   class="disk-center-label">${_escape(node.name || 'Total')}</tspan>`;
+    if (node._empty || node.scanning) {
+      centerText.innerHTML = `
+        <tspan x="300" dy="-10" class="disk-center-size">${_escape(_formatSize(node.size))}</tspan>
+        <tspan x="300" dy="22"   class="disk-center-label">${_escape(node.name || 'Total')}</tspan>
+        <tspan x="300" dy="22"   class="disk-center-status">Building…</tspan>`;
+    } else {
+      centerText.innerHTML = `
+        <tspan x="300" dy="-10" class="disk-center-size">${_escape(_formatSize(node.size))}</tspan>
+        <tspan x="300" dy="26"   class="disk-center-label">${_escape(node.name || 'Total')}</tspan>`;
+    }
 
     const MAX_DEPTH   = 5;
     const RADIUS_STEP = 38;
@@ -251,7 +314,11 @@ const DiskAnalyzer = (() => {
 
     listEl.innerHTML = '';
     if (!node.children || !node.children.length) {
-      listEl.innerHTML = '<div class="disk-empty">No files in this folder</div>';
+      if (node._empty || node.scanning) {
+        listEl.innerHTML = '<div class="disk-loading">Building cache… this folder will fill in as the background scan reaches it.</div>';
+      } else {
+        listEl.innerHTML = '<div class="disk-empty">No files in this folder</div>';
+      }
       return;
     }
     const total = node.size || 1;
@@ -268,12 +335,7 @@ const DiskAnalyzer = (() => {
         <span class="disk-row-pct">${pct.toFixed(1)}%</span>
         <span class="disk-row-size">${_formatSize(c.size)}</span>`;
 
-      if (!c.isGroup) {
-        row.addEventListener('click', () => {
-          if (c.isDir) _navigateTo(c);
-          else _previewFile(c);
-        });
-      }
+      if (!c.isGroup) _attachRowInteractions(row, c);
       row.addEventListener('mouseenter', () => _hoverHighlight(c, true));
       row.addEventListener('mouseleave', () => _hoverHighlight(c, false));
       listEl.appendChild(row);
@@ -282,19 +344,76 @@ const DiskAnalyzer = (() => {
 
   function _navigateTo(n) {
     // Defer to the explorer — it will re-call render() because disk is the active view
-    if (n.isDir && n.path && window.Explorer) {
-      Explorer.navigate(n.path);
-    }
+    if (n.isDir && n.path) Explorer.navigate(n.path);
   }
 
   async function _previewFile(n) {
-    if (!window.Preview) return;
     try {
       const stat = await WS.send('fs:stat', { path: n.path });
       Preview.open(stat || { name: n.name, path: n.path, isDir: false }, []);
     } catch {
       Preview.open({ name: n.name, path: n.path, isDir: false }, []);
     }
+  }
+
+  function _openRow(c) {
+    if (c.isDir) _navigateTo(c);
+    else _previewFile(c);
+  }
+
+  // {name, path, isDir, ext} — shape Explorer.showContextMenu/Tabs expect
+  function _toMenuItem(c) {
+    const dot = c.name.lastIndexOf('.');
+    return { name: c.name, path: c.path, isDir: c.isDir, ext: dot > 0 ? c.name.slice(dot + 1) : '' };
+  }
+
+  // Wires a list row up to match the explorer's row gestures:
+  // click → navigate/preview, right-click/double-tap → context menu,
+  // middle-click/ctrl-click/triple-tap → open folder in new tab.
+  function _attachRowInteractions(row, c) {
+    const menuItem = _toMenuItem(c);
+
+    row.addEventListener('click', () => _openRow(c));
+
+    row.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      Explorer.selectOnly(c.path);
+      Explorer.showContextMenu(e.clientX, e.clientY, menuItem);
+    });
+
+    Tabs.attachOpenInNewTab(row, () => menuItem);
+
+    // Touch: double-tap → context menu; single tap → open (mirrors explorer.js rows)
+    let lastTap = 0, tapTimer = null, touchStart = null;
+    const TAP_SLOP = 10;
+    row.addEventListener('touchstart', (e) => {
+      const t = e.changedTouches[0];
+      touchStart = { x: t.clientX, y: t.clientY };
+    }, { passive: true });
+    row.addEventListener('touchmove', (e) => {
+      if (!touchStart) return;
+      const t = e.changedTouches[0];
+      if (Math.hypot(t.clientX - touchStart.x, t.clientY - touchStart.y) > TAP_SLOP) {
+        if (tapTimer) { clearTimeout(tapTimer); tapTimer = null; lastTap = 0; }
+        touchStart = null;
+      }
+    }, { passive: true });
+    row.addEventListener('touchend', (e) => {
+      if (!touchStart) return;
+      touchStart = null;
+      e.preventDefault();
+      const now = Date.now(), touch = e.changedTouches[0];
+      if (now - lastTap < 280) {
+        if (tapTimer) { clearTimeout(tapTimer); tapTimer = null; }
+        lastTap = 0;
+        Explorer.selectOnly(c.path);
+        Explorer.showContextMenu(touch.clientX, touch.clientY, menuItem);
+      } else {
+        lastTap = now;
+        tapTimer = setTimeout(() => { tapTimer = null; lastTap = 0; _openRow(c); }, 280);
+      }
+    }, { passive: false });
   }
 
   function _escape(s) {

@@ -1455,88 +1455,158 @@ dialog#preview-modal::backdrop {
   background: var(--accent-dim); border-color: rgba(124,110,245,.3); color: var(--accent);
 }
 
-/* ── Properties dialog ── */
-/* ── Disk Analyzer ── */
-#disk-modal {
-  width: 100%;
+/* ── Disk usage analyser view ── */
+.view-disk { width: 100%; height: 100%; overflow: hidden; }
+.disk-view {
+  display: flex; flex-direction: column;
   height: 100%;
   background: var(--bg-base);
-  display: flex;
-  flex-direction: column;
+  color: var(--text-primary);
 }
-
 .disk-header {
-  display: flex;
-  align-items: center;
-  padding: .5rem 1rem;
-  background: rgba(0,0,0,0.2);
-  border-bottom: 1px solid rgba(255,255,255,0.05);
-  gap: .5rem;
+  display: flex; align-items: center; gap: .75rem;
+  padding: .55rem .9rem;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
 }
-#disk-tabs {
-  display: flex;
-  gap: .2rem;
-  margin-right: .5rem;
-  padding-right: .5rem;
-  border-right: 1px solid rgba(255,255,255,0.1);
+.disk-info { display: flex; flex-direction: column; min-width: 0; flex: 1; gap: 1px; }
+.disk-title {
+  font-size: .68rem; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--text-muted);
 }
-.disk-tab {
-  background: none; border: none; color: #888; padding: .3rem .6rem;
-  font-size: .8rem; font-weight: 600; cursor: pointer; border-radius: 4px;
+.disk-subtitle {
+  font-size: .82rem;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.disk-tab:hover { background: rgba(255,255,255,0.05); color: #ccc; }
-.disk-tab.active { background: #42a5f5; color: #fff; }
+.disk-actions { display: flex; align-items: center; gap: .55rem; flex-shrink: 0; }
+.disk-status {
+  font-size: .72rem; color: var(--text-muted);
+  font-family: var(--font-mono);
+  max-width: 360px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.disk-status.scanning {
+  color: var(--accent);
+  animation: disk-status-pulse 1.6s ease-in-out infinite;
+}
+@keyframes disk-status-pulse {
+  0%, 100% { opacity: .55; }
+  50%      { opacity: 1; }
+}
+#disk-refresh {
+  font-size: .76rem;
+  padding: .3rem .65rem;
+  border: 1px solid var(--border);
+  background: var(--bg-base);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+}
+#disk-refresh:hover { background: var(--bg-hover); color: var(--accent); }
 
-#disk-breadcrumb { display: flex; font-size: .85rem; color: #aaa; flex: 1; align-items: center; overflow: hidden; }
-.disk-crumb { cursor: pointer; padding: .1rem .3rem; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px; }
-.disk-crumb:hover { color: #fff; background: rgba(255,255,255,0.1); }
-.disk-sep { margin: 0 .2rem; opacity: 0.5; }
+.disk-body { display: flex; flex: 1; min-height: 0; }
 
-#btn-disk-close { background: none; border: none; color: #888; cursor: pointer; font-size: 16px; padding: 0 .3rem; }
-#btn-disk-close:hover { color: #fff; }
-
-.disk-body { display: flex; flex: 1; overflow: hidden; }
-
-.disk-svg-container { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; }
-#disk-svg { width: 100%; height: 100%; max-width: 600px; max-height: 600px; transition: transform 0.3s ease; }
-#disk-center { cursor: pointer; transition: fill 0.2s; }
-#disk-center:hover { fill: #333 !important; }
-#disk-center-text { pointer-events: none; }
-.disk-arc { transition: opacity 0.15s, transform 0.15s; transform-origin: center; }
+.disk-svg-container {
+  flex: 1;
+  display: flex; align-items: center; justify-content: center;
+  padding: 1rem;
+  min-width: 0;
+  background: var(--bg-base);
+}
+#disk-svg {
+  width: 100%; height: 100%;
+  max-width: 640px; max-height: 640px;
+  filter: drop-shadow(0 2px 14px rgba(0,0,0,.25));
+}
+#disk-center {
+  fill: var(--bg-surface);
+  stroke: var(--border);
+  stroke-width: 1.5;
+}
+.disk-center-size  { fill: var(--text-primary);   font-size: 24px; font-weight: 700; }
+.disk-center-label { fill: var(--text-secondary); font-size: 12px; font-weight: 500; }
+.disk-center-status{
+  fill: var(--accent); font-size: 11px; text-transform: uppercase; letter-spacing: .08em;
+  animation: disk-status-pulse 1.6s ease-in-out infinite;
+}
+.disk-arc {
+  transition: opacity .15s ease, transform .15s ease, filter .15s ease;
+  transform-origin: 300px 300px;
+}
+.disk-arc:hover, .disk-arc.arc-hover { opacity: 1 !important; filter: brightness(1.12); }
+.disk-arc.is-group { pointer-events: none; }
 
 .disk-list-container {
-  width: 340px;
-  background: rgba(0,0,0,0.15);
-  border-left: 1px solid rgba(255,255,255,0.05);
-  display: flex;
-  flex-direction: column;
+  width: 360px;
+  flex-shrink: 0;
+  background: var(--bg-panel);
+  border-left: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  min-height: 0;
 }
 .disk-list-header {
-  padding: 1rem 1rem .5rem;
-  border-bottom: 1px solid rgba(255,255,255,0.05);
+  padding: .9rem 1rem .7rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
 }
-.disk-list-header .title { font-size: 1.1rem; font-weight: 600; margin-bottom: .2rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.disk-list-header .size { color: #aaa; font-size: .85rem; font-family: var(--font-mono); }
+.disk-list-title {
+  font-size: 1.02rem; font-weight: 700;
+  color: var(--text-primary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.disk-list-size {
+  font-size: .9rem;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  margin-top: .15rem;
+}
+.disk-list-meta { font-size: .7rem; color: var(--text-muted); margin-top: .25rem; }
 
-#disk-list { flex: 1; overflow-y: auto; padding: .5rem; }
-.disk-list-item {
-  display: flex; align-items: center; gap: .6rem; padding: .4rem .5rem;
-  font-size: .85rem; color: #ccc; border-radius: 6px; margin-bottom: 2px;
+.disk-list { flex: 1; overflow-y: auto; padding: .35rem .35rem .5rem; }
+.disk-loading, .disk-empty, .disk-error {
+  padding: 1.25rem 1rem; color: var(--text-muted);
+  font-size: .85rem; text-align: center;
 }
-.disk-list-item:hover { background: rgba(255,255,255,0.05); color: #fff; }
-.disk-list-item .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
-.disk-list-item .name:hover { text-decoration: underline; }
-.disk-list-item .size { font-family: var(--font-mono); opacity: 0.8; font-size: .8rem; }
-.disk-list-item .del-btn {
-  background: #ff5555; color: #fff; border: none; border-radius: 4px; padding: .1rem .4rem;
-  font-size: .7rem; font-weight: 600; cursor: pointer; opacity: 0; transition: opacity .15s;
-}
-.disk-list-item:hover .del-btn { opacity: 1; }
-.disk-list-item .del-btn:hover { background: #ff3333; box-shadow: 0 0 8px rgba(255,85,85,0.5); }
-.disk-list-item.group { opacity: 0.6; }
-.disk-list-item.group .name { cursor: default; }
-.disk-list-item.group .name:hover { text-decoration: none; }
+.disk-error { color: var(--danger); }
 
+.disk-row {
+  position: relative; display: flex; align-items: center; gap: .55rem;
+  padding: .45rem .55rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: .82rem;
+  isolation: isolate;
+}
+.disk-row:hover, .disk-row.row-hover { background: var(--bg-hover); }
+.disk-row.selected { background: var(--bg-selected); }
+.disk-row.is-group { cursor: default; opacity: .7; }
+.disk-row.is-group:hover { background: transparent; }
+.disk-row-bar {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  z-index: -1; opacity: .14; border-radius: var(--radius-sm);
+}
+.disk-row-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.disk-row-icon { font-size: .9rem; flex-shrink: 0; opacity: .8; }
+.disk-row-name {
+  flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--text-primary);
+}
+.disk-row-pct  { font-family: var(--font-mono); font-size: .72rem; color: var(--text-muted); flex-shrink: 0; }
+.disk-row-size { font-family: var(--font-mono); font-size: .76rem; color: var(--text-secondary); min-width: 64px; text-align: right; flex-shrink: 0; }
+
+/* Mobile: stack the sunburst above the list */
+@media (max-width: 768px) {
+  .disk-body { flex-direction: column; }
+  .disk-svg-container { padding: .5rem; min-height: 40vh; }
+  .disk-list-container { width: 100%; border-left: none; border-top: 1px solid var(--border); flex: 1; min-height: 0; }
+  #disk-svg { max-height: 40vh; }
+  .disk-status { max-width: 180px; }
+}
+
+/* ── Properties dialog ── */
 dialog#props-dialog {
   border: none; padding: 0; outline: none;
   width: 420px; max-width: 96vw;
@@ -1835,6 +1905,75 @@ html[data-mode="light"] .stat-chip b {
 .git-icon-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 .git-icon-danger:hover { background: rgba(239,68,68,.15); color: #ef4444; }
 
+/* Merge / rebase branch pickers */
+.git-op-bar { gap: .4rem; }
+.git-op-select { flex: 1; font-size: .74rem; }
+
+/* Sync bar — fetch / pull / push */
+.git-sync-bar {
+  display: flex; align-items: center; gap: .35rem;
+  padding: .4rem .6rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.git-sync-btn {
+  background: var(--bg-base); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); color: var(--text-primary);
+  padding: .22rem .5rem; font-size: .75rem; cursor: pointer;
+  transition: background .1s, color .1s;
+}
+.git-sync-btn:hover:not(:disabled) { background: var(--bg-hover); color: var(--accent); }
+.git-sync-btn:disabled { opacity: .45; cursor: not-allowed; }
+.git-ahead-behind {
+  display: flex; gap: .3rem; margin-left: .2rem;
+  font-family: var(--font-mono); font-size: .74rem; font-weight: 600;
+}
+.git-ahead  { color: var(--accent); }
+.git-behind { color: #e2a44f; }
+.git-sync-status {
+  margin-left: auto; font-size: .72rem; color: var(--text-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 50%;
+}
+.git-sync-status.err { color: var(--danger); }
+
+/* Merge / rebase in-progress banner */
+.git-conflict-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: .6rem;
+  padding: .5rem .6rem;
+  background: rgba(239,68,68,.1);
+  border-bottom: 1px solid rgba(239,68,68,.3);
+  font-size: .78rem; color: #ef4444;
+}
+.git-conflict-text { flex: 1; }
+.git-conflict-actions { display: flex; gap: .4rem; flex-shrink: 0; }
+.git-conflict-abort:hover:not(:disabled) { color: #ef4444; border-color: rgba(239,68,68,.4); }
+
+/* Stash section */
+.git-stash-row {
+  display: flex; align-items: center; gap: .4rem;
+  padding: .25rem .8rem .25rem 1.4rem;
+  font-size: .79rem;
+}
+.git-stash-row:hover { background: var(--bg-hover); }
+.git-stash-info { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); }
+.git-stash-date { font-size: .68rem; color: var(--text-muted); flex-shrink: 0; }
+.git-stash-actions { display: flex; gap: .1rem; flex-shrink: 0; }
+.git-stash-form {
+  display: flex; flex-direction: column; gap: .35rem;
+  padding: .5rem .8rem .6rem 1.4rem;
+}
+.git-stash-msg {
+  background: var(--bg-base); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); color: var(--text-primary);
+  padding: .25rem .45rem; font-size: .76rem; outline: none;
+}
+.git-stash-msg:focus { border-color: var(--border-focus); }
+.git-stash-untracked {
+  display: flex; align-items: center; gap: .35rem;
+  font-size: .72rem; color: var(--text-muted); cursor: pointer;
+}
+.git-stash-form .git-commit-btn { margin-top: 0; }
+
 .git-commit-area { padding: .4rem .6rem .2rem; border-bottom: 1px solid var(--border); }
 .git-commit-msg {
   width: 100%; background: var(--bg-base); border: 1px solid var(--border);
@@ -1850,6 +1989,10 @@ html[data-mode="light"] .stat-chip b {
 }
 .git-commit-btn:hover:not(:disabled) { background: var(--accent-hover, #5a4ecc); }
 .git-commit-btn:disabled { opacity: .4; cursor: not-allowed; }
+.git-commit-btn.secondary {
+  width: auto; background: var(--bg-hover); color: var(--text-primary); border: 1px solid var(--border);
+}
+.git-commit-btn.secondary:hover:not(:disabled) { background: var(--bg-selected); }
 
 .git-clean { padding: .6rem .8rem; font-size: .78rem; color: #4ade80; }
 

@@ -88,3 +88,19 @@ States: `[ ]` todo · `[~]` in progress · `[x]` done
 - [x] Bookmark add fully async with error feedback and status display
 - [x] Search shows spinner while awaiting results
 - [x] Browser back/forward buttons drive in-app navigation via pushState + popstate
+
+## Phase 11 — Disk cache rework + Git sync/stash/merge/rebase
+- [x] server/db.js: `disk_nodes` + `disk_scan_state` schema (drops old `disk_cache`)
+- [x] server/disk.js rewrite: whole-system DB-backed cache, background full scan, subtree rescan, `notifyChange` bubble-up, broadcasts
+- [x] server/files.js: hook all fs mutations (write/mkdir/remove/copy/move/rename/duplicate) into `disk.notifyChange`
+- [x] server/index.js: wire `disk.setBroadcaster`/`initBackgroundScan`, `disk:scan`/`disk:clear-cache` handlers, `/upload` notifyChange hook
+- [x] public/js/disk.js: progressive rendering — render partial/`_empty` trees immediately, live updates via `disk:scan-progress`/`disk:cache-update`/`disk:scan-complete`
+- [x] CSS: `.disk-status.scanning` pulse, `.disk-center-status` "Building…" state
+- [x] server/git.js: fetch/pull/push/ahead-behind/remotes, stash list/save/apply/pop/drop, merge/merge-abort/merge-status, rebase/rebase-continue/rebase-abort/rebase-status
+- [x] server/index.js: new `git:*` WS message cases for sync/stash/merge/rebase
+- [x] public/js/git.js: sync bar (fetch/pull/push + ahead/behind badge), stash section, merge/rebase pickers, conflict/in-progress banner
+- [x] CSS: git sync bar, stash rows, conflict banner styles
+- [x] Verify end-to-end: restarted server with new schema, confirmed `disk:scan` returns instantly mid-scan (no 30s timeout), confirmed bubble-up on file create/delete updates ancestor sizes + broadcasts `disk:cache-update`, confirmed git remotes/ahead-behind/fetch/stash/merge-status/rebase-status all work over WS; fixed two bugs found during verification (git status porcelain parsing, stale scan-state resume on restart)
+- [x] Fix folder sizes not aggregating recursive subdirectory totals: `_buildChildren`/`getTree` now compute each dir's effective size as `max(stored size, sum of children's effective sizes)` bottom-up, so the sunburst always satisfies `parent.size >= sum(children.size)`; verified against `C:\`, project root, and `C:\dev\ai\AIFactory` — totals now sum exactly
+- [x] Disk-list rows are now fully interactive: click → navigate (folders) or open preview (files), right-click/double-tap → full context menu (via new `Explorer.selectOnly` export), middle-click/ctrl-click/triple-tap → open folder in new tab. Reuses the exact same gesture primitives as explorer.js rows (`showContextMenu`, `Tabs.attachOpenInNewTab`). Also fixed `startRename`'s selector to recognise `.disk-row-name`. Verified end-to-end via Playwright: context menu shows full item list, click-navigate works, click-preview opens correct file, middle-click opens new tab
+- [x] Fix disk-list not scrolling on mobile: `.disk-list-container` had no bounded height when `.disk-body` switches to `flex-direction: column` (mobile media query), so `.disk-list { flex:1; overflow-y:auto }` had nothing to constrain against. Added `flex: 1; min-height: 0` to `.disk-list-container` in the `@media (max-width: 768px)` block. Verified at 390px viewport: list height now bounded (scrollHeight > clientHeight, scrollable: true, scrollTop responds)

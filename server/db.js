@@ -78,15 +78,33 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_shares_token ON shares(token);
 
-  CREATE TABLE IF NOT EXISTS disk_cache (
+  CREATE TABLE IF NOT EXISTS disk_nodes (
     path        TEXT PRIMARY KEY,
-    tree_json   TEXT NOT NULL,
-    total_size  INTEGER NOT NULL,
-    file_count  INTEGER NOT NULL,
+    parent_path TEXT,
+    name        TEXT NOT NULL,
+    size        INTEGER NOT NULL DEFAULT 0,
+    is_dir      INTEGER NOT NULL DEFAULT 0,
     scanned_at  INTEGER NOT NULL
   );
-  CREATE INDEX IF NOT EXISTS idx_disk_cache_scanned ON disk_cache(scanned_at);
+  CREATE INDEX IF NOT EXISTS idx_disk_nodes_parent ON disk_nodes(parent_path);
+
+  CREATE TABLE IF NOT EXISTS disk_scan_state (
+    id            INTEGER PRIMARY KEY CHECK (id = 1),
+    status        TEXT NOT NULL DEFAULT 'idle',
+    current_path  TEXT,
+    scanned_count INTEGER NOT NULL DEFAULT 0,
+    started_at    INTEGER,
+    finished_at   INTEGER
+  );
 `);
+
+db.prepare('INSERT OR IGNORE INTO disk_scan_state (id, status, scanned_count) VALUES (1, \'idle\', 0)').run();
+
+// Migration: drop the old per-folder JSON blob disk cache (replaced by disk_nodes)
+try {
+  const hasOld = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='disk_cache'").get();
+  if (hasOld) db.exec('DROP TABLE disk_cache');
+} catch {}
 
 // Migrations for schema additions
 try { db.prepare('ALTER TABLE bookmarks ADD COLUMN url TEXT').run(); } catch {}

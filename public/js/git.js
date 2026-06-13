@@ -31,13 +31,39 @@ const Git = (() => {
 
     panel.innerHTML = '<div class="git-loading">Loading…</div>';
     try {
-      const [branchRes, statusRes, logRes] = await Promise.all([
-        WS.send('git:branches',  { cwd: _root }),
-        WS.send('git:status',    { cwd: _root }),
-        WS.send('git:log',       { cwd: _root, n: 5 })
+      const [branchRes, statusRes, logRes, aheadBehind, mergeStatus, rebaseStatus, stashRes] = await Promise.all([
+        WS.send('git:branches',      { cwd: _root }),
+        WS.send('git:status',        { cwd: _root }),
+        WS.send('git:log',           { cwd: _root, n: 5 }),
+        WS.send('git:ahead-behind',  { cwd: _root }),
+        WS.send('git:merge-status',  { cwd: _root }),
+        WS.send('git:rebase-status', { cwd: _root }),
+        WS.send('git:stash-list',    { cwd: _root })
       ]);
-      _render(branchRes, statusRes, logRes.commits || []);
+      _render(branchRes, statusRes, logRes.commits || [], aheadBehind, mergeStatus, rebaseStatus, stashRes.items || []);
     } catch (e) { _showError(e.message); }
+  }
+
+  // Run a fetch/pull/push sync operation, showing busy/error state in `statusEl`
+  async function _runSync(action, label, statusEl) {
+    const buttons = panel.querySelectorAll('.git-sync-btn');
+    buttons.forEach(b => b.disabled = true);
+    statusEl.textContent = `${label}…`;
+    statusEl.className = 'git-sync-status';
+    try {
+      const res = await WS.send(`git:${action}`, { cwd: _root });
+      if (res && res.ok === false) {
+        statusEl.textContent = (res.error || 'Failed').split('\n')[0];
+        statusEl.className = 'git-sync-status err';
+        buttons.forEach(b => b.disabled = false);
+        return;
+      }
+      refresh(_cwd);
+    } catch (e) {
+      statusEl.textContent = (e.message || 'Failed').split('\n')[0];
+      statusEl.className = 'git-sync-status err';
+      buttons.forEach(b => b.disabled = false);
+    }
   }
 
   // Swap the panel to operate against a submodule (or back to the main repo if path === _mainRoot)
@@ -104,7 +130,7 @@ const Git = (() => {
     input.addEventListener('keydown', e => { if (e.key === 'Enter') cloneBtn.click(); });
   }
 
-  function _render(branchRes, statusRes, commits) {
+  function _render(branchRes, statusRes, commits, aheadBehind, mergeStatus, rebaseStatus, stashItems) {
     panel.innerHTML = '';
 
     // ── Repo selector (only when there are submodules) ──
@@ -174,6 +200,136 @@ const Git = (() => {
     branchBar.appendChild(refreshBtn);
     panel.appendChild(branchBar);
 
+    // ── Merge / Rebase ──
+    const currentBranchName = (branchRes.branches || []).find(b => b.current)?.name || '';
+    const otherBranches = (branchRes.branches || []).filter(b => !b.current);
+    if (otherBranches.length) {
+      const opBar = document.createElement('div');
+      opBar.className = 'git-branch-bar git-op-bar';
+
+      const branchOptionsHtml = otherBranches.map(b => `<option value="${_esc(b.name)}">${_esc(b.name)}</option>`).join('');
+
+      const mergeSel = document.createElement('select');
+      mergeSel.className = 'git-branch-select git-op-select';
+      mergeSel.title = 'Merge a branch into the current branch';
+      mergeSel.innerHTML = `<option value="">⇄ Merge…</option>${branchOptionsHtml}`;
+      mergeSel.addEventListener('change', async () => {
+        const branch = mergeSel.value; mergeSel.value = '';
+        if (!branch) return;
+        if (!confirm(`Merge '${branch}' into '${currentBranchName}'?`)) return;
+        try {
+          const res = await WS.send('git:merge', { cwd: _root, branch });
+          if (!res.ok) alert((res.conflict ? 'Merge has conflicts — resolve them, then commit.\n\n' : 'Merge failed.\n\n') + (res.error || ''));
+        } catch (e) { alert('Merge failed: ' + e.message); }
+        refresh(_cwd);
+      });
+
+      const rebaseSel = document.createElement('select');
+      rebaseSel.className = 'git-branch-select git-op-select';
+      rebaseSel.title = 'Rebase the current branch onto another branch';
+      rebaseSel.innerHTML = `<option value="">⤴ Rebase…</option>${branchOptionsHtml}`;
+      rebaseSel.addEventListener('change', async () => {
+        const branch = rebaseSel.value; rebaseSel.value = '';
+        if (!branch) return;
+        if (!confirm(`Rebase '${currentBranchName}' onto '${branch}'? This rewrites local history.`)) return;
+        try {
+          const res = await WS.send('git:rebase', { cwd: _root, branch });
+          if (!res.ok) alert((res.conflict ? 'Rebase has conflicts — resolve them, then Continue or Abort below.\n\n' : 'Rebase failed.\n\n') + (res.error || ''));
+        } catch (e) { alert('Rebase failed: ' + e.message); }
+        refresh(_cwd);
+      });
+
+      opBar.appendChild(mergeSel);
+      opBar.appendChild(rebaseSel);
+      panel.appendChild(opBar);
+    }
+
+    // ── Sync bar (fetch / pull / push) ──
+    const syncBar = document.createElement('div');
+    syncBar.className = 'git-sync-bar';
+
+    const fetchBtn = document.createElement('button');
+    fetchBtn.className = 'git-sync-btn';
+    fetchBtn.title = 'Fetch from remote';
+    fetchBtn.textContent = '⤓ Fetch';
+
+    const pullBtn = document.createElement('button');
+    pullBtn.className = 'git-sync-btn';
+    pullBtn.title = 'Pull from remote';
+    pullBtn.textContent = '⇣ Pull';
+
+    const pushBtn = document.createElement('button');
+    pushBtn.className = 'git-sync-btn';
+    pushBtn.title = 'Push to remote';
+    pushBtn.textContent = '⇡ Push';
+
+    const syncStatus = document.createElement('span');
+    syncStatus.className = 'git-sync-status';
+
+    fetchBtn.addEventListener('click', () => _runSync('fetch', 'Fetching', syncStatus));
+    pullBtn.addEventListener('click',  () => _runSync('pull',  'Pulling',  syncStatus));
+    pushBtn.addEventListener('click',  () => _runSync('push',  'Pushing',  syncStatus));
+
+    syncBar.appendChild(fetchBtn);
+    syncBar.appendChild(pullBtn);
+    syncBar.appendChild(pushBtn);
+
+    if (aheadBehind && !aheadBehind.noUpstream && (aheadBehind.ahead || aheadBehind.behind)) {
+      const badge = document.createElement('span');
+      badge.className = 'git-ahead-behind';
+      if (aheadBehind.behind) badge.innerHTML += `<span class="git-behind" title="${aheadBehind.behind} commit(s) behind upstream">↓${aheadBehind.behind}</span>`;
+      if (aheadBehind.ahead)  badge.innerHTML += `<span class="git-ahead"  title="${aheadBehind.ahead} commit(s) ahead of upstream">↑${aheadBehind.ahead}</span>`;
+      syncBar.appendChild(badge);
+    }
+
+    syncBar.appendChild(syncStatus);
+    panel.appendChild(syncBar);
+
+    // ── Merge / rebase in-progress banner ──
+    if (mergeStatus?.inProgress || rebaseStatus?.inProgress) {
+      const isRebase = !!rebaseStatus?.inProgress;
+      const banner = document.createElement('div');
+      banner.className = 'git-conflict-banner';
+
+      const text = document.createElement('span');
+      text.className = 'git-conflict-text';
+      text.textContent = isRebase
+        ? '⚠ Rebase in progress — resolve conflicts, then Continue or Abort.'
+        : '⚠ Merge in progress — resolve conflicts, then commit, or Abort.';
+
+      const actions = document.createElement('span');
+      actions.className = 'git-conflict-actions';
+
+      if (isRebase) {
+        const contBtn = document.createElement('button');
+        contBtn.className = 'git-commit-btn secondary';
+        contBtn.textContent = 'Continue';
+        contBtn.addEventListener('click', async () => {
+          try {
+            const res = await WS.send('git:rebase-continue', { cwd: _root });
+            if (!res.ok) alert((res.conflict ? 'Still conflicted.\n\n' : 'Failed.\n\n') + (res.error || ''));
+          } catch (e) { alert('Failed: ' + e.message); }
+          refresh(_cwd);
+        });
+        actions.appendChild(contBtn);
+      }
+
+      const abortBtn = document.createElement('button');
+      abortBtn.className = 'git-commit-btn secondary git-conflict-abort';
+      abortBtn.textContent = 'Abort';
+      abortBtn.addEventListener('click', async () => {
+        if (!confirm(`Abort the ${isRebase ? 'rebase' : 'merge'}?`)) return;
+        try { await WS.send(isRebase ? 'git:rebase-abort' : 'git:merge-abort', { cwd: _root }); }
+        catch (e) { alert('Failed: ' + e.message); }
+        refresh(_cwd);
+      });
+      actions.appendChild(abortBtn);
+
+      banner.appendChild(text);
+      banner.appendChild(actions);
+      panel.appendChild(banner);
+    }
+
     // ── Commit area ──
     const commitArea = document.createElement('div');
     commitArea.className = 'git-commit-area';
@@ -223,8 +379,99 @@ const Git = (() => {
       panel.appendChild(_makeCommitLog(commits));
     }
 
+    // ── Stash (collapsible) ──
+    panel.appendChild(_makeStashSection(stashItems));
+
     // ── Add submodule (collapsible) ──
     panel.appendChild(_makeSubmoduleSection());
+  }
+
+  function _makeStashSection(stashItems) {
+    const section = document.createElement('div');
+    section.className = 'git-section';
+
+    const header = document.createElement('div');
+    header.className = 'git-section-header';
+    let collapsed = stashItems.length === 0;
+    header.innerHTML = `<span class="git-section-arrow">${collapsed ? '▸' : '▾'}</span> Stash <span class="git-section-count">${stashItems.length}</span>`;
+
+    const body = document.createElement('div');
+    body.className = 'git-section-body';
+    body.style.display = collapsed ? 'none' : '';
+
+    header.addEventListener('click', () => {
+      collapsed = !collapsed;
+      body.style.display = collapsed ? 'none' : '';
+      header.querySelector('.git-section-arrow').textContent = collapsed ? '▸' : '▾';
+    });
+
+    stashItems.forEach(s => {
+      const row = document.createElement('div');
+      row.className = 'git-stash-row';
+      row.innerHTML = `
+        <span class="git-stash-info" title="${_esc(s.ref)}">${_esc(s.subject || s.ref)}</span>
+        <span class="git-stash-date">${_esc(s.date)}</span>
+        <span class="git-stash-actions"></span>`;
+      const actions = row.querySelector('.git-stash-actions');
+
+      const applyBtn = document.createElement('button');
+      applyBtn.className = 'git-icon-btn';
+      applyBtn.title = 'Apply (keep stash)';
+      applyBtn.innerHTML = '⇪';
+      applyBtn.addEventListener('click', async () => {
+        const res = await WS.send('git:stash-apply', { cwd: _root, index: s.index });
+        if (!res.ok) alert((res.conflict ? 'Apply has conflicts — resolve them manually.\n\n' : 'Apply failed.\n\n') + (res.error || ''));
+        refresh(_cwd);
+      });
+
+      const popBtn = document.createElement('button');
+      popBtn.className = 'git-icon-btn';
+      popBtn.title = 'Pop (apply and drop)';
+      popBtn.innerHTML = '⤴';
+      popBtn.addEventListener('click', async () => {
+        const res = await WS.send('git:stash-pop', { cwd: _root, index: s.index });
+        if (!res.ok) alert((res.conflict ? 'Pop has conflicts — resolve them manually.\n\n' : 'Pop failed.\n\n') + (res.error || ''));
+        refresh(_cwd);
+      });
+
+      const dropBtn = document.createElement('button');
+      dropBtn.className = 'git-icon-btn git-icon-danger';
+      dropBtn.title = 'Drop (discard)';
+      dropBtn.innerHTML = '✕';
+      dropBtn.addEventListener('click', async () => {
+        if (!confirm(`Drop stash "${s.subject || s.ref}"?`)) return;
+        try { await WS.send('git:stash-drop', { cwd: _root, index: s.index }); }
+        catch (e) { alert('Drop failed: ' + e.message); }
+        refresh(_cwd);
+      });
+
+      actions.appendChild(applyBtn);
+      actions.appendChild(popBtn);
+      actions.appendChild(dropBtn);
+      body.appendChild(row);
+    });
+
+    // New-stash form
+    const form = document.createElement('div');
+    form.className = 'git-stash-form';
+    form.innerHTML = `
+      <input type="text" class="git-stash-msg" placeholder="Stash message (optional)" spellcheck="false" autocomplete="off">
+      <label class="git-stash-untracked"><input type="checkbox"> Include untracked</label>
+      <button class="git-commit-btn secondary">📦 Stash changes</button>`;
+    const msgEl       = form.querySelector('.git-stash-msg');
+    const untrackedEl = form.querySelector('input[type=checkbox]');
+    const stashBtn    = form.querySelector('button');
+    stashBtn.addEventListener('click', async () => {
+      try {
+        await WS.send('git:stash-save', { cwd: _root, message: msgEl.value.trim(), includeUntracked: untrackedEl.checked });
+        refresh(_cwd);
+      } catch (e) { alert('Stash failed: ' + e.message); }
+    });
+    body.appendChild(form);
+
+    section.appendChild(header);
+    section.appendChild(body);
+    return section;
   }
 
   function _makeSubmoduleSection() {

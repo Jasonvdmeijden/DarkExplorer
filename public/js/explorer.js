@@ -716,10 +716,20 @@ const Explorer = (() => {
     });
   }
 
+  // Used by other views (e.g. disk analyser) to point the context menu /
+  // clipboard / rename actions at a single item that isn't part of pane1's list.
+  function selectOnly(path) {
+    setFocusedPane(pane1);
+    selected.clear();
+    selected.add(path);
+    updateSelectionUI();
+  }
+
   // ── Inline rename ────────────────────────────────────────
   async function startRename(item) {
     const el = document.querySelector(`[data-path="${CSS.escape(item.path)}"] .tab-name,
       [data-path="${CSS.escape(item.path)}"] .cell-name span:last-child,
+      [data-path="${CSS.escape(item.path)}"] .disk-row-name,
       [data-path="${CSS.escape(item.path)}"] span:last-child`);
     if (!el) return;
     const orig = el.textContent;
@@ -1270,5 +1280,5 @@ const Explorer = (() => {
     _go(history[idx]);
   });
 
-  return { navigate, refresh, renderInPane, navigateFocused, openInSplit, setFocusToPrimary, showContextMenu, addNavListener, getCurrentPath, setFilter, setColorFilter };
+  return { navigate, refresh, renderInPane, navigateFocused, openInSplit, setFocusToPrimary, showContextMenu, selectOnly, addNavListener, getCurrentPath, setFilter, setColorFilter };
 })();

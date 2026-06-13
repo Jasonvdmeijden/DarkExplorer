@@ -89,6 +89,7 @@ app.delete('/admin/devices/:id', (req, res) => {
 });
 
 app.post('/upload', requireAuth, upload.array('files'), (req, res) => {
+  for (const f of req.files) disk.notifyChange(path.join(req.query.path, f.filename));
   res.json({ ok: true, count: req.files.length });
 });
 
@@ -413,7 +414,7 @@ async function handle(type, payload, reply, ws, device) {
     }
 
     // --- disk ---
-    case 'disk:scan':         reply(await disk.scan(payload.path, { refresh: !!payload.refresh }, ws)); break;
+    case 'disk:scan':         reply(disk.getTree(payload.path, { refresh: !!payload.refresh })); break;
     case 'disk:clear-cache':  reply(disk.clearCache(payload.path || null)); break;
 
     // --- search ---
@@ -514,6 +515,29 @@ async function handle(type, payload, reply, ws, device) {
     case 'git:submodule-add': reply(gitOps.addSubmodule(payload.cwd, payload.url, payload.path)); break;
     case 'git:submodules':    reply({ items: gitOps.listSubmodules(payload.cwd) }); break;
 
+    // --- git sync ---
+    case 'git:remotes':      reply({ remotes: gitOps.remotes(payload.cwd) }); break;
+    case 'git:fetch':        reply(await gitOps.fetch(payload.cwd, payload.remote)); break;
+    case 'git:pull':         reply(await gitOps.pull(payload.cwd)); break;
+    case 'git:push':         reply(await gitOps.push(payload.cwd)); break;
+    case 'git:ahead-behind': reply(gitOps.aheadBehind(payload.cwd)); break;
+
+    // --- git stash ---
+    case 'git:stash-list':  reply({ items: gitOps.stashList(payload.cwd) }); break;
+    case 'git:stash-save':  reply(gitOps.stashSave(payload.cwd, payload.message, !!payload.includeUntracked)); break;
+    case 'git:stash-apply': reply(gitOps.stashApply(payload.cwd, payload.index)); break;
+    case 'git:stash-pop':   reply(gitOps.stashPop(payload.cwd, payload.index)); break;
+    case 'git:stash-drop':  reply(gitOps.stashDrop(payload.cwd, payload.index)); break;
+
+    // --- git merge / rebase ---
+    case 'git:merge':           reply(gitOps.merge(payload.cwd, payload.branch)); break;
+    case 'git:merge-abort':     reply(gitOps.mergeAbort(payload.cwd)); break;
+    case 'git:merge-status':    reply(gitOps.mergeStatus(payload.cwd)); break;
+    case 'git:rebase':           reply(gitOps.rebase(payload.cwd, payload.branch)); break;
+    case 'git:rebase-continue':  reply(gitOps.rebaseContinue(payload.cwd)); break;
+    case 'git:rebase-abort':     reply(gitOps.rebaseAbort(payload.cwd)); break;
+    case 'git:rebase-status':    reply(gitOps.rebaseStatus(payload.cwd)); break;
+
     // --- stats ---
     case 'stats:get': sysStats.getStats().then(reply).catch(() => reply({})); break;
 
@@ -542,6 +566,9 @@ const PORT = config.port;
 server.listen(PORT, () => {
   console.log(`DarkExplorer running on http://localhost:${PORT}`);
   search.startWatcher();
+
+  disk.setBroadcaster(broadcastAll);
+  disk.initBackgroundScan();
 
   // Push system stats to all clients every 3 seconds
   setInterval(async () => {

@@ -3,6 +3,12 @@ const fsp = require('fs/promises');
 const path = require('path');
 const mime = require('mime-types');
 
+// Fire-and-forget: tell the disk cache about a filesystem change so it can
+// bubble the size delta up to ancestors without a full rescan.
+function _notify(targetPath) {
+  try { require('./disk').notifyChange(targetPath); } catch {}
+}
+
 async function list(dirPath) {
   const entries = await fsp.readdir(dirPath, { withFileTypes: true });
   const items = await Promise.all(entries.map(async (e) => {
@@ -94,15 +100,18 @@ async function readBinary(filePath) {
 
 async function write(filePath, content) {
   await fsp.writeFile(filePath, content, 'utf8');
+  _notify(filePath);
 }
 
 async function mkdir(dirPath) {
   await fsp.mkdir(dirPath, { recursive: true });
+  _notify(dirPath);
 }
 
 async function remove(targets) {
   for (const t of targets) {
     await fsp.rm(t, { recursive: true, force: true });
+    _notify(t);
   }
 }
 
@@ -110,6 +119,7 @@ async function copy(sources, destDir) {
   for (const src of sources) {
     const dest = path.join(destDir, path.basename(src));
     await copyEntry(src, dest);
+    _notify(dest);
   }
 }
 
@@ -136,6 +146,8 @@ async function move(sources, destDir) {
       await copyEntry(src, dest);
       await fsp.rm(src, { recursive: true, force: true });
     }
+    _notify(src);
+    _notify(dest);
   }
 }
 
@@ -145,6 +157,8 @@ async function rename(filePath, newName) {
   // Update tags if renamed
   const db = require('./db');
   db.prepare('UPDATE tags SET path = ? WHERE path = ?').run(dest, filePath);
+  _notify(filePath);
+  _notify(dest);
   return dest;
 }
 
@@ -184,6 +198,7 @@ async function duplicate(filePath) {
   }
 
   await copyEntry(filePath, dest);
+  _notify(dest);
   return dest;
 }
 
