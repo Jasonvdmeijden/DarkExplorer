@@ -1,0 +1,190 @@
+/* ── True Frosted Glass Effect Modifier ── */
+/* When .glass-effect is active on the body, it overrides backgrounds to create a highly transparent frosted look */
+
+body.glass-effect {
+  background: url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop') no-repeat center center fixed !important;
+  background-size: cover !important;
+}
+
+/* Light mode specific wallpaper */
+html[data-mode="light"] body.glass-effect {
+  background: url('https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=2573&auto=format&fit=crop') no-repeat center center fixed !important;
+  background-size: cover !important;
+}
+
+/* 
+  Make structural panels highly transparent and apply strong blur.
+*/
+body.glass-effect #toolbar,
+body.glass-effect #panel-left,
+body.glass-effect #panel-right,
+body.glass-effect #panel-bottom,
+body.glass-effect .panel-section,
+body.glass-effect #center,
+body.glass-effect .pane,
+body.glass-effect #tabs-bar,
+body.glass-effect .panel-tabs,
+body.glass-effect #pathbar,
+body.glass-effect .col-head,
+body.glass-effect footer#statusbar,
+body.glass-effect .filter-menu,
+body.glass-effect #context-menu,
+body.glass-effect dialog#props-dialog,
+body.glass-effect #disk-modal-content,
+body.glass-effect #preview-modal,
+body.glass-effect .theme-picker-popover,
+body.glass-effect .group-header,
+body.glass-effect #terminal-container {
+  /* High transparency, barely tinted background */
+  background-color: rgba(10, 10, 20, 0.25) !important;
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  /* Subtle glowing edge */
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255,255,255,0.1);
+  color: #ffffff !important;
+}
+
+/* Force xterm.js internal layers to be fully transparent so the frosted background shows through */
+body.glass-effect .xterm-viewport,
+body.glass-effect .xterm-screen {
+  background-color: transparent !important;
+}
+
+/* Ensure text is readable over varied backgrounds */
+body.glass-effect .file-name-text,
+body.glass-effect .tree-label,
+body.glass-effect .cell,
+body.glass-effect .tab-name,
+body.glass-effect .ptab,
+body.glass-effect .icon-btn,
+body.glass-effect .disk-tab,
+body.glass-effect .col-h,
+body.glass-effect .stat-chip,
+body.glass-effect .ctx-item,
+body.glass-effect .group-header {
+  color: #ffffff !important;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+}
+
+/* Light mode glass transparency */
+html[data-mode="light"] body.glass-effect #toolbar,
+html[data-mode="light"] body.glass-effect #panel-left,
+html[data-mode="light"] body.glass-effect #panel-right,
+html[data-mode="light"] body.glass-effect #panel-bottom,
+html[data-mode="light"] body.glass-effect .panel-section,
+html[data-mode="light"] body.glass-effect #center,
+html[data-mode="light"] body.glass-effect .pane,
+html[data-mode="light"] body.glass-effect #tabs-bar,
+html[data-mode="light"] body.glass-effect .panel-tabs,
+html[data-mode="light"] body.glass-effect #pathbar,
+html[data-mode="light"] body.glass-effect .col-head,
+html[data-mode="light"] body.glass-effect footer#statusbar,
+html[data-mode="light"] body.glass-effect .filter-menu,
+html[data-mode="light"] body.glass-effect #context-menu,
+html[data-mode="light"] body.glass-effect dialog#props-dialog,
+html[data-mode="light"] body.glass-effect #disk-modal-content,
+html[data-mode="light"] body.glass-effect #preview-modal,
+html[data-mode="light"] body.glass-effect .theme-picker-popover,
+html[data-mode="light"] body.glass-effect .group-header,
+html[data-mode="light"] body.glass-effect #terminal-container {
+  background-color: rgba(255, 255, 255, 0.3) !important;
+  border-color: rgba(255, 255, 255, 0.4) !important;
+  box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255,255,255,0.6);
+  color: #111111 !important;
+}
+
+/* Force xterm in light mode */
+html[data-mode="light"] body.glass-effect .xterm-viewport,
+html[data-mode="light"] body.glass-effect .xterm-screen {
+  background-color: transparent !important;
+}
+
+/* Ensure text elements inside these panels inherit the black color in light mode */
+html[data-mode="light"] body.glass-effect .file-name-text,
+html[data-mode="light"] body.glass-effect .tree-label,
+html[data-mode="light"] body.glass-effect .cell,
+html[data-mode="light"] body.glass-effect .tab-name,
+html[data-mode="light"] body.glass-effect .ptab,
+html[data-mode="light"] body.glass-effect .icon-btn,
+html[data-mode="light"] body.glass-effect .disk-tab,
+html[data-mode="light"] body.glass-effect .col-h,
+html[data-mode="light"] body.glass-effect .stat-chip,
+html[data-mode="light"] body.glass-effect .ctx-item,
+html[data-mode="light"] body.glass-effect .group-header {
+  color: #111111 !important;
+  text-shadow: 0 1px 3px rgba(255,255,255,0.8);
+}
+
+/* Fix specific UI elements to look good on glass */
+body.glass-effect .file-row { border-bottom: 1px solid rgba(255,255,255,0.05); }
+html[data-mode="light"] body.glass-effect .file-row { border-bottom: 1px solid rgba(0,0,0,0.05); }
+
+/* Remove backgrounds from tabs to keep it clean */
+body.glass-effect .ptab, 
+body.glass-effect .tab { 
+  background: transparent !important; 
+  border: none !important;
+}
+body.glass-effect .ptab.active, 
+body.glass-effect .tab.active { 
+  background: rgba(255,255,255,0.15) !important; 
+  border-radius: 6px !important; 
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.1);
+}
+html[data-mode="light"] body.glass-effect .ptab.active, 
+html[data-mode="light"] body.glass-effect .tab.active { 
+  background: rgba(255,255,255,0.4) !important; 
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
+}
+
+/* Hover states for rows and menus */
+body.glass-effect .file-row:hover,
+body.glass-effect .ctx-item:hover { 
+  background-color: rgba(255,255,255,0.1) !important; 
+}
+html[data-mode="light"] body.glass-effect .file-row:hover,
+html[data-mode="light"] body.glass-effect .ctx-item:hover { 
+  background-color: rgba(255,255,255,0.4) !important; 
+}
+
+/* Selected row states */
+body.glass-effect .file-row.selected {
+  background-color: rgba(255,255,255,0.15) !important;
+  border: 1px solid rgba(255,255,255,0.2) !important;
+}
+html[data-mode="light"] body.glass-effect .file-row.selected {
+  background-color: rgba(255,255,255,0.6) !important;
+  border: 1px solid rgba(255,255,255,0.5) !important;
+}
+
+/* Layout gaps to show off the background between panels */
+body.glass-effect #layout {
+  gap: 12px;
+  padding: 12px;
+  background: transparent;
+}
+body.glass-effect #panes {
+  gap: 12px;
+}
+body.glass-effect .splitter {
+  display: none !important; /* Hide standard splitters to favor gaps and borders */
+}
+
+/* Ensure inputs don't look completely invisible */
+body.glass-effect input, 
+body.glass-effect select, 
+body.glass-effect button.icon-btn:hover {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid rgba(255,255,255,0.2) !important;
+  border-radius: 6px !important;
+  color: #ffffff !important;
+}
+html[data-mode="light"] body.glass-effect input, 
+html[data-mode="light"] body.glass-effect select, 
+html[data-mode="light"] body.glass-effect button.icon-btn:hover {
+  background-color: rgba(255, 255, 255, 0.4) !important;
+  border: 1px solid rgba(255,255,255,0.5) !important;
+  color: #111111 !important;
+}

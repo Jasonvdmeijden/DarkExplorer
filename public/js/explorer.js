@@ -8,12 +8,14 @@ const Explorer = (() => {
   let view        = localStorage.getItem('de_view') || 'details';
   let sortKey     = 'name';
   let sortAsc     = true;
+  let groupKey    = localStorage.getItem('de_group') || 'none';
   let mosaicCols  = parseInt(localStorage.getItem('de_mosaic_cols') || '4');
   let activeTabId     = null;
   let lastClickedPath = null;
   let tagMap      = new Map(); // path -> { color, label }
   let filterText  = '';
   let colorFilter = null; // null or color hex
+  let typeFilter  = ''; // file extension filter
 
   const pane1   = (() => { const d = document.createElement('div'); d.className = 'pane'; d.id = 'pane-1'; return d; })();
   const ctxMenu = document.getElementById('context-menu');
@@ -263,6 +265,12 @@ const Explorer = (() => {
     renderView();
   }
 
+  function setGroup(g) {
+    groupKey = g;
+    localStorage.setItem('de_group', g);
+    renderView();
+  }
+
   // Restore view/sort from state when it first loads
   State.onReady(() => {
     const sv = State.get('view', null);
@@ -319,8 +327,28 @@ const Explorer = (() => {
     if (colorFilter) {
       filtered = filtered.filter(i => tagMap.get(i.path)?.color === colorFilter);
     }
+    if (typeFilter) {
+      const typeLow = typeFilter.toLowerCase();
+      filtered = filtered.filter(i => {
+        if (i.isDir) return typeLow === 'folder' || typeLow === 'dir';
+        return (i.ext || '').toLowerCase().includes(typeLow) || (i.mime || '').toLowerCase().includes(typeLow);
+      });
+    }
 
     return [...filtered].sort((a, b) => {
+      // If grouping, sort by group key first
+      if (groupKey !== 'none') {
+        const ga = getGroupValue(a, groupKey);
+        const gb = getGroupValue(b, groupKey);
+        if (ga !== gb) {
+          if (groupKey === 'mtime' || groupKey === 'ctime' || groupKey === 'size') {
+             // Descending for dates/sizes by default
+             return ga > gb ? -1 : 1;
+          }
+          return String(ga).localeCompare(String(gb));
+        }
+      }
+
       if (a.isDir !== b.isDir) return b.isDir - a.isDir;
       let va = a[sortKey] ?? '', vb = b[sortKey] ?? '';
       if (typeof va === 'string') va = va.toLowerCase();
@@ -328,6 +356,43 @@ const Explorer = (() => {
       const cmp = va < vb ? -1 : va > vb ? 1 : 0;
       return sortAsc ? cmp : -cmp;
     });
+  }
+
+  function getGroupValue(item, key) {
+    if (key === 'ext') return item.isDir ? 'Folder' : (item.ext ? item.ext.replace('.', '').toUpperCase() + ' File' : 'Unknown File');
+    if (key === 'tags') return tagMap.get(item.path)?.color || 'Untagged';
+    if (key === 'mtime' || key === 'ctime') {
+      if (!item[key]) return 'Unknown Date';
+      const d = new Date(item[key]);
+      const now = new Date();
+      const diffTime = Math.abs(now - d);
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      if (diffDays === 0) return 'Today';
+      if (diffDays === 1) return 'Yesterday';
+      if (diffDays < 7) return 'Previous 7 Days';
+      if (diffDays < 30) return 'Previous 30 Days';
+      return `${d.toLocaleString('default', { month: 'long' })} ${d.getFullYear()}`;
+    }
+    if (key === 'size') {
+      if (item.isDir) return 'Folders';
+      if (item.size < 1024 * 1024) return 'Small (Under 1 MB)';
+      if (item.size < 100 * 1024 * 1024) return 'Medium (1 MB - 100 MB)';
+      if (item.size < 1024 * 1024 * 1024) return 'Large (100 MB - 1 GB)';
+      return 'Huge (Over 1 GB)';
+    }
+    // Default (Name) - Group by first letter
+    return (item.name[0] || '?').toUpperCase();
+  }
+
+  function renderGroupHeader(val) {
+    const el = document.createElement('div');
+    el.className = 'group-header';
+    if (groupKey === 'tags' && val !== 'Untagged') {
+       el.innerHTML = `<span class="color-dot" style="background:${val}; margin-right:6px"></span> Tagged`;
+    } else {
+       el.textContent = val;
+    }
+    return el;
   }
 
   // ── Details view ─────────────────────────────────────────
@@ -417,7 +482,17 @@ const Explorer = (() => {
     table.appendChild(head);
 
     const sortedItems = sortItems(items);
+    let currentGroup = null;
+
     sortedItems.forEach(item => {
+      if (groupKey !== 'none') {
+        const groupVal = getGroupValue(item, groupKey);
+        if (groupVal !== currentGroup) {
+          table.appendChild(renderGroupHeader(groupVal));
+          currentGroup = groupVal;
+        }
+      }
+
       const row = document.createElement('div');
       row.className = 'file-row' + (selected.has(item.path) ? ' selected' : '');
       row.dataset.path = item.path;
@@ -463,7 +538,17 @@ const Explorer = (() => {
     list.className = 'view-list';
 
     const sortedItems = sortItems(items);
+    let currentGroup = null;
+
     sortedItems.forEach(item => {
+      if (groupKey !== 'none') {
+        const groupVal = getGroupValue(item, groupKey);
+        if (groupVal !== currentGroup) {
+          list.appendChild(renderGroupHeader(groupVal));
+          currentGroup = groupVal;
+        }
+      }
+
       const row = document.createElement('div');
       row.className = 'file-row' + (selected.has(item.path) ? ' selected' : '');
       row.dataset.path = item.path;
@@ -536,8 +621,21 @@ const Explorer = (() => {
 
     container.style.gridTemplateColumns = `repeat(${mosaicCols}, 1fr)`;
 
-    sorted.forEach(item => container.appendChild(makeMosaicTile(item, tileW, Math.round(tileW * 0.75), sorted)));
-  }
+    let currentGroup = null;
+
+    sorted.forEach(item => {
+      if (groupKey !== 'none') {
+        const groupVal = getGroupValue(item, groupKey);
+        if (groupVal !== currentGroup) {
+          const header = renderGroupHeader(groupVal);
+          header.style.gridColumn = '1 / -1'; // Span across all columns in mosaic
+          container.appendChild(header);
+          currentGroup = groupVal;
+        }
+      }
+      container.appendChild(makeMosaicTile(item, tileW, Math.round(tileW * 0.75)));
+    });
+    }
 
   function makeMosaicTile(item, tileW, tileH, navList) {
     const tile = document.createElement('div');
@@ -1148,9 +1246,89 @@ const Explorer = (() => {
   // #btn-theme + #btn-theme-picker are wired by theme.js
   document.getElementById('btn-new-folder').addEventListener('click', newFolder);
   
+  const btnSort = document.getElementById('btn-sort');
+  if (btnSort) {
+    btnSort.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const existing = document.getElementById('sort-menu');
+      if (existing) {
+        existing.remove();
+        return;
+      }
+      showSortMenu(e.clientX, e.clientY);
+    });
+  }
+
+  function showSortMenu(x, y) {
+    const menu = document.createElement('ul');
+    menu.className = 'filter-menu'; // Use filter-menu class for shared glass styling
+    menu.id = 'sort-menu'; // Unique ID for toggling
+    menu.setAttribute('role', 'menu');
+    menu.style.cssText = `position:fixed; left:-9999px; top:${y}px; z-index:1000; padding:.5rem 0; margin:0; list-style:none; min-width:180px; border-radius:var(--radius-md); box-shadow:var(--shadow-lg); background:var(--bg-surface); border:1px solid var(--border);`;
+    
+    const isG = (key) => groupKey === key ? '✓' : '';
+
+    const menuItems = [
+      { label: 'None',              check: isG('none'),  action: () => setGroup('none') },
+      'sep',
+      { label: 'Name',              check: isG('name'),  action: () => setGroup('name') },
+      { label: 'Kind',              check: isG('ext'),   action: () => setGroup('ext') },
+      { label: 'Application',       check: isG('app'),   action: () => setGroup('app') },
+      { label: 'Date Last Opened',  check: isG('atime'), action: () => setGroup('atime') },
+      { label: 'Date Added',        check: isG('btime'), action: () => setGroup('btime') },
+      { label: 'Date Modified',     check: isG('mtime'), action: () => setGroup('mtime') },
+      { label: 'Date Created',      check: isG('ctime'), action: () => setGroup('ctime') },
+      { label: 'Size',              check: isG('size'),  action: () => setGroup('size') },
+      { label: 'Tags',              check: isG('tags'),  action: () => setGroup('tags') }
+    ];
+
+    menuItems.forEach(m => {
+      if (m === 'sep') {
+        const sep = document.createElement('li');
+        sep.className = 'ctx-sep';
+        menu.appendChild(sep);
+        return;
+      }
+      
+      const li = document.createElement('li');
+      li.className = 'ctx-item';
+      li.innerHTML = `<span class="ctx-check">${m.check}</span> <span class="${m.check ? '' : 'ctx-indent'}">${m.label}</span>`;
+      li.addEventListener('click', () => {
+        menu.remove();
+        m.action();
+      });
+      menu.appendChild(li);
+    });
+
+    document.body.appendChild(menu);
+
+    // Reposition safely within bounds
+    const rect = menu.getBoundingClientRect();
+    let safeX = x;
+    if (x + rect.width > window.innerWidth) {
+      safeX = Math.max(0, window.innerWidth - rect.width - 10);
+    }
+    menu.style.left = safeX + 'px';
+    menu.classList.add('visible');
+
+    const closeHandler = (e) => { 
+      if (!menu.contains(e.target) && !e.target.closest('#btn-sort')) { 
+        menu.remove(); 
+        document.removeEventListener('mousedown', closeHandler); 
+      } 
+    };
+    setTimeout(() => document.addEventListener('mousedown', closeHandler), 10);
+  }
+
   const btnFilter = document.getElementById('btn-filter');
   if (btnFilter) {
     btnFilter.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const existing = document.getElementById('filter-popup');
+      if (existing) {
+        existing.remove();
+        return;
+      }
       showFilterMenu(e.clientX, e.clientY);
     });
   }
@@ -1159,49 +1337,63 @@ const Explorer = (() => {
     const colors = ['#ff5f56', '#ffbd2e', '#27c93f', '#42a5f5', '#a29bfe', '#abb2bf'];
     const menu = document.createElement('div');
     menu.className = 'filter-menu';
+    menu.id = 'filter-popup'; // Unique ID for toggling
     // Position initially off-screen to measure, then move
-    menu.style.cssText = `position:fixed; left:-9999px; top:${y}px; background:var(--bg-surface); border:1px solid var(--border); border-radius:var(--radius-md); box-shadow:var(--shadow-lg); z-index:1000; padding:.5rem; min-width:180px`;
+    menu.style.cssText = `position:fixed; left:-9999px; top:${y}px; background:var(--bg-surface); border:1px solid var(--border); border-radius:var(--radius-md); box-shadow:var(--shadow-lg); z-index:1000; padding:.75rem; min-width:240px; display:flex; flex-direction:column; gap:.8rem;`;
     
     let html = `
-      <div style="margin-bottom:.5rem">
+      <div style="font-size:.7rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em">Filters</div>
+      
+      <div>
         <input type="text" id="filter-input" placeholder="Filter by name..." value="${filterText}" 
-          style="width:100%; background:var(--bg-base); border:1px solid var(--border); color:var(--text-primary); padding:.3rem; border-radius:3px; outline:none; font-size:.8rem">
+          style="width:100%; background:var(--bg-base); border:1px solid var(--border); color:var(--text-primary); padding:.35rem; border-radius:4px; outline:none; font-size:.85rem">
       </div>
-      <div style="font-size:.7rem; color:var(--text-muted); margin-bottom:.3rem">Filter by Color:</div>
-      <div class="ctx-colors" style="justify-content:flex-start; padding:0">
-        <span class="color-dot ${!colorFilter ? 'active' : ''}" style="background:#888" data-color="clear"></span>
+      
+      <div>
+        <input type="text" id="filter-type" placeholder="Filter by kind (e.g. pdf, jpg)" value="${typeFilter}" 
+          style="width:100%; background:var(--bg-base); border:1px solid var(--border); color:var(--text-primary); padding:.35rem; border-radius:4px; outline:none; font-size:.85rem">
+      </div>
+
+      <div>
+        <div style="font-size:.7rem; color:var(--text-muted); margin-bottom:.4rem">Color Tag</div>
+        <div class="ctx-colors" style="justify-content:flex-start; padding:0; gap:.5rem">
+          <span class="color-dot ${!colorFilter ? 'active' : ''}" style="background:#888" data-color="clear" title="Clear color filter"></span>
     `;
     colors.forEach(c => {
       html += `<span class="color-dot ${colorFilter === c ? 'active' : ''}" style="background:${c}" data-color="${c}"></span>`;
     });
-    html += `</div>`;
+    html += `</div></div>`;
     menu.innerHTML = html;
     document.body.appendChild(menu);
 
-    // Reposition safely within bounds (open left if near right edge)
+    // Reposition safely within bounds
     const rect = menu.getBoundingClientRect();
     let safeX = x;
     if (x + rect.width > window.innerWidth) {
-      safeX = Math.max(0, window.innerWidth - rect.width - 10); // 10px padding from edge
+      safeX = Math.max(0, window.innerWidth - rect.width - 10);
     }
     menu.style.left = safeX + 'px';
 
-    const input = menu.querySelector('#filter-input');
-    input.focus();
-    input.addEventListener('input', (e) => {
-      setFilter(e.target.value);
+    const inputName = menu.querySelector('#filter-input');
+    inputName.addEventListener('input', (e) => setFilter(e.target.value));
+    
+    const inputType = menu.querySelector('#filter-type');
+    inputType.addEventListener('input', (e) => {
+      typeFilter = e.target.value.trim();
+      renderView();
     });
-    input.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === 'Escape') menu.remove(); });
 
     menu.querySelectorAll('.color-dot').forEach(dot => {
       dot.addEventListener('click', () => {
         const c = dot.dataset.color;
-        setColorFilter(c === 'clear' ? null : c);
-        menu.remove();
+        colorFilter = c === 'clear' ? null : c;
+        renderView();
+        menu.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
+        dot.classList.add('active');
       });
     });
 
-    const closeHandler = (e) => { if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener('mousedown', closeHandler); } };
+    const closeHandler = (e) => { if (!menu.contains(e.target) && !e.target.closest('#btn-filter')) { menu.remove(); document.removeEventListener('mousedown', closeHandler); } };
     setTimeout(() => document.addEventListener('mousedown', closeHandler), 10);
   }
 
