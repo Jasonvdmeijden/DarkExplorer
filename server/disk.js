@@ -153,18 +153,29 @@ function _bubbleUp(db, startParentPath, delta) {
   }
 }
 
+// Inclusive lower / exclusive upper bounds for a `path` prefix range scan, e.g.
+// 'C:\dev' -> ['C:\dev\', 'C:\dev]'). Lets subtree queries use the `path`
+// primary-key index directly — a LIKE 'prefix%' pattern with ESCAPE '\' can't
+// use the index here because '\' is both the path separator and the escape
+// character, forcing a full-table scan (seconds on a multi-million-row
+// disk_nodes table). Drive roots (e.g. 'C:\') already end in `path.sep`, so
+// don't double it up — that would push `lo` past their children.
+function _subtreeRange(rootPath) {
+  const lo = rootPath.endsWith(path.sep) ? rootPath : rootPath + path.sep;
+  const hi = lo.slice(0, -1) + String.fromCharCode(lo.charCodeAt(lo.length - 1) + 1);
+  return [lo, hi];
+}
+
 function _deleteSubtree(db, targetPath) {
-  const prefix = targetPath + path.sep;
-  const escaped = prefix.replace(/[%_]/g, c => '\\' + c);
-  db.prepare("DELETE FROM disk_nodes WHERE path = ? OR path LIKE ? ESCAPE '\\'").run(targetPath, escaped + '%');
+  const [lo, hi] = _subtreeRange(targetPath);
+  db.prepare('DELETE FROM disk_nodes WHERE path >= ? AND path < ?').run(lo, hi);
 }
 
 function _countSubtree(db, rootPath) {
   try {
-    const prefix = rootPath + path.sep;
-    const escaped = prefix.replace(/[%_]/g, c => '\\' + c);
-    const row = db.prepare("SELECT COUNT(*) AS c FROM disk_nodes WHERE (path = ? OR path LIKE ? ESCAPE '\\') AND is_dir = 0")
-      .get(rootPath, escaped + '%');
+    const [lo, hi] = _subtreeRange(rootPath);
+    const row = db.prepare('SELECT COUNT(*) AS c FROM disk_nodes WHERE path >= ? AND path < ? AND is_dir = 0')
+      .get(lo, hi);
     return row.c;
   } catch { return null; }
 }
@@ -287,39 +298,79 @@ async function notifyChange(targetPath) {
 }
 
 // ── Tree reads (pure SQL, fast) ───────────────────────────────────────────
-// Returns { children, total } where `total` is the effective size of `parentPath`:
+// Returns { children, total } where `total` is the effective size of `rootPath`:
 // the stored size, or the sum of (effective) children sizes, whichever is larger.
 // This guarantees parent.size >= sum(children.size) for the sunburst layout even
 // when stored disk_nodes totals haven't caught up with their children yet.
-function _buildChildren(db, parentPath, parentSize, depth) {
-  const rows = db.prepare('SELECT path, name, size, is_dir FROM disk_nodes WHERE parent_path = ? ORDER BY size DESC LIMIT ?')
-    .all(parentPath, MAX_CHILDREN);
+//
+// Fetches level-by-level with batched `parent_path IN (...)` queries instead of
+// one query per node — a naive per-node recursive query fans out to ~MAX_CHILDREN
+// ^ MAX_TREE_DEPTH synchronous DB calls for deep, wide trees (e.g. node_modules),
+// which blocks the event loop for seconds since better-sqlite3 is synchronous.
+const _CHILD_BATCH = 400; // keep IN(...) lists well under SQLite's variable limit
 
-  const visible = [];
-  let shownSize = 0;
-  for (const r of rows) {
-    const ratio = r.size / (parentSize || 1);
-    if (visible.length >= MAX_CHILDREN || ratio < MIN_PCT_OF_PARENT) break; // sorted desc — rest are smaller too
-    const child = { name: r.name, path: r.path, size: r.size, isDir: !!r.is_dir };
-    if (r.is_dir) {
-      if (depth + 1 < MAX_TREE_DEPTH) {
-        const sub = _buildChildren(db, r.path, r.size, depth + 1);
-        child.children = sub.children;
-        child.size = sub.total;
-      } else {
-        child.children = [];
+function _buildChildren(db, rootPath, rootSize) {
+  const root = { children: [] };
+  let frontier = [{ path: rootPath, size: rootSize, node: root }];
+  const levels = [];
+
+  for (let depth = 0; depth < MAX_TREE_DEPTH && frontier.length; depth++) {
+    levels.push(frontier);
+    const byParent = new Map();
+    for (let i = 0; i < frontier.length; i += _CHILD_BATCH) {
+      const chunk = frontier.slice(i, i + _CHILD_BATCH).map(f => f.path);
+      const placeholders = chunk.map(() => '?').join(',');
+      const rows = db.prepare(`
+        SELECT path, parent_path, name, size, is_dir FROM (
+          SELECT path, parent_path, name, size, is_dir,
+                 ROW_NUMBER() OVER (PARTITION BY parent_path ORDER BY size DESC) AS rn
+          FROM disk_nodes WHERE parent_path IN (${placeholders})
+        ) WHERE rn <= ?
+        ORDER BY parent_path, size DESC
+      `).all(...chunk, MAX_CHILDREN);
+      for (const r of rows) {
+        let arr = byParent.get(r.parent_path);
+        if (!arr) byParent.set(r.parent_path, arr = []);
+        arr.push(r);
       }
     }
-    visible.push(child);
-    shownSize += child.size;
+
+    const nextFrontier = [];
+    for (const f of frontier) {
+      const rows = byParent.get(f.path) || [];
+      const visible = [];
+      for (const r of rows) {
+        if (visible.length >= MAX_CHILDREN) break;
+        if (r.size / (f.size || 1) < MIN_PCT_OF_PARENT) break; // sorted desc — rest are smaller too
+        const child = { name: r.name, path: r.path, size: r.size, isDir: !!r.is_dir };
+        if (r.is_dir) {
+          child.children = [];
+          if (depth + 1 < MAX_TREE_DEPTH) nextFrontier.push({ path: r.path, size: r.size, node: child });
+        }
+        visible.push(child);
+      }
+      f.node.children = visible;
+    }
+    frontier = nextFrontier;
   }
 
-  const total = Math.max(parentSize, shownSize);
-  const smaller = total - shownSize;
-  if (smaller > 0) {
-    visible.push({ name: 'smaller objects…', path: parentPath + path.sep + '__smaller__', size: smaller, isDir: false, isGroup: true });
+  // Bottom-up: fold each node's children into its effective size before its
+  // parent sums them (same `max(stored, sum(children))` rule as before).
+  for (let depth = levels.length - 1; depth >= 0; depth--) {
+    for (const f of levels[depth]) {
+      const node = f.node;
+      let shownSize = 0;
+      for (const c of node.children) shownSize += c.size;
+      const total = Math.max(f.size, shownSize);
+      const smaller = total - shownSize;
+      if (smaller > 0) {
+        node.children.push({ name: 'smaller objects…', path: f.path + path.sep + '__smaller__', size: smaller, isDir: false, isGroup: true });
+      }
+      node.size = total;
+    }
   }
-  return { children: visible, total };
+
+  return { children: root.children, total: root.size };
 }
 
 function _getScanState(db) {
@@ -332,8 +383,7 @@ function getTree(rootPath, { refresh = false } = {}) {
   const db = require('./db');
 
   const rootRow = db.prepare('SELECT * FROM disk_nodes WHERE path = ?').get(rootPath);
-  const scanState = _getScanState(db);
-  const scanning = scanState.status === 'scanning';
+  const globalScanning = _getScanState(db).status === 'scanning';
 
   let tree;
   if (!rootRow) {
@@ -341,7 +391,7 @@ function getTree(rootPath, { refresh = false } = {}) {
   } else {
     tree = { name: rootRow.name, path: rootRow.path, size: rootRow.size, isDir: !!rootRow.is_dir };
     if (rootRow.is_dir) {
-      const { children, total } = _buildChildren(db, rootPath, rootRow.size, 0);
+      const { children, total } = _buildChildren(db, rootPath, rootRow.size);
       tree.children = children;
       tree.size = total;
     }
@@ -350,10 +400,20 @@ function getTree(rootPath, { refresh = false } = {}) {
   setImmediate(() => {
     try {
       const totalNodes = db.prepare('SELECT COUNT(*) AS c FROM disk_nodes').get().c;
-      if (totalNodes === 0 && !scanning) startFullScan();
-      else if (refresh) startSubtreeScan(rootPath);
+      if (totalNodes === 0 && !globalScanning) startFullScan();
+      // No cached row at all (e.g. a folder created after the one-time full scan
+      // finished) — the full scan won't run again, so nothing else would ever
+      // populate it. Kick off a subtree scan on first visit, not just on refresh.
+      else if (refresh || !rootRow) startSubtreeScan(rootPath);
     } catch (e) { console.warn('[disk] background scan trigger failed:', e.message); }
   });
+
+  // "Building cache…" is per-folder, not global. `_crawlAndStore` writes nodes
+  // post-order, so if rootRow exists its entire subtree is already fully cached —
+  // it stays "done" even while a whole-system scan or another folder's rescan is
+  // running elsewhere. Only show "building" when this exact path is mid-rescan,
+  // or has no cached data yet and the one-time full scan will eventually reach it.
+  const scanning = _subtreeScanning.has(rootPath) || (!rootRow && globalScanning);
 
   return {
     ...tree,

@@ -52,13 +52,17 @@ const DiskAnalyzer = (() => {
     }, delay);
   }
 
-  // Background scan progress — update status text and schedule a live refresh
+  // Background scan progress — update status text and schedule a live refresh.
+  // Only react if the CURRENT folder's own cache is still incomplete: a scan
+  // running for another folder/drive (or another client's Rescan) shouldn't make
+  // an already-cached, unchanged view say "Building cache…".
   WS.on('disk:scan-progress', (d) => {
+    if (!_isActive()) return;
+    if (!_currentRoot || (!_currentRoot._empty && !_currentRoot.scanning)) return;
     if (_statusEl && d) {
       _statusEl.classList.add('scanning');
       _statusEl.textContent = `Building cache… ${d.scanned ? d.scanned.toLocaleString() + ' files' : ''}${d.current ? ' · ' + _shortPath(d.current) : ''}`;
     }
-    if (!_isActive()) return;
     _scheduleRescan(2000);
   });
 
