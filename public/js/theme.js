@@ -26,6 +26,7 @@ const Theme = (() => {
 
   let currentId   = localStorage.getItem('de_theme') || 'vault';
   let currentMode = localStorage.getItem('de_mode')  || 'dark';
+  let glassMode   = localStorage.getItem('de_glass') === 'true';
 
   // Migrate any legacy stored value
   if (LEGACY[currentId]) {
@@ -47,6 +48,14 @@ const Theme = (() => {
     document.documentElement.dataset.mode  = currentMode;
     localStorage.setItem('de_theme', currentId);
     localStorage.setItem('de_mode',  currentMode);
+    
+    // Apply Glass Effect Modifier
+    if (glassMode) {
+      document.body.classList.add('glass-effect');
+    } else {
+      document.body.classList.remove('glass-effect');
+    }
+
     // Toggle highlight.js stylesheet pair to match the chosen mode
     const hd = document.getElementById('hljs-dark');
     const hl = document.getElementById('hljs-light');
@@ -61,9 +70,16 @@ const Theme = (() => {
   function toggle() {
     apply(currentId, currentMode === 'dark' ? 'light' : 'dark');
   }
+  
+  function toggleGlass() {
+    glassMode = !glassMode;
+    localStorage.setItem('de_glass', glassMode);
+    apply(currentId, currentMode);
+  }
 
   function getCurrent()     { return currentId; }
   function getCurrentMode() { return currentMode; }
+  function isGlassMode()    { return glassMode; }
   function list()           { return THEMES.slice(); }
 
   // ── Picker popover ────────────────────────────────────────────
@@ -90,22 +106,23 @@ const Theme = (() => {
     if (!_popover) _buildPopover();
     _popover.innerHTML = '';
 
-    // Header with dark/light toggle (so users on mobile — where #btn-theme is hidden — still have it)
     const header = document.createElement('div');
     header.className = 'theme-picker-header';
     header.innerHTML = `
-      <span class="theme-picker-title">Theme</span>
-      <div class="theme-mode-toggle" role="tablist">
-        <button class="theme-mode-btn ${currentMode === 'light' ? 'active' : ''}" data-mode="light" title="Light mode">☀ Light</button>
-        <button class="theme-mode-btn ${currentMode === 'dark'  ? 'active' : ''}" data-mode="dark"  title="Dark mode">☾ Dark</button>
-      </div>`;
-    header.querySelectorAll('.theme-mode-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        apply(currentId, btn.dataset.mode);
-        // Rebuild the popover so the active states and swatches reflect the new mode
-        showPicker(anchor);
-      });
+      <span class="theme-picker-title" style="flex:1">Theme</span>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:11px; color:var(--text-muted);">Glass</span>
+        <label class="ui-switch">
+          <input type="checkbox" id="theme-glass-toggle" ${glassMode ? 'checked' : ''}>
+          <span class="ui-slider"></span>
+        </label>
+      </div>
+    `;
+    
+    header.querySelector('#theme-glass-toggle').addEventListener('change', () => {
+      toggleGlass();
     });
+
     _popover.appendChild(header);
 
     const list = document.createElement('div');
@@ -150,6 +167,7 @@ const Theme = (() => {
   const SWATCHES = {
     'dark':           ['#12121a', '#7c6ef5'],
     'light':          ['#f0f0f8', '#6254d8'],
+    'glass':          ['#2a5298', '#ffffff'],
     'dracula':        ['#282a36', '#bd93f9'],
     'dracula-light':  ['#f8f8f2', '#6272a4'],
     'solarized-dark': ['#002b36', '#268bd2'],

@@ -52,13 +52,14 @@ const WS = (() => {
     socket.onerror = () => {};
   }
 
-  function send(type, payload) {
+  function send(type, payload, opts) {
     return new Promise((resolve, reject) => {
       const id = String(++seq);
+      const ms = (opts && opts.timeout) ? opts.timeout : TIMEOUT;
       const timer = setTimeout(() => {
         delete pending[id];
         reject(new Error('Request timed out'));
-      }, TIMEOUT);
+      }, ms);
       pending[id] = { resolve, reject, timer };
       const msg = JSON.stringify({ id, type, payload: payload || {} });
       if (isOpen) {

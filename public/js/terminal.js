@@ -11,9 +11,10 @@ const Term = (() => {
     const s = getComputedStyle(document.documentElement);
     const v = (n, fallback) => (s.getPropertyValue(n).trim() || fallback);
     const mode = document.documentElement.dataset.mode || 'dark';
-    // Use --bg-base for background (the muted main-view colour) and --text-primary
-    // for foreground. Selection/cursor use the theme accent.
-    const bg = v('--bg-base', mode === 'light' ? '#ffffff' : '#12121a');
+    const isGlass = document.body.classList.contains('glass-effect');
+    
+    // Use transparent background for glass effect, otherwise fallback to theme base
+    const bg = isGlass ? 'transparent' : v('--bg-base', mode === 'light' ? '#ffffff' : '#12121a');
     const fg = v('--text-primary', mode === 'light' ? '#1a1a2e' : '#e2e2f0');
     const cursor = v('--accent', '#7c6ef5');
     const selBg  = v('--accent-dim', 'rgba(124,110,245,.35)');
@@ -100,6 +101,7 @@ const Term = (() => {
       lineHeight: isMobile ? 1.1 : 1.2,
       fontFamily: "'JetBrains Mono', 'Cascadia Code', 'SF Mono', Menlo, Monaco, Consolas, 'DejaVu Sans Mono', 'Ubuntu Mono', monospace",
       cursorBlink: true,
+      allowTransparency: true,
       allowProposedApi: true,
       scrollback: 5000,
       overviewRulerWidth: 10
