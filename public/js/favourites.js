@@ -64,7 +64,7 @@ const Favourites = (() => {
     row.className = 'tree-node';
     row.style.cursor = 'pointer';
     row.dataset.path = path;
-    const icon = isDir ? '📁' : '📄';
+    const icon = isDir ? (Drives.icon(path, true) || '📁') : '📄';
     row.innerHTML = `<span class="tree-icon">${icon}</span> <span class="tree-label">${name}</span>`;
     row.title = path;
     // Middle-click / triple-tap → open folder in a new tab (folders only)

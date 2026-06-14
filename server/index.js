@@ -363,13 +363,16 @@ async function handle(type, payload, reply, ws, device) {
 
     // --- filesystem ---
     case 'fs:list': {
-      const items = payload.path ? await files.list(payload.path) : files.roots().map(r => ({
-        name: r, path: r, isDir: true, size: 0, mtime: 0, ctime: 0, ext: null, mime: null
-      }));
+      const items = payload.path ? await files.list(payload.path) : (() => {
+        const types = files.driveTypes();
+        return files.roots().map(r => ({
+          name: r, path: r, isDir: true, size: 0, mtime: 0, ctime: 0, ext: null, mime: null, driveType: types[r] ?? null
+        }));
+      })();
       reply(items);
       break;
     }
-    case 'fs:folder-size': reply({ size: await files.folderSize(payload.path) }); break;
+    case 'fs:folder-size': reply({ size: await files.folderSize(payload.path), diskTotal: files.driveTotalBytes(payload.path) }); break;
     case 'fs:stat':       reply(await files.stat(payload.path)); break;
     case 'fs:read':       reply(await files.read(payload.path)); break;
     case 'fs:readBase64': reply(await files.readBinary(payload.path)); break;
@@ -394,7 +397,11 @@ async function handle(type, payload, reply, ws, device) {
     })); break;
     case 'share:list':   reply({ items: shares.listForPath(payload.path) }); break;
     case 'share:revoke': shares.revoke(payload.id); reply({ ok: true }); break;
-    case 'fs:roots':  reply(files.roots().map(r => ({ name: r, path: r, isDir: true }))); break;
+    case 'fs:roots': {
+      const types = files.driveTypes();
+      reply(files.roots().map(r => ({ name: r, path: r, isDir: true, driveType: types[r] ?? null })));
+      break;
+    }
 
     case 'fs:exec': {
       const { spawn } = require('child_process');

@@ -16,7 +16,9 @@
   });
 
   window.addEventListener('load', () => {
-    State.onReady(() => {
+    State.onReady(async () => {
+      await Drives.init();
+
       const savedTabs   = State.get('tabs', null);
       const savedActive = State.get('activeTab', null);
 

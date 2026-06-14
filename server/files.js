@@ -219,6 +219,43 @@ function roots() {
   return ['/'];
 }
 
+// True if `p` is a drive root (e.g. 'C:\' on Windows, '/' on POSIX) — the only
+// level where a folder's size can meaningfully be shown "out of" the disk's
+// real total capacity.
+function isDriveRoot(p) {
+  return process.platform === 'win32' ? /^[A-Za-z]:\\?$/.test(p) : p === path.sep;
+}
+
+// Win32_LogicalDisk.DriveType per drive letter, e.g. { 'C:\\': 3, 'X:\\': 4 }.
+// 2=Removable, 3=Local Fixed, 4=Network, 5=CD-ROM, 6=RAM Disk.
+function driveTypes() {
+  if (process.platform !== 'win32') return {};
+  const { execSync } = require('child_process');
+  try {
+    const out = execSync('wmic logicaldisk get caption,drivetype', { encoding: 'utf8' });
+    const map = {};
+    for (const line of out.split('\n')) {
+      const m = line.trim().match(/^([A-Za-z]):\s+(\d+)/);
+      if (m) map[m[1].toUpperCase() + ':\\'] = parseInt(m[2], 10);
+    }
+    return map;
+  } catch {
+    return {};
+  }
+}
+
+// Total capacity of the drive `rootPath` lives on, or null if `rootPath` isn't
+// a drive root.
+function driveTotalBytes(rootPath) {
+  if (!isDriveRoot(rootPath)) return null;
+  try {
+    const stats = fs.statfsSync(rootPath);
+    return stats.blocks * stats.bsize;
+  } catch {
+    return null;
+  }
+}
+
 // Folder-size walk: bounded by time + entry count, with an in-memory cache.
 // Walks are serialized (no Promise.all recursion) to cap memory + open-FD use.
 // Throttle: only N walks may run concurrently across the whole server.
@@ -283,4 +320,4 @@ async function folderSize(dirPath) {
   });
 }
 
-module.exports = { list, stat, read, readBinary, write, mkdir, remove, copy, move, rename, duplicate, setTag, getTags, listTags, roots, folderSize };
+module.exports = { list, stat, read, readBinary, write, mkdir, remove, copy, move, rename, duplicate, setTag, getTags, listTags, roots, folderSize, isDriveRoot, driveTotalBytes, driveTypes };

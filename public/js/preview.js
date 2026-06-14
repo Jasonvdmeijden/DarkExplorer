@@ -1106,7 +1106,13 @@ const Preview = (() => {
     }</div>`;
     if (item.isDir && item.path) {
       WS.send('fs:folder-size', { path: item.path })
-        .then(r => { const el = document.getElementById('props-size-val'); if (el) el.textContent = formatSize(r.size); })
+        .then(r => {
+          const el = document.getElementById('props-size-val');
+          if (!el) return;
+          el.textContent = r.diskTotal
+            ? `${formatSize(r.size)} of ${formatSize(r.diskTotal)}`
+            : formatSize(r.size);
+        })
         .catch(() => { const el = document.getElementById('props-size-val'); if (el) el.textContent = '—'; });
     }
   }
@@ -1321,7 +1327,7 @@ const Preview = (() => {
   // ── helpers ───────────────────────────────────────────────────────────────────
 
   function fileIcon(fileStat) {
-    if (fileStat.isDir) return '📁';
+    if (fileStat.isDir) return Drives.icon(fileStat.path, true) || '📁';
     const ext = (fileStat.ext || '').replace('.', '').toLowerCase();
     if (['jpg','jpeg','png','gif','webp','avif','svg','bmp','ico'].includes(ext)) return '🖼';
     if (['mp4','webm','mov','mkv','avi','m4v','3gp','flv','ogv'].includes(ext)) return '🎬';

@@ -446,7 +446,11 @@ const Explorer = (() => {
     // Fetch folder sizes asynchronously after table is built
     table.querySelectorAll('[data-size-for]').forEach(cell => {
       WS.send('fs:folder-size', { path: cell.dataset.sizeFor })
-        .then(r => { cell.textContent = formatSize(r.size); })
+        .then(r => {
+          cell.textContent = r.diskTotal
+            ? `${formatSize(r.size)} of ${formatSize(r.diskTotal)}`
+            : formatSize(r.size);
+        })
         .catch(() => { cell.textContent = '—'; });
     });
 
@@ -1241,7 +1245,7 @@ const Explorer = (() => {
     const tag = tagMap.get(item.path);
     const colorStyle = tag?.color ? `style="color:${tag.color};filter:drop-shadow(0 0 2px ${tag.color}66)"` : '';
 
-    if (item.isDir) return `<span ${colorStyle}>📁</span>`;
+    if (item.isDir) return `<span ${colorStyle}>${Drives.icon(item.path, true) || '📁'}</span>`;
     const ext = (item.ext || '').toLowerCase();
     let icon = '📄';
     if (['.jpg','.jpeg','.png','.gif','.webp','.svg','.avif','.bmp','.ico','.tiff','.tif','.heic','.heif','.dng','.cr2','.cr3','.nef','.arw','.raf','.orf','.rw2'].includes(ext)) icon = '🖼';

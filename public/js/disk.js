@@ -245,15 +245,19 @@ const DiskAnalyzer = (() => {
     const centerText = _currentContainer.querySelector('#disk-center-text');
     arcs.innerHTML = '';
 
+    const totalLine = node._diskTotal
+      ? `<tspan x="300" dy="20" class="disk-center-total">of ${_escape(_formatSize(node._diskTotal))}</tspan>`
+      : '';
+
     if (node._empty || node.scanning) {
       centerText.innerHTML = `
         <tspan x="300" dy="-10" class="disk-center-size">${_escape(_formatSize(node.size))}</tspan>
         <tspan x="300" dy="22"   class="disk-center-label">${_escape(node.name || 'Total')}</tspan>
-        <tspan x="300" dy="22"   class="disk-center-status">Building…</tspan>`;
+        <tspan x="300" dy="22"   class="disk-center-status">Building…</tspan>${totalLine}`;
     } else {
       centerText.innerHTML = `
         <tspan x="300" dy="-10" class="disk-center-size">${_escape(_formatSize(node.size))}</tspan>
-        <tspan x="300" dy="26"   class="disk-center-label">${_escape(node.name || 'Total')}</tspan>`;
+        <tspan x="300" dy="26"   class="disk-center-label">${_escape(node.name || 'Total')}</tspan>${totalLine}`;
     }
 
     const MAX_DEPTH   = 5;
@@ -314,7 +318,9 @@ const DiskAnalyzer = (() => {
     const sizeEl  = _currentContainer.querySelector('#disk-list-size');
 
     titleEl.textContent = node.name || _currentRootPath;
-    sizeEl.textContent  = _formatSize(node.size);
+    sizeEl.textContent  = node._diskTotal
+      ? `${_formatSize(node.size)} of ${_formatSize(node._diskTotal)}`
+      : _formatSize(node.size);
 
     listEl.innerHTML = '';
     if (!node.children || !node.children.length) {
@@ -334,7 +340,7 @@ const DiskAnalyzer = (() => {
       row.innerHTML = `
         <span class="disk-row-bar" style="width:${pct.toFixed(2)}%;background:${c.color || 'var(--accent)'};"></span>
         <span class="disk-row-dot" style="background:${c.color || 'var(--accent)'};opacity:${c.isGroup ? 0.4 : 1}"></span>
-        <span class="disk-row-icon">${c.isDir ? (c.isGroup ? '…' : '📁') : '📄'}</span>
+        <span class="disk-row-icon">${c.isDir ? (c.isGroup ? '…' : (Drives.icon(c.path, true) || '📁')) : '📄'}</span>
         <span class="disk-row-name" title="${_escape(c.path)}">${_escape(c.name)}</span>
         <span class="disk-row-pct">${pct.toFixed(1)}%</span>
         <span class="disk-row-size">${_formatSize(c.size)}</span>`;

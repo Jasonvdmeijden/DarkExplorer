@@ -114,7 +114,11 @@ async function _crawlAndStore(db, rootPath, onProgress) {
       try {
         if (ent.isSymbolicLink()) return; // skip symlinks to avoid loops
         if (ent.isDirectory()) {
-          total += await walk(full);
+          // `total += await walk(full)` reads `total` *before* awaiting, so
+          // concurrent siblings (via Promise.all) each capture a stale base
+          // value and the last one to resolve clobbers the others' additions.
+          const subtotal = await walk(full);
+          total += subtotal;
         } else if (ent.isFile()) {
           const stat = await sem.run(() => fsp.stat(full));
           writer.write({ path: full, parent_path: dirPath, name: ent.name, size: stat.size, is_dir: 0, scanned_at: Date.now() });
@@ -419,7 +423,8 @@ function getTree(rootPath, { refresh = false } = {}) {
     ...tree,
     scanning,
     _scannedAt: rootRow ? rootRow.scanned_at : null,
-    _fileCount: rootRow ? _countSubtree(db, rootPath) : null
+    _fileCount: rootRow ? _countSubtree(db, rootPath) : null,
+    _diskTotal: require('./files').driveTotalBytes(rootPath)
   };
 }
 

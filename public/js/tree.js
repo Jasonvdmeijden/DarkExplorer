@@ -46,7 +46,8 @@ const Tree = (() => {
 
     const label = document.createElement('span');
     label.className = 'tree-label';
-    label.innerHTML = `<span class="tree-icon" ${colorStyle}>📁</span> ` + name;
+    const icon = Drives.icon(path, true) || '📁';
+    label.innerHTML = `<span class="tree-icon" ${colorStyle}>${icon}</span> ` + name;
 
     node.append(toggle, label);
     wrapper.appendChild(node);

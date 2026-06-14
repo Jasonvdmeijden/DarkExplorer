@@ -188,7 +188,7 @@ const Search = (() => {
     });
   }
 
-  function fileIcon(item) { return item.isDir ? '📁' : '📄'; }
+  function fileIcon(item) { return item.isDir ? (Drives.icon(item.path, true) || '📁') : '📄'; }
   function shortPath(p)   { const parts = p.split(/[\\/]/); return parts.slice(-3, -1).join('/'); }
   function parentPath(p)  { return p.split(/[\\/]/).slice(0, -1).join('/') || '/'; }
   function escHtml(s)     { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
