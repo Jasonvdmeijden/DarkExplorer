@@ -56,12 +56,56 @@ body.glass-effect .theme-picker-popover,
 body.glass-effect .group-header,
 body.glass-effect #terminal-container,
 body.glass-effect #term-keys {
-  background: var(--bg-surface);
-  backdrop-filter: blur(14px) saturate(180%);
-  -webkit-backdrop-filter: blur(14px) saturate(180%);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
+  background: var(--glass-surface);
+  /* Lower blur, higher saturation and contrast to simulate strong refraction/pop */
+  backdrop-filter: blur(6px) saturate(200%) contrast(110%);
+  -webkit-backdrop-filter: blur(6px) saturate(200%) contrast(110%);
+  border-radius: 20px;
+  border: 1px solid var(--glass-border);
+  /* Adjusted shadow for a '3.5' depth feel: tighter drop shadow, sharper inner glows */
+  box-shadow: 
+    0 10px 30px -10px rgba(0, 0, 0, 0.4),
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.3),
+    inset 0 -1.5px 0 rgba(255, 255, 255, 0.1),
+    inset 0 0 12px 2px rgba(255, 255, 255, 0.15);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Light mode specific intense glass styling */
+html[data-mode="light"] body.glass-effect #toolbar,
+html[data-mode="light"] body.glass-effect #panel-left,
+html[data-mode="light"] body.glass-effect #panel-right,
+html[data-mode="light"] body.glass-effect #panel-bottom,
+html[data-mode="light"] body.glass-effect .panel-section,
+html[data-mode="light"] body.glass-effect #center,
+html[data-mode="light"] body.glass-effect .pane,
+html[data-mode="light"] body.glass-effect #tabs-bar,
+html[data-mode="light"] body.glass-effect .panel-tabs,
+html[data-mode="light"] body.glass-effect #pathbar,
+html[data-mode="light"] body.glass-effect .col-head,
+html[data-mode="light"] body.glass-effect footer#statusbar,
+html[data-mode="light"] body.glass-effect .filter-menu,
+html[data-mode="light"] body.glass-effect #context-menu,
+html[data-mode="light"] body.glass-effect dialog#props-dialog,
+html[data-mode="light"] body.glass-effect dialog#preview-modal,
+html[data-mode="light"] body.glass-effect #search-panel,
+html[data-mode="light"] body.glass-effect .theme-picker-popover,
+html[data-mode="light"] body.glass-effect .group-header,
+html[data-mode="light"] body.glass-effect #terminal-container,
+html[data-mode="light"] body.glass-effect #term-keys {
+  box-shadow: 
+    0 10px 30px -10px rgba(0, 0, 0, 0.15),
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.7),
+    inset 0 -1.5px 0 rgba(255, 255, 255, 0.2),
+    inset 0 0 12px 2px rgba(255, 255, 255, 0.5);
+}
+
+/* Adjustments for nested cards/buttons to not clip heavily */
+body.glass-effect .ptab,
+body.glass-effect .tab,
+body.glass-effect .file-row {
+  border-radius: 8px;
 }
 
 /* xterm draws its own opaque background layers — force transparent so the
