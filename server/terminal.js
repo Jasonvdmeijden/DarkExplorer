@@ -8,6 +8,15 @@ try { pty = require('node-pty'); } catch { pty = null; }
 
 const sessions = new Map();
 
+// Matches OSC 9;9;<path> (cmd/PowerShell "report cwd") and OSC 7;<uri> (bash/zsh "report cwd")
+const CWD_OSC_RE = /\x1b\](?:9;9|7);([^\x07\x1b]*)(?:\x07|\x1b\\)/g;
+
+// Appended to bash/zsh PROMPT_COMMAND so the shell reports its cwd via OSC 7 on every prompt
+const BASH_OSC_INIT = 'export PROMPT_COMMAND=\'printf "\\033]7;file://%s\\033\\\\" "$PWD"\'\n';
+
+// Redefines the PowerShell prompt to also report cwd via OSC 9;9 on every prompt
+const POWERSHELL_OSC_INIT = 'function prompt { $p = $PWD.Path; $e=[char]27; Write-Host -NoNewline "$e]9;9;$p$e\\"; "PS $p> " }\r';
+
 function defaultShell() {
   const config = require('./config');
   const p = process.platform;
@@ -31,7 +40,31 @@ function resolveShell(name) {
   return name;
 }
 
-function create(id, { cwd, shell: shellName, cols = 80, rows = 24, onData, onExit }) {
+// Scans PTY output for OSC 9;9 / OSC 7 "report cwd" sequences and reports changes via onCwd.
+// Keeps a small rolling buffer so a sequence split across two data chunks is still caught.
+function makeCwdScanner(id, onCwd) {
+  let buf = '';
+  return function scan(chunk) {
+    if (!onCwd) return;
+    buf = (buf + chunk).slice(-4096);
+    let m, last = null;
+    CWD_OSC_RE.lastIndex = 0;
+    while ((m = CWD_OSC_RE.exec(buf))) last = m;
+    if (!last) return;
+    let p = last[1];
+    if (p.startsWith('file://')) {
+      try { p = decodeURIComponent(p.replace(/^file:\/\/[^/]*/, '')); } catch {}
+    }
+    const session = sessions.get(id);
+    if (p && session && p !== session.cwd) {
+      session.cwd = p;
+      onCwd(p);
+    }
+    buf = buf.slice(last.index + last[0].length);
+  };
+}
+
+function create(id, { cwd, shell: shellName, cols = 80, rows = 24, onData, onExit, onCwd }) {
   if (sessions.has(id)) {
     destroy(id);
   }
@@ -40,19 +73,26 @@ function create(id, { cwd, shell: shellName, cols = 80, rows = 24, onData, onExi
   const args  = shellArgs(shell);
   const spawnCwd = cwd || os.homedir();
   const isMac = process.platform === 'darwin';
+  const scanCwd = makeCwdScanner(id, onCwd);
 
   if (pty && !isMac) {
     try {
+      const env = { ...process.env };
+      if (shell === 'cmd.exe') env.PROMPT = '$E]9;9;$P$E\\$P$G';
       const proc = pty.spawn(shell, args, {
         name: 'xterm-256color',
         cols,
         rows,
         cwd: spawnCwd,
-        env: process.env
+        env
       });
-      proc.onData(onData);
+      proc.onData(data => { scanCwd(data); onData(data); });
       proc.onExit(({ exitCode }) => onExit(exitCode));
-      sessions.set(id, { type: 'pty', proc, shell });
+      sessions.set(id, { type: 'pty', proc, shell, cwd: spawnCwd });
+      if (onCwd) onCwd(spawnCwd);
+      if (shell === 'powershell.exe') {
+        setTimeout(() => { try { proc.write(POWERSHELL_OSC_INIT); } catch {} }, 400);
+      }
     } catch (err) {
       console.error(`[terminal] pty.spawn failed: ${err.message}`);
       onData(`\r\n[Error: ${err.message}]\r\n`);
@@ -69,18 +109,20 @@ function create(id, { cwd, shell: shellName, cols = 80, rows = 24, onData, onExi
 
     const session = { type: 'bridge', shell, cwd: spawnCwd, proc, onData, onExit };
     sessions.set(id, session);
+    if (onCwd) onCwd(spawnCwd);
 
-    proc.stdout.on('data', d => onData(d.toString().replace(/\n/g, '\r\n')));
-    proc.stderr.on('data', d => onData(d.toString().replace(/\n/g, '\r\n')));
+    proc.stdout.on('data', d => { const s = d.toString(); scanCwd(s); onData(s.replace(/\n/g, '\r\n')); });
+    proc.stderr.on('data', d => { const s = d.toString(); scanCwd(s); onData(s.replace(/\n/g, '\r\n')); });
     proc.on('exit', code => {
       onData(`\r\n[Terminal session finished]\r\n`);
       if (onExit) onExit(code);
       sessions.delete(id);
     });
 
-    // Auto-clear to hide initial startup noise
+    // Auto-clear to hide initial startup noise, then enable OSC 7 cwd reporting
     setTimeout(() => {
       proc.stdin.write('clear\n');
+      proc.stdin.write(BASH_OSC_INIT);
     }, 500);
   } else {
     // Linux/Other Fallback
@@ -91,13 +133,18 @@ function create(id, { cwd, shell: shellName, cols = 80, rows = 24, onData, onExi
     });
     const session = { type: 'runner', shell, cwd: spawnCwd, proc, onData, onExit, _buf: '' };
     sessions.set(id, session);
-    proc.stdout.on('data', d => onData(d.toString().replace(/\n/g, '\r\n')));
-    proc.stderr.on('data', d => onData(d.toString().replace(/\n/g, '\r\n')));
+    if (onCwd) onCwd(spawnCwd);
+
+    proc.stdout.on('data', d => { const s = d.toString(); scanCwd(s); onData(s.replace(/\n/g, '\r\n')); });
+    proc.stderr.on('data', d => { const s = d.toString(); scanCwd(s); onData(s.replace(/\n/g, '\r\n')); });
     proc.on('exit', code => {
       onData(`\r\n[Process exited]\r\n`);
       if (onExit) onExit(code);
       sessions.delete(id);
     });
+
+    // Enable OSC 7 cwd reporting on every prompt
+    setTimeout(() => { try { proc.stdin.write(BASH_OSC_INIT); } catch {} }, 300);
   }
 }
 
@@ -146,4 +193,9 @@ function destroy(id) {
 
 function isAlive(id) { return sessions.has(id); }
 
-module.exports = { create, input, resize, switchShell, destroy, resolveShell, isAlive };
+function getCwd(id) {
+  const s = sessions.get(id);
+  return s ? s.cwd : null;
+}
+
+module.exports = { create, input, resize, switchShell, destroy, resolveShell, isAlive, getCwd };

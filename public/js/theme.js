@@ -27,6 +27,7 @@ const Theme = (() => {
   let currentId   = localStorage.getItem('de_theme') || 'vault';
   let currentMode = localStorage.getItem('de_mode')  || 'dark';
   let glassMode   = localStorage.getItem('de_glass') === 'true';
+  let animateMode = localStorage.getItem('de_glass_animate') === 'true';
 
   // Migrate any legacy stored value
   if (LEGACY[currentId]) {
@@ -43,18 +44,20 @@ const Theme = (() => {
     currentId   = entry.id;
     currentMode = (mode === 'light' || mode === 'dark') ? mode : currentMode;
     const file  = entry[currentMode] || entry.dark;
-    document.getElementById('theme-css').href = `/css/themes/${file}.css`;
+    const themeLink = document.getElementById('theme-css');
+    themeLink.href = `/css/themes/${file}.css`;
+    // Recompute once the new theme stylesheet has actually loaded, so glass
+    // colours derived below reflect the new theme's resolved values.
+    themeLink.addEventListener('load', _updateGlassVars, { once: true });
     document.documentElement.dataset.theme = entry.id;
     document.documentElement.dataset.mode  = currentMode;
     localStorage.setItem('de_theme', currentId);
     localStorage.setItem('de_mode',  currentMode);
-    
+
     // Apply Glass Effect Modifier
-    if (glassMode) {
-      document.body.classList.add('glass-effect');
-    } else {
-      document.body.classList.remove('glass-effect');
-    }
+    document.body.classList.toggle('glass-effect', glassMode);
+    document.body.classList.toggle('glass-animate', glassMode && animateMode);
+    _updateGlassVars();
 
     // Toggle highlight.js stylesheet pair to match the chosen mode
     const hd = document.getElementById('hljs-dark');
@@ -66,6 +69,51 @@ const Theme = (() => {
     document.dispatchEvent(new CustomEvent('themechange', { detail: { id: currentId, mode: currentMode } }));
   }
 
+  // ── Glass-mode derived variables ──────────────────────────────
+  // The frosted-glass look uses translucent versions of the *active theme's*
+  // own colours (computed here from its resolved CSS variables), so glass
+  // mode always matches whichever theme + light/dark mode is selected.
+  function _hexToRgb(hex) {
+    const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec((hex || '').trim());
+    return m ? [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)] : null;
+  }
+  function _rgba(hex, alpha, fallback) {
+    const rgb = _hexToRgb(hex);
+    return rgb ? `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha})` : fallback;
+  }
+  function _updateGlassVars() {
+    const root = document.documentElement;
+    const s = getComputedStyle(root);
+    const get = (name, fallback) => s.getPropertyValue(name).trim() || fallback;
+
+    const base    = get('--bg-base',     '#12121a');
+    const text    = get('--text-primary','#e2e2f0');
+    const accent  = get('--accent',      '#7c6ef5');
+    const accent2 = get('--accent-2',    accent);
+
+    // Tonal surfaces — derived from --bg-base, translucent enough that the
+    // blurred wallpaper clearly shows through, while the 60px frosted-card
+    // blur keeps text legible against --text-primary.
+    root.style.setProperty('--glass-base',     _rgba(base, .20, base));
+    root.style.setProperty('--glass-panel',    _rgba(base, .30, base));
+    root.style.setProperty('--glass-surface',  _rgba(base, .42, base));
+
+    // Accent-tinted highlight states
+    root.style.setProperty('--glass-hover',    _rgba(accent, .14, accent));
+    root.style.setProperty('--glass-selected', _rgba(accent, .24, accent));
+    root.style.setProperty('--glass-active',   _rgba(accent, .32, accent));
+
+    // Frosted-edge border, from the theme's text colour
+    root.style.setProperty('--glass-border',   _rgba(text, .18, text));
+
+    // Wallpaper is rendered by the inline SVG #glass-ink-bg (index.html) via
+    // feTurbulence + feDisplacementMap warping of --accent / --accent-2
+    // gradient pools — produces genuine organic ink texture with mixed
+    // hard/soft edges that CSS gradients can't. The SVG inherits these
+    // theme custom properties directly via var(--accent)/var(--accent-2) in
+    // its stop-color styles, so no JS wallpaper var is needed.
+  }
+
   // Toggle dark/light of the currently selected theme
   function toggle() {
     apply(currentId, currentMode === 'dark' ? 'light' : 'dark');
@@ -74,6 +122,12 @@ const Theme = (() => {
   function toggleGlass() {
     glassMode = !glassMode;
     localStorage.setItem('de_glass', glassMode);
+    apply(currentId, currentMode);
+  }
+
+  function toggleAnimate() {
+    animateMode = !animateMode;
+    localStorage.setItem('de_glass_animate', animateMode);
     apply(currentId, currentMode);
   }
 
@@ -110,17 +164,42 @@ const Theme = (() => {
     header.className = 'theme-picker-header';
     header.innerHTML = `
       <span class="theme-picker-title" style="flex:1">Theme</span>
-      <div style="display:flex; align-items:center; gap:8px;">
-        <span style="font-size:11px; color:var(--text-muted);">Glass</span>
-        <label class="ui-switch">
-          <input type="checkbox" id="theme-glass-toggle" ${glassMode ? 'checked' : ''}>
-          <span class="ui-slider"></span>
-        </label>
+      <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font-size:11px; color:var(--text-muted);">Dark</span>
+          <label class="ui-switch">
+            <input type="checkbox" id="theme-dark-toggle" ${currentMode === 'dark' ? 'checked' : ''}>
+            <span class="ui-slider"></span>
+          </label>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font-size:11px; color:var(--text-muted);">Glass</span>
+          <label class="ui-switch">
+            <input type="checkbox" id="theme-glass-toggle" ${glassMode ? 'checked' : ''}>
+            <span class="ui-slider"></span>
+          </label>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; ${glassMode ? '' : 'opacity:.4;'}">
+          <span style="font-size:11px; color:var(--text-muted);">Animate</span>
+          <label class="ui-switch">
+            <input type="checkbox" id="theme-animate-toggle" ${animateMode ? 'checked' : ''} ${glassMode ? '' : 'disabled'}>
+            <span class="ui-slider"></span>
+          </label>
+        </div>
       </div>
     `;
-    
+
+    header.querySelector('#theme-dark-toggle').addEventListener('change', () => {
+      toggle();
+      showPicker(anchor);
+    });
     header.querySelector('#theme-glass-toggle').addEventListener('change', () => {
       toggleGlass();
+      showPicker(anchor);
+    });
+    header.querySelector('#theme-animate-toggle').addEventListener('change', () => {
+      toggleAnimate();
+      showPicker(anchor);
     });
 
     _popover.appendChild(header);
@@ -197,9 +276,7 @@ const Theme = (() => {
 
   // Wire UI buttons (deferred to DOM ready in case theme.js loads early)
   function _wire() {
-    const tBtn = document.getElementById('btn-theme');
     const pBtn = document.getElementById('btn-theme-picker');
-    if (tBtn) tBtn.addEventListener('click', toggle);
     if (pBtn) pBtn.addEventListener('click', (e) => { e.stopPropagation(); showPicker(pBtn); });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _wire);

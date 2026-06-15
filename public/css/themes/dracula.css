@@ -4,25 +4,39 @@
   --bg-panel: #21222c;
   --bg-hover: rgba(255, 255, 255, 0.1);
   --bg-selected: rgba(189, 147, 249, 0.2);
+  --bg-active: rgba(189, 147, 249, 0.3);
 
   --text-primary: #f8f8f2;
   --text-secondary: #bfbfbf;
   --text-muted: #6272a4;
+  --text-inverse: #282a36;
 
   --border: #44475a;
   --border-focus: #bd93f9;
 
   --accent: #bd93f9;
+  --accent-hover: #cfa9fb;
   --accent-dim: rgba(189, 147, 249, 0.15);
+  --accent-2: #8be9fd;
+  --accent-2-hover: #a4eefe;
   --danger: #ff5555;
   --success: #50fa7b;
   --warning: #f1fa8c;
+  --warn: #ffb86c;
 
   --scrollbar-track: transparent;
   --scrollbar-thumb: rgba(255, 255, 255, 0.15);
   --scrollbar-thumb-hover: rgba(255, 255, 255, 0.25);
 
+  --shadow: 0 4px 24px rgba(0,0,0,.4);
   --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
   --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.4);
   --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.5);
+
+  --radius: 8px;
+  --radius-sm: 5px;
+  --radius-lg: 12px;
+
+  --font-size: 13px;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
 }

@@ -332,7 +332,7 @@ aside, #panel-left, #panel-right {
   padding: 0 .35rem;
   cursor: pointer;
   border-radius: var(--radius-sm);
-  line-height: 34px;
+  line-height: 1;
 }
 #btn-new-tab:hover, #btn-split:hover { color: var(--text-primary); background: var(--bg-hover); }
 
@@ -630,6 +630,37 @@ aside, #panel-left, #panel-right {
 }
 #terminal-container { flex: 1; overflow: hidden; padding: .3rem; }
 
+/* Modifier + arrow keys for terminals on touch devices (no physical Ctrl/Alt/arrows) */
+.term-keys {
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+  padding: .35rem .4rem;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  overflow-x: auto;
+  background: var(--bg-base);
+  /* Float above the on-screen keyboard: --kb-offset is the keyboard height, set in terminal.js */
+  transform: translateY(calc(-1 * var(--kb-offset, 0px)));
+}
+.term-key {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  padding: .35rem .6rem;
+  font-size: .78rem;
+  font-family: var(--font-mono);
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+  min-width: 2.4rem;
+  transition: background .12s, color .12s, border-color .12s;
+}
+.term-key:hover  { background: var(--bg-hover); color: var(--text-primary); }
+.term-key.active { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
+.term-key-sep { width: 1px; height: 20px; background: var(--border); margin: 0 .2rem; flex-shrink: 0; }
+
 /* ── Status bar ── */
 #statusbar {
   display: flex;
@@ -749,7 +780,7 @@ aside, #panel-left, #panel-right {
 }
 
 @media (max-width: 480px) {
-  .toolbar-right .icon-btn:not(#btn-theme):not(#btn-toggle-terminal) { display: none; }
+  .toolbar-right .icon-btn:not(#btn-theme-picker):not(#btn-toggle-terminal) { display: none; }
 }
 
 /* ── Animations ── */
@@ -792,7 +823,7 @@ dialog#preview-modal {
   border: 1px solid var(--border);
   border-top: 2px solid var(--accent);
   border-radius: var(--radius-lg);
-  box-shadow: 0 0 0 1px rgba(124,110,245,.12), 0 32px 80px rgba(0,0,0,.75);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent), 0 32px 80px rgba(0,0,0,.75);
   overflow: hidden;
   color: var(--text-primary);
 }
@@ -1335,8 +1366,8 @@ dialog#preview-modal::backdrop {
   /* Compact toolbar */
   #toolbar { padding: 0 .4rem; gap: .2rem; position: relative; }
   .toolbar-sep { display: none; }
-  /* Hide back/forward, new-folder, upload, settings, view-details, theme toggle on phone */
-  #btn-new-folder, #btn-upload, #btn-settings, #btn-theme,
+  /* Hide back/forward, new-folder, upload, view-details on phone */
+  #btn-new-folder, #btn-upload,
   #btn-back, #btn-forward, #btn-view-details { display: none; }
   /* Keep toolbar-center visible — it holds the search button */
   .toolbar-center { flex: 0 0 auto; padding: 0; }
@@ -1529,54 +1560,52 @@ dialog#preview-modal::backdrop {
 
 /* ── Properties dialog ── */
 /* ── Disk Analyzer ── */
+.view-disk { width: 100%; height: 100%; overflow: hidden; }
+.disk-view { display: flex; flex-direction: column; height: 100%; }
 .disk-header {
   display: flex;
   align-items: center;
   padding: .4rem .8rem;
-  background: rgba(0,0,0,0.25);
-  border-bottom: 1px solid rgba(255,255,255,0.05);
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
   gap: .5rem;
   flex-shrink: 0;
 }
-
-/* Volume tabs */
-#disk-tabs {
-  display: flex;
-  gap: .15rem;
-  margin-right: .5rem;
-  padding-right: .6rem;
-  border-right: 1px solid rgba(255,255,255,0.08);
-  flex-shrink: 0;
+.disk-info { display: flex; flex-direction: column; min-width: 0; flex: 1; gap: 1px; }
+.disk-title {
+  font-size: .68rem; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--text-muted);
 }
-.disk-tab {
-  background: none;
-  border: 1px solid transparent;
-  color: #888;
+.disk-subtitle {
+  font-size: .82rem;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.disk-actions { display: flex; align-items: center; gap: .55rem; flex-shrink: 0; }
+.disk-status {
+  font-size: .72rem; color: var(--text-muted);
+  font-family: var(--font-mono);
+  max-width: 360px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.disk-status.scanning {
+  color: var(--accent);
+  animation: disk-status-pulse 1.6s ease-in-out infinite;
+}
+@keyframes disk-status-pulse {
+  0%, 100% { opacity: .55; }
+  50%      { opacity: 1; }
+}
+#disk-refresh {
+  font-size: .76rem;
   padding: .3rem .65rem;
-  font-size: .78rem;
-  cursor: pointer;
-  border-radius: 6px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: .1rem;
-  transition: background .15s, color .15s;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
 }
-.disk-tab:hover { background: rgba(255,255,255,0.05); color: #ccc; }
-.disk-tab.active { background: rgba(66,165,245,.2); border-color: rgba(66,165,245,.5); color: #7ec8ff; }
-.disk-tab-name { font-weight: 600; line-height: 1.2; }
-.disk-tab-used { font-size: .68rem; opacity: .6; }
-
-/* Breadcrumb */
-#disk-breadcrumb { display: flex; font-size: .82rem; color: #aaa; flex: 1; align-items: center; overflow: hidden; min-width: 0; }
-.disk-crumb {
-  cursor: pointer; padding: .1rem .3rem; border-radius: 4px;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px;
-}
-.disk-crumb:hover { color: #fff; background: rgba(255,255,255,0.08); }
-.disk-sep { margin: 0 .15rem; opacity: .4; }
-#btn-disk-close { background: none; border: none; color: #666; cursor: pointer; font-size: 15px; padding: 0 .3rem; flex-shrink: 0; }
-#btn-disk-close:hover { color: #fff; }
+#disk-refresh:hover { background: var(--bg-hover); color: var(--accent); }
 
 /* Main body */
 .disk-body { display: flex; flex: 1; overflow: hidden; min-height: 0; }
@@ -1618,137 +1647,81 @@ dialog#preview-modal::backdrop {
 .disk-arc:hover, .disk-arc.arc-hover { opacity: 1 !important; filter: brightness(1.12); }
 .disk-arc.is-group { pointer-events: none; }
 
-/* Storage usage bar below chart */
-.disk-storage-row {
-  width: 100%;
-  max-width: 560px;
-  padding: .4rem .2rem .1rem;
-  flex-shrink: 0;
-}
-.disk-storage-bar-wrap {
-  height: 7px;
-  background: rgba(255,255,255,0.07);
-  border-radius: 4px;
-  overflow: hidden;
-  margin-bottom: .35rem;
-}
-#disk-storage-fill {
-  height: 100%;
-  width: 0%;
-  border-radius: 4px;
-  background: linear-gradient(90deg, #7c6ef5, #42a5f5);
-  transition: width .6s ease;
-}
-#disk-storage-text {
-  font-size: .78rem;
-  color: #888;
-  text-align: center;
-  font-family: var(--font-mono, monospace);
-}
-
 /* Right panel: sorted list */
 .disk-list-container {
   width: 320px;
   flex-shrink: 0;
-  background: rgba(0,0,0,0.12);
-  border-left: 1px solid rgba(255,255,255,0.05);
+  background: var(--bg-panel);
+  border-left: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   min-height: 0;
 }
 .disk-list-header {
   padding: .8rem 1rem .5rem;
-  border-bottom: 1px solid rgba(255,255,255,0.05);
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
-.disk-list-header .title {
-  font-size: 1rem;
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.disk-list-title {
+  font-size: 1.02rem; font-weight: 700;
   color: var(--text-primary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.disk-list-header .size {
+.disk-list-size {
+  font-size: .9rem;
   color: var(--text-secondary);
-  font-size: .82rem;
   font-family: var(--font-mono);
   margin-top: .15rem;
 }
+.disk-list-meta { font-size: .7rem; color: var(--text-muted); margin-top: .25rem; }
 
 #disk-list { flex: 1; overflow-y: auto; padding: .35rem; }
+.disk-loading, .disk-empty, .disk-error {
+  padding: 1.25rem 1rem; color: var(--text-muted);
+  font-size: .85rem; text-align: center;
+}
+.disk-error { color: var(--danger); }
 
 /* List rows */
-.disk-list-item {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: .5rem;
-  padding: .35rem .5rem;
-  font-size: .83rem;
-  color: #bbb;
-  border-radius: 5px;
-  margin-bottom: 2px;
-  overflow: hidden;
-  transition: color .1s;
-}
-.disk-list-item:hover { color: #fff; }
-.disk-bar-bg {
-  position: absolute;
-  left: 0; top: 0; bottom: 0;
-  opacity: .18;
-  pointer-events: none;
-  border-radius: 5px;
-}
-.disk-swatch {
-  width: 10px;
-  height: 10px;
-  border-radius: 3px;
-  flex-shrink: 0;
-  position: relative;
-  z-index: 1;
-}
-.disk-item-name {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.disk-row {
+  position: relative; display: flex; align-items: center; gap: .55rem;
+  padding: .45rem .55rem;
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  position: relative;
-  z-index: 1;
+  font-size: .82rem;
+  isolation: isolate;
 }
-.disk-item-name:hover { text-decoration: underline; }
-.disk-item-size {
-  font-family: var(--font-mono, monospace);
-  font-size: .78rem;
-  opacity: .75;
-  flex-shrink: 0;
-  position: relative;
-  z-index: 1;
+.disk-row:hover, .disk-row.row-hover { background: var(--bg-hover); }
+.disk-row.selected { background: var(--bg-selected); }
+.disk-row.is-group { cursor: default; opacity: .7; }
+.disk-row.is-group:hover { background: transparent; }
+.disk-row-bar {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  z-index: -1; opacity: .14; border-radius: var(--radius-sm);
 }
-.disk-del-btn {
-  background: none;
-  border: none;
-  color: #e05c5c;
-  cursor: pointer;
-  font-size: 11px;
-  padding: 0 .2rem;
-  opacity: 0;
-  transition: opacity .12s;
-  flex-shrink: 0;
-  position: relative;
-  z-index: 1;
+.disk-row-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.disk-row-icon { font-size: .9rem; flex-shrink: 0; opacity: .8; }
+.disk-row-name {
+  flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--text-primary);
 }
-.disk-list-item:hover .disk-del-btn { opacity: .7; }
-.disk-del-btn:hover { opacity: 1 !important; }
-.disk-list-group { opacity: .55; }
-.disk-list-group .disk-item-name { cursor: default; }
-.disk-list-group .disk-item-name:hover { text-decoration: none; }
-.disk-list-empty {
-  padding: 1.5rem 1rem;
-  color: #666;
-  font-size: .85rem;
-  text-align: center;
+.disk-row-pct  { font-family: var(--font-mono); font-size: .72rem; color: var(--text-muted); flex-shrink: 0; }
+.disk-row-size { font-family: var(--font-mono); font-size: .76rem; color: var(--text-secondary); min-width: 64px; text-align: right; flex-shrink: 0; }
+
+/* Mobile: stack the sunburst above the list, let the list fill the rest */
+@media (max-width: 768px) {
+  .disk-body { flex-direction: column; }
+  .disk-svg-container { padding: .5rem; min-height: 40vh; flex: 0 0 auto; }
+  #disk-svg { max-height: 40vh; }
+  .disk-status { max-width: 180px; }
+  .disk-list-container {
+    width: 100%;
+    border-left: none;
+    border-top: 1px solid var(--border);
+    flex: 1;
+    min-height: 0;
+  }
 }
 
 dialog#props-dialog {
@@ -1758,7 +1731,7 @@ dialog#props-dialog {
   border: 1px solid var(--border);
   border-top: 2px solid var(--accent);
   border-radius: var(--radius-lg);
-  box-shadow: 0 0 0 1px rgba(124,110,245,.1), 0 24px 60px rgba(0,0,0,.7);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 10%, transparent), 0 24px 60px rgba(0,0,0,.7);
   overflow: hidden;
   color: var(--text-primary);
 }
@@ -2048,6 +2021,75 @@ html[data-mode="light"] .stat-chip b {
 }
 .git-icon-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 .git-icon-danger:hover { background: rgba(239,68,68,.15); color: #ef4444; }
+
+/* Merge / rebase branch pickers */
+.git-op-bar { gap: .4rem; }
+.git-op-select { flex: 1; font-size: .74rem; }
+
+/* Sync bar — fetch / pull / push */
+.git-sync-bar {
+  display: flex; align-items: center; gap: .35rem;
+  padding: .4rem .6rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.git-sync-btn {
+  background: var(--bg-base); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); color: var(--text-primary);
+  padding: .22rem .5rem; font-size: .75rem; cursor: pointer;
+  transition: background .1s, color .1s;
+}
+.git-sync-btn:hover:not(:disabled) { background: var(--bg-hover); color: var(--accent); }
+.git-sync-btn:disabled { opacity: .45; cursor: not-allowed; }
+.git-ahead-behind {
+  display: flex; gap: .3rem; margin-left: .2rem;
+  font-family: var(--font-mono); font-size: .74rem; font-weight: 600;
+}
+.git-ahead  { color: var(--accent); }
+.git-behind { color: #e2a44f; }
+.git-sync-status {
+  margin-left: auto; font-size: .72rem; color: var(--text-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 50%;
+}
+.git-sync-status.err { color: var(--danger); }
+
+/* Merge / rebase in-progress banner */
+.git-conflict-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: .6rem;
+  padding: .5rem .6rem;
+  background: rgba(239,68,68,.1);
+  border-bottom: 1px solid rgba(239,68,68,.3);
+  font-size: .78rem; color: #ef4444;
+}
+.git-conflict-text { flex: 1; }
+.git-conflict-actions { display: flex; gap: .4rem; flex-shrink: 0; }
+.git-conflict-abort:hover:not(:disabled) { color: #ef4444; border-color: rgba(239,68,68,.4); }
+
+/* Stash section */
+.git-stash-row {
+  display: flex; align-items: center; gap: .4rem;
+  padding: .25rem .8rem .25rem 1.4rem;
+  font-size: .79rem;
+}
+.git-stash-row:hover { background: var(--bg-hover); }
+.git-stash-info { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); }
+.git-stash-date { font-size: .68rem; color: var(--text-muted); flex-shrink: 0; }
+.git-stash-actions { display: flex; gap: .1rem; flex-shrink: 0; }
+.git-stash-form {
+  display: flex; flex-direction: column; gap: .35rem;
+  padding: .5rem .8rem .6rem 1.4rem;
+}
+.git-stash-msg {
+  background: var(--bg-base); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); color: var(--text-primary);
+  padding: .25rem .45rem; font-size: .76rem; outline: none;
+}
+.git-stash-msg:focus { border-color: var(--border-focus); }
+.git-stash-untracked {
+  display: flex; align-items: center; gap: .35rem;
+  font-size: .72rem; color: var(--text-muted); cursor: pointer;
+}
+.git-stash-form .git-commit-btn { margin-top: 0; }
 
 .git-commit-area { padding: .4rem .6rem .2rem; border-bottom: 1px solid var(--border); }
 .git-commit-msg {

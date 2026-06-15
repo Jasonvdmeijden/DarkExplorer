@@ -488,6 +488,9 @@ async function handle(type, payload, reply, ws, device) {
         onExit: (code) => {
           broadcastAll(JSON.stringify({ type: 'terminal:exit', data: { sid, code } }));
           ws._termSessions?.delete(sid);
+        },
+        onCwd: (cwd) => {
+          broadcastAll(JSON.stringify({ type: 'terminal:cwd', data: { sid, cwd } }));
         }
       });
       ws._termSessions.set(sid, true);
@@ -498,7 +501,11 @@ async function handle(type, payload, reply, ws, device) {
     case 'terminal:resize':  term.resize(payload.sid, payload.cols, payload.rows); break;
     case 'terminal:destroy': term.destroy(payload.sid); ws._termSessions?.delete(payload.sid); reply({ ok: true }); break;
     case 'terminal:switch':  term.destroy(payload.sid); ws._termSessions?.delete(payload.sid); reply({ ok: true }); break;
-    case 'terminal:verify':  reply({ alive: term.isAlive(payload.sid) }); break;
+    case 'terminal:verify': {
+      const alive = term.isAlive(payload.sid);
+      reply({ alive, cwd: alive ? term.getCwd(payload.sid) : null });
+      break;
+    }
 
     // --- zip ---
     case 'zip:preview': reply({ entries: zipOps.previewZip(payload.path) }); break;

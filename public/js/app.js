@@ -15,6 +15,9 @@
     if (gitTab?.classList.contains('active')) Git.refresh(path);
   });
 
+  // Keep an open terminal's cwd in sync with explorer navigation (and vice versa)
+  Explorer.addNavListener((path) => Term.syncToPath(path));
+
   window.addEventListener('load', () => {
     State.onReady(async () => {
       await Drives.init();
