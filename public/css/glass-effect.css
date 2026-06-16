@@ -8,19 +8,6 @@
    pools through fractal noise — producing organic marbled ink texture with
    genuine hard/soft edge variation that CSS gradients cannot. */
 
-#glass-ink-bg {
-  display: none;
-  position: fixed;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  z-index: -1;
-  pointer-events: none;
-}
-body.glass-effect #glass-ink-bg {
-  display: block;
-}
-
 body.glass-effect {
   --bg-base:         var(--glass-base);
   --bg-surface:      var(--glass-surface);
@@ -30,43 +17,95 @@ body.glass-effect {
   --bg-active:       var(--glass-active);
   --border:          var(--glass-border);
   --scrollbar-track: var(--glass-surface);
-
-  background: transparent;
 }
 
-/* Frosted "card" treatment for the major floating panels/surfaces */
+/* Gradient on ::before so it bleeds to the screen edge even though body
+   has safe-area padding. fixed + inset:0 always covers the full viewport.
+   opacity: 0.45 keeps the gradient subtle so the dark html background
+   (using the real --bg-base from :root, not the glass-overridden body value)
+   shows through, giving a rich dark look with a color accent tint. */
+body.glass-effect::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+  background-size: 200% 200%;
+  background-position: 0% 0%;
+  pointer-events: none;
+  opacity: 0.45;
+}
+
+body.glass-effect.glass-animate::before {
+  animation: gradient-shift 15s ease-in-out infinite;
+}
+
+/* Frosted "card" treatment — one glass panel per major surface.
+   Children (tabs bars, content areas) are NOT individually frosted so there
+   are no nested glass boxes. Each panel is self-contained like a native app:
+   toolbar | left panel | center (tabs+content) | terminal panel | statusbar */
 body.glass-effect #toolbar,
 body.glass-effect #panel-left,
 body.glass-effect #panel-right,
 body.glass-effect #panel-bottom,
-body.glass-effect .panel-section,
 body.glass-effect #center,
-body.glass-effect .pane,
-body.glass-effect #tabs-bar,
-body.glass-effect .panel-tabs,
-body.glass-effect #pathbar,
-body.glass-effect .col-head,
-body.glass-effect footer#statusbar,
 body.glass-effect .filter-menu,
 body.glass-effect dialog#props-dialog,
 body.glass-effect dialog#preview-modal,
-body.glass-effect #search-panel,
-body.glass-effect .group-header,
-body.glass-effect #terminal-container,
-body.glass-effect #term-keys {
+body.glass-effect #search-panel {
   background: var(--bg-surface) !important;
-  /* Lower blur, higher saturation and contrast to simulate strong refraction/pop */
   backdrop-filter: blur(6px) saturate(200%) contrast(110%);
   -webkit-backdrop-filter: blur(6px) saturate(200%) contrast(110%);
   border-radius: 20px;
   border: 1px solid var(--glass-border) !important;
-  /* Adjusted shadow for a '3.5' depth feel: tighter drop shadow, sharper inner glows */
-  box-shadow: 
+  box-shadow:
     0 10px 30px -10px rgba(0, 0, 0, 0.4),
     inset 0 1.5px 0 rgba(255, 255, 255, 0.3),
     inset 0 -1.5px 0 rgba(255, 255, 255, 0.1),
     inset 0 0 12px 2px rgba(255, 255, 255, 0.15) !important;
   position: relative;
+}
+
+/* Statusbar is a slim integrated bar, not a floating panel — transparent in glass mode */
+body.glass-effect footer#statusbar {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-top: 1px solid var(--glass-border) !important;
+}
+
+/* Children inside glass panels — clear backgrounds so the panel's frosted
+   surface shows through uniformly; borders kept for internal structure */
+body.glass-effect #tabs-bar,
+body.glass-effect .pane,
+body.glass-effect .panel-section,
+body.glass-effect .panel-tabs,
+body.glass-effect #pathbar,
+body.glass-effect .col-head,
+body.glass-effect .group-header,
+body.glass-effect #terminal-container,
+body.glass-effect #term-keys {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border-radius: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Disk analyzer — transparent within #center glass; keep structural border-left/bottom */
+body.glass-effect .disk-view,
+body.glass-effect .disk-body,
+body.glass-effect .disk-svg-container,
+body.glass-effect .disk-list-container,
+body.glass-effect .disk-list-header,
+body.glass-effect .disk-header {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
 }
 
 /* Floating elements in glass mode: keep fixed position and use tighter radius */
@@ -80,27 +119,17 @@ body.glass-effect #theme-picker-popover {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4) !important;
 }
 
-/* Light mode specific intense glass styling */
+/* Light mode — lighter shadow on the top-level panels only */
 html[data-mode="light"] body.glass-effect #toolbar,
 html[data-mode="light"] body.glass-effect #panel-left,
 html[data-mode="light"] body.glass-effect #panel-right,
 html[data-mode="light"] body.glass-effect #panel-bottom,
-html[data-mode="light"] body.glass-effect .panel-section,
 html[data-mode="light"] body.glass-effect #center,
-html[data-mode="light"] body.glass-effect .pane,
-html[data-mode="light"] body.glass-effect #tabs-bar,
-html[data-mode="light"] body.glass-effect .panel-tabs,
-html[data-mode="light"] body.glass-effect #pathbar,
-html[data-mode="light"] body.glass-effect .col-head,
-html[data-mode="light"] body.glass-effect footer#statusbar,
 html[data-mode="light"] body.glass-effect .filter-menu,
 html[data-mode="light"] body.glass-effect dialog#props-dialog,
 html[data-mode="light"] body.glass-effect dialog#preview-modal,
-html[data-mode="light"] body.glass-effect #search-panel,
-html[data-mode="light"] body.glass-effect .group-header,
-html[data-mode="light"] body.glass-effect #terminal-container,
-html[data-mode="light"] body.glass-effect #term-keys {
-  box-shadow: 
+html[data-mode="light"] body.glass-effect #search-panel {
+  box-shadow:
     0 10px 30px -10px rgba(0, 0, 0, 0.15),
     inset 0 1.5px 0 rgba(255, 255, 255, 0.7),
     inset 0 -1.5px 0 rgba(255, 255, 255, 0.2),
@@ -128,7 +157,7 @@ body.glass-effect .xterm-screen {
    accent drag indicator. */
 body.glass-effect #layout {
   gap: 12px;
-  padding: 12px;
+  padding: 12px calc(12px + var(--layout-pad-h));
   background: transparent;
 }
 body.glass-effect #panes {
@@ -142,30 +171,16 @@ body.glass-effect .splitter.dragging {
   background: var(--accent);
 }
 
-/* ── Animated background (optional, glass mode only) ──
-   The SVG itself is fixed/static; in animate mode we slowly drift and
-   counter-rotate the two ink layers so the marbled fingers flow past
-   each other, like ink moving in water. */
-body.glass-effect.glass-animate #glass-ink-bg > g:first-of-type {
-  transform-origin: 50% 50%;
-  animation: ink-drift-a 24s ease-in-out infinite alternate;
-}
-body.glass-effect.glass-animate #glass-ink-bg > g:last-of-type {
-  transform-origin: 50% 50%;
-  animation: ink-drift-b 18s ease-in-out infinite alternate;
-}
-@keyframes ink-drift-a {
-  0%   { transform: translate(0%, 0%)   rotate(0deg)  scale(1);    }
-  50%  { transform: translate(5%, -4%)  rotate(8deg)  scale(1.10); }
-  100% { transform: translate(-4%, 5%)  rotate(-6deg) scale(1.05); }
-}
-@keyframes ink-drift-b {
-  0%   { transform: translate(0%, 0%)   rotate(0deg)  scale(1);    }
-  50%  { transform: translate(-5%, 4%)  rotate(-9deg) scale(1.12); }
-  100% { transform: translate(4%, -5%)  rotate(6deg)  scale(1.06); }
+/* ── Animated gradient background ──
+   When animate is on, the gradient smoothly shifts position creating a
+   flowing color transition effect. Much lighter than the SVG ink. */
+@keyframes gradient-shift {
+  0%   { background-position: 0% 0%;     }
+  50%  { background-position: 100% 100%; }
+  100% { background-position: 0% 0%;     }
 }
 @media (prefers-reduced-motion: reduce) {
-  body.glass-effect.glass-animate #glass-ink-bg > g {
+  body.glass-effect.glass-animate {
     animation: none;
   }
 }
@@ -214,7 +229,6 @@ body.glass-effect .git-sync-btn,
 body.glass-effect .git-icon-btn,
 body.glass-effect .pane-close-btn,
 body.glass-effect .xlsx-tab,
-body.glass-effect #disk-refresh,
 body.glass-effect #btn-new-tab,
 body.glass-effect #btn-split {
   background: rgba(255, 255, 255, 0.05) !important;
@@ -283,7 +297,6 @@ html[data-mode="light"] body.glass-effect .git-sync-btn,
 html[data-mode="light"] body.glass-effect .git-icon-btn,
 html[data-mode="light"] body.glass-effect .pane-close-btn,
 html[data-mode="light"] body.glass-effect .xlsx-tab,
-html[data-mode="light"] body.glass-effect #disk-refresh,
 html[data-mode="light"] body.glass-effect #btn-new-tab,
 html[data-mode="light"] body.glass-effect #btn-split {
   background: rgba(255, 255, 255, 0.3) !important;

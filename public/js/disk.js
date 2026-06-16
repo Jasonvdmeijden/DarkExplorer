@@ -135,7 +135,6 @@ const DiskAnalyzer = (() => {
           </div>
           <div class="disk-actions">
             <span id="disk-status" class="disk-status"></span>
-            <button class="icon-btn" id="disk-refresh" title="Force rescan">↻ Rescan</button>
           </div>
         </div>
         <div class="disk-body">
@@ -158,7 +157,6 @@ const DiskAnalyzer = (() => {
       </div>`;
 
     _statusEl = container.querySelector('#disk-status');
-    container.querySelector('#disk-refresh').addEventListener('click', refresh);
 
     await _doScan(false);
   }

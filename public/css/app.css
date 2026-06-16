@@ -1,9 +1,28 @@
-/* ── Reset ── */
+/* ── Reset & Layout Spacing ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html, body {
-  height: 100%;
+:root {
+  /* Single consistent horizontal padding used by toolbar, layout, terminal, statusbar */
+  --layout-pad-h: 0.6rem;
+}
+html {
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--bg-base);
+}
+body {
+  width: 100%;
+  height: 100dvh;
   overflow: hidden;
   -webkit-overflow-scrolling: auto;
+  /* ── Global safe area ──
+     Applied once here so every child element is automatically within safe zones
+     on all devices/orientations. No per-element safe-area handling needed. */
+  padding:
+    env(safe-area-inset-top,    0px)
+    env(safe-area-inset-right,  0px)
+    env(safe-area-inset-bottom, 0px)
+    env(safe-area-inset-left,   0px);
 }
 
 /* Mobile-only scroll fixes to prevent rubber-banding without breaking desktop scroll */
@@ -84,7 +103,7 @@ input:checked + .ui-slider:before {
   display: flex;
   align-items: center;
   gap: 0;
-  padding: 0 .6rem;
+  padding: 0 var(--layout-pad-h);
   height: 44px;
   background: var(--bg-surface);
   border-bottom: 1px solid var(--border);
@@ -119,6 +138,7 @@ input:checked + .ui-slider:before {
   transition: background .12s, color .12s;
   white-space: nowrap;
   flex-shrink: 0;
+  min-height: 32px;
 }
 .icon-btn:hover  { background: var(--bg-hover); color: var(--text-primary); }
 .icon-btn.active { background: var(--accent-dim); color: var(--accent); }
@@ -189,6 +209,7 @@ input:checked + .ui-slider:before {
   display: flex;
   flex: 1;
   overflow: hidden;
+  padding: 0 var(--layout-pad-h);
 }
 
 /* ── Panels ── */
@@ -242,8 +263,21 @@ aside, #panel-left, #panel-right {
   border-bottom: 1px solid var(--border);
   padding: 0 .4rem;
   gap: .2rem;
-  height: 34px;
+  min-height: 40px;
   flex-shrink: 0;
+}
+
+/* Terminal title bar: two rows (modifiers+actions / arrows) */
+#term-keys.panel-tabs {
+  height: auto;
+  padding: .3rem .4rem;
+  gap: .3rem;
+  flex-wrap: wrap;
+}
+.term-row-break {
+  width: 100%;
+  height: 0;
+  flex-basis: 100%;
 }
 
 .ptab {
@@ -255,6 +289,9 @@ aside, #panel-left, #panel-right {
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background .1s, color .1s;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
 }
 .ptab:hover  { background: var(--bg-hover); color: var(--text-primary); }
 .ptab.active { background: var(--accent-dim); color: var(--accent); font-weight: 600; }
@@ -281,14 +318,14 @@ aside, #panel-left, #panel-right {
 }
 
 /* ── Tabs ── */
+/* #tabs-bar matches .panel-tabs exactly so all tab strips look the same */
 #tabs-bar {
   display: flex;
   align-items: center;
-  background: var(--bg-surface);
   border-bottom: 1px solid var(--border);
-  height: 34px;
-  padding: 0 .3rem;
+  padding: 0 .4rem;
   gap: .2rem;
+  min-height: 40px;
   overflow-x: auto;
   flex-shrink: 0;
 }
@@ -296,22 +333,25 @@ aside, #panel-left, #panel-right {
 
 #tabs-list { display: flex; gap: .2rem; }
 
+/* .tab matches .ptab so open tabs look like left-panel tabs */
 .tab {
-  display: flex;
-  align-items: center;
-  gap: .4rem;
-  padding: .2rem .7rem;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: .78rem;
+  padding: .25rem .55rem;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: .8rem;
-  color: var(--text-secondary);
   white-space: nowrap;
   max-width: 180px;
-  border: 1px solid transparent;
   transition: background .1s, color .1s;
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  min-height: 32px;
 }
 .tab:hover  { background: var(--bg-hover); color: var(--text-primary); }
-.tab.active { background: var(--bg-selected); color: var(--text-primary); border-color: var(--border); }
+.tab.active { background: var(--accent-dim); color: var(--accent); font-weight: 600; }
 
 .tab-name { overflow: hidden; text-overflow: ellipsis; }
 .tab-close {
@@ -324,6 +364,7 @@ aside, #panel-left, #panel-right {
 .tab:hover .tab-close, .tab.active .tab-close { opacity: .7; }
 .tab-close:hover { opacity: 1 !important; background: var(--bg-hover); }
 
+/* + and split buttons match icon-btn style used in .panel-tabs */
 #btn-new-tab, #btn-split {
   background: none;
   border: none;
@@ -333,6 +374,11 @@ aside, #panel-left, #panel-right {
   cursor: pointer;
   border-radius: var(--radius-sm);
   line-height: 1;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 #btn-new-tab:hover, #btn-split:hover { color: var(--text-primary); background: var(--bg-hover); }
 
@@ -573,7 +619,7 @@ aside, #panel-left, #panel-right {
   align-items: center;
   border-bottom: 1px solid var(--border);
   padding: 0 .5rem;
-  height: 34px;
+  min-height: 40px;
   gap: .2rem;
   flex-shrink: 0;
 }
@@ -627,46 +673,38 @@ aside, #panel-left, #panel-right {
   height: 240px;
   border-top: 1px solid var(--border);
   flex-shrink: 0;
+  padding: 0 var(--layout-pad-h);
 }
 #terminal-container { flex: 1; overflow: hidden; padding: .3rem; }
 
-/* Modifier + arrow keys for terminals on touch devices (no physical Ctrl/Alt/arrows) */
-.term-keys {
-  display: flex;
-  align-items: center;
-  gap: .3rem;
-  padding: .35rem .4rem;
-  border-top: 1px solid var(--border);
-  flex-shrink: 0;
-  overflow-x: auto;
-  background: var(--bg-base);
-  /* Float above the on-screen keyboard: --kb-offset is the keyboard height, set in terminal.js */
-  transform: translateY(calc(-1 * var(--kb-offset, 0px)));
-}
+/* Modifier keys live in .panel-tabs — no separate container needed */
 .term-key {
   background: var(--bg-surface);
   border: 1px solid var(--border);
   color: var(--text-secondary);
   border-radius: var(--radius-sm);
-  padding: .35rem .6rem;
+  padding: .25rem .6rem;
   font-size: .78rem;
   font-family: var(--font-mono);
   line-height: 1;
   cursor: pointer;
   flex-shrink: 0;
   min-width: 2.4rem;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   transition: background .12s, color .12s, border-color .12s;
 }
 .term-key:hover  { background: var(--bg-hover); color: var(--text-primary); }
 .term-key.active { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
-.term-key-sep { width: 1px; height: 20px; background: var(--border); margin: 0 .2rem; flex-shrink: 0; }
 
 /* ── Status bar ── */
 #statusbar {
   display: flex;
   align-items: center;
-  padding: 0 .6rem;
-  height: 24px;
+  padding: 0 var(--layout-pad-h);
+  min-height: 40px;
   font-size: .72rem;
   color: var(--text-muted);
   background: var(--bg-surface);
@@ -929,6 +967,9 @@ dialog#preview-modal::backdrop {
   transition: color .12s, background .12s, border-color .12s;
   white-space: nowrap;
   line-height: 1.4;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
 }
 .pv-tab:hover {
   color: var(--text-secondary);
@@ -944,8 +985,8 @@ dialog#preview-modal::backdrop {
 /* ── Prev / Next nav buttons ── */
 #btn-preview-prev, #btn-preview-next {
   flex-shrink: 0;
-  width: 30px;
-  height: 30px;
+  min-width: 32px;
+  min-height: 32px;
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
   background: transparent;
@@ -971,8 +1012,8 @@ dialog#preview-modal::backdrop {
 /* ── Close button ── */
 #btn-preview-download {
   flex-shrink: 0;
-  width: 30px;
-  height: 30px;
+  min-width: 32px;
+  min-height: 32px;
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
   background: transparent;
@@ -992,8 +1033,8 @@ dialog#preview-modal::backdrop {
 }
 #btn-preview-close {
   flex-shrink: 0;
-  width: 30px;
-  height: 30px;
+  min-width: 32px;
+  min-height: 32px;
   border-radius: 50%;
   border: 1px solid transparent;
   background: transparent;
@@ -1193,9 +1234,11 @@ dialog#preview-modal::backdrop {
 .xlsx-tabs {
   display: flex;
   gap: .25rem;
-  padding: .4rem .75rem;
+  align-items: center;
+  padding: 0 .75rem;
   background: var(--bg-panel);
   border-bottom: 1px solid var(--border);
+  min-height: 40px;
   flex-shrink: 0;
   overflow-x: auto;
 }
@@ -1209,6 +1252,7 @@ dialog#preview-modal::backdrop {
   cursor: pointer;
   white-space: nowrap;
   transition: background .15s, color .15s;
+  min-height: 32px; display: inline-flex; align-items: center;
 }
 .xlsx-tab:hover { background: var(--bg-hover); color: var(--text-primary); }
 .xlsx-tab.active {
@@ -1329,6 +1373,7 @@ dialog#preview-modal::backdrop {
   cursor: pointer;
   font-size: 12px;
   transition: background .15s, color .15s;
+  min-height: 32px; display: inline-flex; align-items: center;
 }
 #btn-preview-edit:hover { background: var(--accent-dim); color: var(--accent); border-color: rgba(124,110,245,.3); }
 
@@ -1364,11 +1409,11 @@ dialog#preview-modal::backdrop {
 /* ── Mobile responsive ── */
 @media (max-width: 768px) {
   /* Compact toolbar */
-  #toolbar { 
+  #toolbar {
     display: flex !important;
     flex-wrap: wrap !important;
     height: auto !important;
-    padding: max(env(safe-area-inset-top, 0px), 8px) 10px 10px 10px !important;
+    padding: max(env(safe-area-inset-top, 0px), 8px) var(--layout-pad-h) 10px var(--layout-pad-h) !important;
     gap: 8px 6px !important;
     align-items: center !important;
     background: var(--bg-surface);
@@ -1421,11 +1466,14 @@ dialog#preview-modal::backdrop {
   }
 
   /* Bigger touch targets */
-  .icon-btn {
+  .icon-btn, .term-key {
     min-width: 42px !important;
     min-height: 42px !important;
     font-size: 16px !important;
     border-radius: var(--radius-md) !important;
+  }
+  .ptab, .tab, .pv-tab, .xlsx-tab, .props-tab, #btn-new-tab, #btn-split {
+    min-height: 42px !important;
   }
 
   #btn-search svg, #btn-theme-picker svg, #btn-sort svg, #btn-filter svg, #btn-view-disk svg {
@@ -1433,16 +1481,20 @@ dialog#preview-modal::backdrop {
     height: 18px !important;
   }
 
-  /* Left panel becomes a fixed drawer — 85% of the screen on mobile */
+  /* Left panel becomes a fixed drawer — 85% of the screen on mobile.
+     display:flex !important needed to override the display:none set in the earlier media query.
+     Fixed elements escape body's safe-area padding so must re-apply it themselves. */
   #panel-left {
     display: flex !important;
     position: fixed !important;
-    left: 0; top: 0; bottom: 0;
+    inset: 0 auto 0 0;
     z-index: 200;
     width: min(85dvw, 420px) !important;
     transform: translateX(-100%);
     transition: transform .25s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: 4px 0 25px rgba(0, 0, 0, 0.5);
+    flex-direction: column !important;
+    padding: env(safe-area-inset-top, 0px) var(--layout-pad-h) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px) !important;
   }
   #panel-left.mobile-open { transform: translateX(0); }
   #splitter-left { display: none !important; }
@@ -1460,41 +1512,37 @@ dialog#preview-modal::backdrop {
   dialog#preview-modal[open] {
     position: fixed !important;
     inset: 0 !important;
-    top: 0 !important; left: 0 !important;
     width: 100dvw !important;
     height: 100dvh !important;
-    max-width: 100dvw !important;
-    max-height: 100dvh !important;
+    max-width: none !important;
+    max-height: none !important;
     transform: none !important;
     border-radius: 0 !important;
     margin: 0 !important;
-    padding: 0 !important;
+    flex-direction: column !important;
   }
 
   /* Full-screen properties dialog on mobile */
   dialog#props-dialog[open] {
     position: fixed !important;
     inset: 0 !important;
-    top: 0 !important; left: 0 !important;
     width: 100dvw !important;
     height: 100dvh !important;
-    max-width: 100dvw !important;
-    max-height: 100dvh !important;
+    max-width: none !important;
+    max-height: none !important;
     transform: none !important;
     border-radius: 0 !important;
     margin: 0 !important;
+    flex-direction: column !important;
   }
 
   /* No resize handle on mobile — modal is full-screen */
   #preview-resize-handle { display: none; }
 
-  /* Full-screen search panel on mobile — overrides inline styles set by JS */
+  /* Full-screen search panel on mobile */
   #search-panel {
     position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    bottom: 0 !important;
+    inset: 0 !important;
     width: 100dvw !important;
     height: 100dvh !important;
     max-height: none !important;
@@ -1502,6 +1550,14 @@ dialog#preview-modal::backdrop {
     transform: none !important;
     z-index: 300 !important;
     border: none !important;
+    flex-direction: column !important;
+  }
+
+  /* Fixed-position overlays escape body's safe-area padding — re-apply safe areas once here */
+  dialog#preview-modal[open],
+  dialog#props-dialog[open],
+  #search-panel {
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px) !important;
   }
   #search-panel #search-results {
     flex: 1 !important;
@@ -1520,27 +1576,16 @@ dialog#preview-modal::backdrop {
   #panel-bottom {
     position: fixed !important;
     inset: 0 !important;
-    top: 0 !important; left: 0 !important;
     width: 100dvw !important;
     height: 100dvh !important;
     z-index: 250 !important;
     border-top: none !important;
+    flex-direction: column !important;
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px) !important;
   }
   #splitter-bottom { display: none !important; }
 
-  /* ── Safe-area insets for notches, dynamic islands, curved edges, home indicator ── */
-  /* `max(env(...), <fallback>)` guarantees a minimum clearance even on browsers that
-     report 0 for safe-area-inset (older Android Chrome, gesture nav, etc). */
-  #statusbar {
-    padding-bottom: max(env(safe-area-inset-bottom, 0px), 20px);
-    padding-left:   calc(max(env(safe-area-inset-left,  0px), 0px) + .6rem);
-    padding-right:  calc(max(env(safe-area-inset-right, 0px), 0px) + .6rem);
-    height: calc(28px + max(env(safe-area-inset-bottom, 0px), 20px));
-  }
-  #tabs-bar {
-    padding-left:  calc(max(env(safe-area-inset-left,  0px), 0px) + .25rem);
-    padding-right: calc(max(env(safe-area-inset-right, 0px), 0px) + .25rem);
-  }
+  /* Safe areas handled globally by body padding — only need visual-padding overrides here */
 
   /* Compact status-bar stats on mobile: hide labels (CPU/MEM/DSK/NET), keep values only.
      The `font-size: 0` trick collapses the bare text label; the <b> value resets to a
@@ -1558,22 +1603,13 @@ dialog#preview-modal::backdrop {
     margin-left: 0;
   }
 
-  /* Fixed-positioned full-screen modals — pad inner content while keeping background edge-to-edge */
-  dialog#preview-modal[open],
-  dialog#props-dialog[open],
-  #panel-bottom,
-  #search-panel,
-  #panel-left {
-    padding-top:    max(env(safe-area-inset-top,    0px), 8px)  !important;
-    padding-bottom: max(env(safe-area-inset-bottom, 0px), 20px) !important;
-    padding-left:   max(env(safe-area-inset-left,   0px), 0px)  !important;
-    padding-right:  max(env(safe-area-inset-right,  0px), 0px)  !important;
-  }
+  /* Safe areas are now handled via fixed positioning (top/left/right/bottom).
+     This ensures they update properly on orientation changes. */
 }
 
 /* ── Open-in-tab button (replaces download) ── */
 #btn-preview-newtab {
-  flex-shrink: 0; width: 30px; height: 30px;
+  flex-shrink: 0; min-width: 32px; min-height: 32px;
   border-radius: var(--radius-sm); border: 1px solid transparent;
   background: transparent; color: var(--text-muted); font-size: 15px;
   cursor: pointer; display: flex; align-items: center; justify-content: center;
@@ -1583,17 +1619,18 @@ dialog#preview-modal::backdrop {
   background: var(--accent-dim); border-color: rgba(124,110,245,.3); color: var(--accent);
 }
 
-/* ── Properties dialog ── */
 /* ── Disk Analyzer ── */
 .view-disk { width: 100%; height: 100%; overflow: hidden; }
 .disk-view { display: flex; flex-direction: column; height: 100%; }
+
+/* disk-header uses panel-tabs pattern for consistency with left panel / terminal */
 .disk-header {
   display: flex;
   align-items: center;
-  padding: .4rem .8rem;
-  background: var(--bg-panel);
+  padding: 0 .4rem;
   border-bottom: 1px solid var(--border);
-  gap: .5rem;
+  gap: .4rem;
+  min-height: 40px;
   flex-shrink: 0;
 }
 .disk-info { display: flex; flex-direction: column; min-width: 0; flex: 1; gap: 1px; }
@@ -1607,7 +1644,7 @@ dialog#preview-modal::backdrop {
   font-family: var(--font-mono);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.disk-actions { display: flex; align-items: center; gap: .55rem; flex-shrink: 0; }
+.disk-actions { display: flex; align-items: center; gap: .4rem; flex-shrink: 0; }
 .disk-status {
   font-size: .72rem; color: var(--text-muted);
   font-family: var(--font-mono);
@@ -1622,15 +1659,6 @@ dialog#preview-modal::backdrop {
   0%, 100% { opacity: .55; }
   50%      { opacity: 1; }
 }
-#disk-refresh {
-  font-size: .76rem;
-  padding: .3rem .65rem;
-  border: 1px solid var(--border);
-  background: var(--bg-panel);
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
-}
-#disk-refresh:hover { background: var(--bg-hover); color: var(--accent); }
 
 /* Main body */
 .disk-body { display: flex; flex: 1; overflow: hidden; min-height: 0; }
@@ -1672,33 +1700,36 @@ dialog#preview-modal::backdrop {
 .disk-arc:hover, .disk-arc.arc-hover { opacity: 1 !important; filter: brightness(1.12); }
 .disk-arc.is-group { pointer-events: none; }
 
-/* Right panel: sorted list */
+/* Right panel: sorted list — uses panel-section pattern for consistency */
 .disk-list-container {
   width: 320px;
   flex-shrink: 0;
-  background: var(--bg-panel);
   border-left: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   min-height: 0;
 }
 .disk-list-header {
-  padding: .8rem 1rem .5rem;
+  padding: 0 .8rem;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+  min-height: 40px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 .disk-list-title {
-  font-size: 1.02rem; font-weight: 700;
+  font-size: .88rem; font-weight: 700;
   color: var(--text-primary);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .disk-list-size {
-  font-size: .9rem;
+  font-size: .78rem;
   color: var(--text-secondary);
   font-family: var(--font-mono);
-  margin-top: .15rem;
+  margin-top: .1rem;
 }
-.disk-list-meta { font-size: .7rem; color: var(--text-muted); margin-top: .25rem; }
+.disk-list-meta { font-size: .7rem; color: var(--text-muted); margin-top: .1rem; }
 
 #disk-list { flex: 1; overflow-y: auto; padding: .35rem; }
 .disk-loading, .disk-empty, .disk-error {
@@ -1795,9 +1826,10 @@ dialog#props-dialog::backdrop { background: rgba(6,6,16,.6); backdrop-filter: bl
 #btn-props-close:hover { background: rgba(255,107,107,.1); border-color: rgba(255,107,107,.25); color: var(--danger); }
 
 #props-tabs {
-  display: flex; gap: .2rem;
+  display: flex; gap: .2rem; align-items: center;
   padding: 0 .75rem; background: var(--bg-panel);
   border-bottom: 1px solid var(--border);
+  min-height: 40px;
   flex-shrink: 0;
 }
 .props-tab {
@@ -1805,6 +1837,7 @@ dialog#props-dialog::backdrop { background: rgba(6,6,16,.6); backdrop-filter: bl
   font-size: .78rem; padding: .5rem .8rem;
   border-bottom: 2px solid transparent;
   cursor: pointer; transition: color .12s, border-color .12s;
+  min-height: 32px; display: inline-flex; align-items: center;
 }
 .props-tab:hover { color: var(--text-primary); }
 .props-tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
@@ -1830,6 +1863,7 @@ dialog#props-dialog::backdrop { background: rgba(6,6,16,.6); backdrop-filter: bl
   background: var(--accent); color: #fff; border: none;
   padding: .35rem .7rem; border-radius: var(--radius-sm);
   font-size: .78rem; cursor: pointer; transition: opacity .12s;
+  min-height: 32px; display: inline-flex; align-items: center;
 }
 .share-btn:hover { opacity: .85; }
 .share-btn.danger { background: var(--danger); }
@@ -2000,6 +2034,7 @@ html[data-mode="light"] .stat-chip b {
 .git-repo-bar {
   display: flex; align-items: center; gap: .4rem;
   padding: .4rem .6rem;
+  min-height: 40px;
   border-bottom: 1px solid var(--border);
   background: var(--bg-base);
 }
@@ -2030,6 +2065,7 @@ html[data-mode="light"] .stat-chip b {
 .git-branch-bar {
   display: flex; align-items: center; gap: .3rem;
   padding: .4rem .6rem;
+  min-height: 40px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
@@ -2043,6 +2079,7 @@ html[data-mode="light"] .stat-chip b {
   background: none; border: none; color: var(--text-muted); font-size: 13px;
   padding: .2rem .35rem; border-radius: var(--radius-sm); cursor: pointer;
   transition: background .1s, color .1s; flex-shrink: 0; line-height: 1;
+  min-height: 32px; display: inline-flex; align-items: center; justify-content: center;
 }
 .git-icon-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 .git-icon-danger:hover { background: rgba(239,68,68,.15); color: #ef4444; }
@@ -2055,6 +2092,7 @@ html[data-mode="light"] .stat-chip b {
 .git-sync-bar {
   display: flex; align-items: center; gap: .35rem;
   padding: .4rem .6rem;
+  min-height: 40px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
@@ -2063,6 +2101,7 @@ html[data-mode="light"] .stat-chip b {
   border-radius: var(--radius-sm); color: var(--text-primary);
   padding: .22rem .5rem; font-size: .75rem; cursor: pointer;
   transition: background .1s, color .1s;
+  min-height: 32px; display: inline-flex; align-items: center;
 }
 .git-sync-btn:hover:not(:disabled) { background: var(--bg-hover); color: var(--accent); }
 .git-sync-btn:disabled { opacity: .45; cursor: not-allowed; }
@@ -2128,6 +2167,7 @@ html[data-mode="light"] .stat-chip b {
   margin-top: .35rem; width: 100%; padding: .32rem; background: var(--accent);
   border: none; border-radius: var(--radius-sm); color: #fff; font-size: .78rem;
   font-weight: 600; cursor: pointer; transition: background .15s;
+  min-height: 32px;
 }
 .git-commit-btn:hover:not(:disabled) { background: var(--accent-hover, #5a4ecc); }
 .git-commit-btn:disabled { opacity: .4; cursor: not-allowed; }

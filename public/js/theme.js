@@ -106,12 +106,12 @@ const Theme = (() => {
     // Frosted-edge border, from the theme's text colour
     root.style.setProperty('--glass-border',   _rgba(text, .18, text));
 
-    // Wallpaper is rendered by the inline SVG #glass-ink-bg (index.html) via
-    // feTurbulence + feDisplacementMap warping of --accent / --accent-2
-    // gradient pools — produces genuine organic ink texture with mixed
-    // hard/soft edges that CSS gradients can't. The SVG inherits these
-    // theme custom properties directly via var(--accent)/var(--accent-2) in
-    // its stop-color styles, so no JS wallpaper var is needed.
+    // Sync browser chrome / phone status-bar colour with the app background.
+    // Glass mode uses the accent colour (matches the gradient tint visible
+    // behind panels); non-glass uses the real base from :root (not the
+    // glass-overridden body value) so it stays dark in dark mode.
+    const metaTheme = document.querySelector('meta[name="theme-color"]');
+    if (metaTheme) metaTheme.setAttribute('content', glassMode ? accent : base);
   }
 
   // Toggle dark/light of the currently selected theme

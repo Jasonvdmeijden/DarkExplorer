@@ -84,19 +84,6 @@ const Term = (() => {
     if (term) term.focus();
   }
 
-  // The on-screen keyboard shrinks the visual viewport without resizing the
-  // layout viewport, so a bottom-anchored toolbar ends up hidden behind it.
-  // Track the gap as --kb-offset and shift #term-keys up by that amount.
-  if (window.visualViewport) {
-    const root = document.documentElement;
-    const updateKbOffset = () => {
-      const offset = window.innerHeight - window.visualViewport.height - window.visualViewport.offsetTop;
-      root.style.setProperty('--kb-offset', `${Math.max(0, Math.round(offset))}px`);
-    };
-    window.visualViewport.addEventListener('resize', updateKbOffset);
-    window.visualViewport.addEventListener('scroll', updateKbOffset);
-    updateKbOffset();
-  }
 
   // Build an xterm theme from the current page CSS vars so the terminal matches
   // the active app theme (and in particular flips with the light/dark toggle).
