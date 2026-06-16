@@ -84,7 +84,8 @@ body.glass-effect .panel-section,
 body.glass-effect .panel-tabs,
 body.glass-effect #pathbar,
 body.glass-effect #terminal-container,
-body.glass-effect #term-keys {
+body.glass-effect #term-mods,
+body.glass-effect #term-arrows {
   background: transparent !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
@@ -237,7 +238,6 @@ body.glass-effect .git-sync-btn,
 body.glass-effect .git-icon-btn,
 body.glass-effect .pane-close-btn,
 body.glass-effect .xlsx-tab,
-body.glass-effect #disk-refresh,
 body.glass-effect #btn-new-tab,
 body.glass-effect #btn-split {
   background: rgba(255, 255, 255, 0.05) !important;

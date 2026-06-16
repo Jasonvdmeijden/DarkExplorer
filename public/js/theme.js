@@ -46,9 +46,14 @@ const Theme = (() => {
     const file  = entry[currentMode] || entry.dark;
     const themeLink = document.getElementById('theme-css');
     themeLink.href = `/css/themes/${file}.css`;
-    // Recompute once the new theme stylesheet has actually loaded, so glass
-    // colours derived below reflect the new theme's resolved values.
-    themeLink.addEventListener('load', _updateGlassVars, { once: true });
+    // Once the new CSS file has loaded, recompute glass vars AND re-dispatch
+    // themechange so listeners (e.g. terminal.js xterm theme) read the correct
+    // CSS variables. The immediate dispatch below handles glass toggles (no
+    // file change); this handles actual theme/mode switches.
+    themeLink.addEventListener('load', () => {
+      _updateGlassVars();
+      document.dispatchEvent(new CustomEvent('themechange', { detail: { id: currentId, mode: currentMode } }));
+    }, { once: true });
     document.documentElement.dataset.theme = entry.id;
     document.documentElement.dataset.mode  = currentMode;
     localStorage.setItem('de_theme', currentId);

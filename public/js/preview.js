@@ -367,10 +367,11 @@ const Preview = (() => {
 
   const IMG_EXT_SET = new Set(['jpg','jpeg','png','gif','webp','avif','svg','bmp','ico','tiff','tif','heic','heif','dng','cr2','cr3','nef','arw','raf','orf','rw2']);
   const VID_EXT_SET = new Set(['mp4','webm','mov','mkv','avi','m4v','3gp','flv','ogv','wmv','ts','m2ts']);
-  // Containers Chrome can't reliably play (or fails silently on) → eagerly route to /transcode,
-  // which writes a +faststart MP4 to disk and serves with full Range support.
-  // Native-playable containers stay on /serve for instant playback.
-  const VIDEO_DIRECT_OK_EXTS = new Set(['mp4','webm','m4v']);
+  // Try /serve first for all containers — modern browsers handle MKV/MOV/H.265
+  // natively. The error handler below falls back to /transcode if the browser
+  // rejects the stream. Eagerly routing to /transcode was wrong for large H.265
+  // files because the re-encode takes many minutes before anything plays.
+  const VIDEO_DIRECT_OK_EXTS = new Set(['mp4','webm','m4v','mkv','mov','avi','wmv','ts','m2ts','3gp','flv','ogv']);
   function _videoSrc(item) {
     const ext = (item.ext || '').replace('.','').toLowerCase();
     const token = localStorage.getItem('de_token') || '';

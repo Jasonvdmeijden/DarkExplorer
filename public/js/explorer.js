@@ -1437,7 +1437,7 @@ const Explorer = (() => {
     const tag = tagMap.get(item.path);
     const colorStyle = tag?.color ? `style="color:${tag.color};filter:drop-shadow(0 0 2px ${tag.color}66)"` : '';
 
-    if (item.isDir) return `<span ${colorStyle}>${Drives.icon(item.path, true) || '📁'}</span>`;
+    if (item.isDir) return `<span ${colorStyle}>${Drives.icon(item.path, true) || '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.15em"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>'}</span>`;
     const ext = (item.ext || '').toLowerCase();
     let icon = '📄';
     if (['.jpg','.jpeg','.png','.gif','.webp','.svg','.avif','.bmp','.ico','.tiff','.tif','.heic','.heif','.dng','.cr2','.cr3','.nef','.arw','.raf','.orf','.rw2'].includes(ext)) icon = '🖼';

@@ -62,7 +62,12 @@
         </svg>
       </button>
       <span class="toolbar-sep"></span>
-      <button class="icon-btn" id="btn-new-folder" title="New folder (Ctrl+Shift+N)">📁⁺</button>
+      <button class="icon-btn" id="btn-new-folder" title="New folder (Ctrl+Shift+N)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+          <line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/>
+        </svg>
+      </button>
       <button class="icon-btn" id="btn-sort"       title="Sort & Group View">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -143,34 +148,25 @@
   <div id="splitter-bottom" class="splitter splitter-h" style="display:none"></div>
   <div id="panel-bottom" style="display:none">
     <div class="panel-tabs" id="term-header">
-      <div id="term-keys-top">
+      <div id="term-mods">
         <button class="term-key" data-mod="meta"  title="Win / Cmd">⌘</button>
         <button class="term-key" data-mod="ctrl"  title="Ctrl">Ctrl</button>
         <button class="term-key" data-mod="alt"   title="Alt">Alt</button>
         <button class="term-key" data-mod="shift" title="Shift">⇧</button>
         <button class="term-key" data-key="esc"   title="Escape">Esc</button>
+      </div>
+      <div id="term-arrows">
         <button class="term-key" data-arrow="up"    title="Up">↑</button>
         <button class="term-key" data-arrow="down"  title="Down">↓</button>
         <button class="term-key" data-arrow="left"  title="Left">←</button>
         <button class="term-key" data-arrow="right" title="Right">→</button>
       </div>
-      <span style="flex:1"></span>
+      <span id="term-spacer" style="flex:1"></span>
       <button class="icon-btn" id="btn-term-mode"  title="Toggle PTY / runner">⇄</button>
       <button class="icon-btn" id="btn-term-shell" title="Switch shell">⚡</button>
       <button class="icon-btn" id="btn-term-close" title="Close terminal">✕</button>
     </div>
     <div id="terminal-container"></div>
-    <div id="term-keys-bottom">
-      <button class="term-key" data-mod="meta"  title="Win / Cmd">⌘</button>
-      <button class="term-key" data-mod="ctrl"  title="Ctrl">Ctrl</button>
-      <button class="term-key" data-mod="alt"   title="Alt">Alt</button>
-      <button class="term-key" data-mod="shift" title="Shift">⇧</button>
-      <button class="term-key" data-key="esc"   title="Escape">Esc</button>
-      <button class="term-key" data-arrow="up"    title="Up">↑</button>
-      <button class="term-key" data-arrow="down"  title="Down">↓</button>
-      <button class="term-key" data-arrow="left"  title="Left">←</button>
-      <button class="term-key" data-arrow="right" title="Right">→</button>
-    </div>
   </div>
 
   <!-- Status bar -->

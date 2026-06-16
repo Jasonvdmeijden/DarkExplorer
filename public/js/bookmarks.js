@@ -24,7 +24,7 @@ const Bookmarks = (() => {
       const isDir = isUrl ? false : (b.isDir !== false);   // default to folder if not annotated
       const icon  = isUrl
         ? '🌐'
-        : isDir ? (Drives.icon(b.path, true) || '📁') : '📄';
+        : isDir ? (Drives.icon(b.path, true) || '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.15em"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>') : '📄';
       const el = document.createElement('div');
       el.className = 'bookmark-item';
       el.innerHTML = `<span>${icon}</span>
