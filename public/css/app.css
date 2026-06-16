@@ -1364,41 +1364,39 @@ dialog#preview-modal::backdrop {
 /* ── Mobile responsive ── */
 @media (max-width: 768px) {
   /* Compact toolbar */
-  #toolbar { padding: 0 .4rem; gap: .2rem; position: relative; }
+  #toolbar { 
+    padding: max(env(safe-area-inset-top, 0px), 8px) 8px 8px 8px !important;
+    gap: 8px; 
+    flex-wrap: wrap;
+    height: auto !important;
+    align-items: center;
+  }
   .toolbar-sep { display: none; }
   /* Hide back/forward, new-folder, upload, view-details on phone */
   #btn-new-folder, #btn-upload,
   #btn-back, #btn-forward, #btn-view-details { display: none; }
-  /* Keep toolbar-center visible — it holds the search button */
+  
   .toolbar-center { flex: 0 0 auto; padding: 0; }
 
-  /* Pathbar gets its own row above the icon buttons so the breadcrumb has real space.
-     Up-directory sits to its left, search to its right — all absolutely positioned
-     so they don't disturb the flex order of toolbar-left/center/right. */
+  /* Pathbar gets its own row via flex-basis 100% wrapper behavior */
+  .toolbar-left {
+    flex: 1 1 100%;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  
   #pathbar {
-    position: absolute;
-    top:   calc(max(env(safe-area-inset-top, 0px), 8px) + 4px);
-    /* Reserve 38 px on each side for the flanking buttons */
-    left:  calc(max(env(safe-area-inset-left,  0px), 12px) + 38px);
-    right: calc(max(env(safe-area-inset-right, 0px), 12px) + 38px);
-    width: auto;
-    flex: none;
-    height: 32px;
-    min-width: 0;
+    order: -1;
+    flex: 1 1 100%;
+    height: 36px;
   }
-  #btn-up,
-  #btn-search {
-    position: absolute;
-    top:    calc(max(env(safe-area-inset-top, 0px), 8px) + 4px);
-    height: 32px;
-    min-width: 32px;
-    z-index: 2;
-  }
-  #btn-up     { left:  calc(max(env(safe-area-inset-left,  0px), 12px)); }
-  #btn-search { right: calc(max(env(safe-area-inset-right, 0px), 12px)); }
-  /* The center wrapper around search now has nothing visible; keep it from
-     reserving space in the icon row below. */
-  .toolbar-center { width: 0; padding: 0; }
+  
+  #btn-up { order: -2; height: 36px; min-width: 36px; }
+  #btn-toggle-tree { order: -3; }
+  
+  #btn-search { height: 36px; min-width: 36px; }
 
   /* Left panel becomes a fixed drawer — 75% of the screen on mobile, capped at 420px on tablets */
   #panel-left {
@@ -1499,13 +1497,6 @@ dialog#preview-modal::backdrop {
   /* ── Safe-area insets for notches, dynamic islands, curved edges, home indicator ── */
   /* `max(env(...), <fallback>)` guarantees a minimum clearance even on browsers that
      report 0 for safe-area-inset (older Android Chrome, gesture nav, etc). */
-  #toolbar {
-    /* Top padding = safe-area + 8px gap + 32px pathbar + 4px breathing room */
-    padding-top:   calc(max(env(safe-area-inset-top, 0px), 8px) + 32px + 8px);
-    padding-left:  calc(max(env(safe-area-inset-left,  0px), 12px) + .25rem);
-    padding-right: calc(max(env(safe-area-inset-right, 0px), 12px) + .25rem);
-    height: calc(44px + max(env(safe-area-inset-top, 0px), 8px) + 32px + 8px);
-  }
   #statusbar {
     padding-bottom: max(env(safe-area-inset-bottom, 0px), 20px);
     padding-left:   calc(max(env(safe-area-inset-left,  0px), 0px) + .6rem);

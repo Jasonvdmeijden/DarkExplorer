@@ -52,24 +52,23 @@ body.glass-effect #context-menu,
 body.glass-effect dialog#props-dialog,
 body.glass-effect dialog#preview-modal,
 body.glass-effect #search-panel,
-body.glass-effect .theme-picker-popover,
+body.glass-effect #theme-picker-popover,
 body.glass-effect .group-header,
 body.glass-effect #terminal-container,
 body.glass-effect #term-keys {
-  background: var(--glass-surface);
+  background: var(--bg-surface) !important;
   /* Lower blur, higher saturation and contrast to simulate strong refraction/pop */
   backdrop-filter: blur(6px) saturate(200%) contrast(110%);
   -webkit-backdrop-filter: blur(6px) saturate(200%) contrast(110%);
   border-radius: 20px;
-  border: 1px solid var(--glass-border);
+  border: 1px solid var(--glass-border) !important;
   /* Adjusted shadow for a '3.5' depth feel: tighter drop shadow, sharper inner glows */
   box-shadow: 
     0 10px 30px -10px rgba(0, 0, 0, 0.4),
     inset 0 1.5px 0 rgba(255, 255, 255, 0.3),
     inset 0 -1.5px 0 rgba(255, 255, 255, 0.1),
-    inset 0 0 12px 2px rgba(255, 255, 255, 0.15);
+    inset 0 0 12px 2px rgba(255, 255, 255, 0.15) !important;
   position: relative;
-  overflow: hidden;
 }
 
 /* Light mode specific intense glass styling */
@@ -90,7 +89,7 @@ html[data-mode="light"] body.glass-effect #context-menu,
 html[data-mode="light"] body.glass-effect dialog#props-dialog,
 html[data-mode="light"] body.glass-effect dialog#preview-modal,
 html[data-mode="light"] body.glass-effect #search-panel,
-html[data-mode="light"] body.glass-effect .theme-picker-popover,
+html[data-mode="light"] body.glass-effect #theme-picker-popover,
 html[data-mode="light"] body.glass-effect .group-header,
 html[data-mode="light"] body.glass-effect #terminal-container,
 html[data-mode="light"] body.glass-effect #term-keys {
@@ -98,7 +97,7 @@ html[data-mode="light"] body.glass-effect #term-keys {
     0 10px 30px -10px rgba(0, 0, 0, 0.15),
     inset 0 1.5px 0 rgba(255, 255, 255, 0.7),
     inset 0 -1.5px 0 rgba(255, 255, 255, 0.2),
-    inset 0 0 12px 2px rgba(255, 255, 255, 0.5);
+    inset 0 0 12px 2px rgba(255, 255, 255, 0.5) !important;
 }
 
 /* Adjustments for nested cards/buttons to not clip heavily */
@@ -162,4 +161,112 @@ body.glass-effect.glass-animate #glass-ink-bg > g:last-of-type {
   body.glass-effect.glass-animate #glass-ink-bg > g {
     animation: none;
   }
+}
+
+/* ── Mobile Layout Fixes for Glass ── */
+@media (max-width: 768px) {
+  body.glass-effect #layout { padding: 0 !important; gap: 0 !important; }
+  body.glass-effect #toolbar, 
+  body.glass-effect .pane { border-radius: 0 !important; border: none !important; }
+  
+  /* Fix the sliding drawer on mobile so it renders cleanly over the blurred background */
+  body.glass-effect #panel-left { 
+    border-radius: 0 20px 20px 0 !important; 
+    border-left: none !important;
+    background: var(--bg-surface) !important;
+    backdrop-filter: blur(25px) saturate(180%) !important;
+    -webkit-backdrop-filter: blur(25px) saturate(180%) !important;
+    box-shadow: 
+      10px 0 30px rgba(0, 0, 0, 0.5),
+      inset 1px 0 0 rgba(255, 255, 255, 0.2),
+      inset -1px 0 0 rgba(255, 255, 255, 0.05) !important;
+  }
+  
+  /* Add a blur to the mobile backdrop when drawer is open */
+  body.glass-effect #layout-backdrop.visible {
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    background: rgba(0,0,0,0.3);
+  }
+}
+
+/* ── Neumorphic Buttons & Toggles in Glass Mode ── */
+body.glass-effect .icon-btn,
+body.glass-effect .ptab,
+body.glass-effect .tab,
+body.glass-effect .ui-slider,
+body.glass-effect .theme-picker-row,
+body.glass-effect .term-btn {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 8px !important;
+  /* Soft extruded Neumorphic shadows */
+  box-shadow: 
+    -2px -2px 6px rgba(255, 255, 255, 0.1),
+    2px 2px 6px rgba(0, 0, 0, 0.2) !important;
+  transition: all 0.2s ease;
+}
+
+/* Active/Pressed Neumorphic States (Sunken) */
+body.glass-effect .icon-btn:active,
+body.glass-effect .icon-btn.active,
+body.glass-effect .ptab.active,
+body.glass-effect .tab.active,
+body.glass-effect input:checked + .ui-slider,
+body.glass-effect .theme-picker-row:hover,
+body.glass-effect .theme-picker-row.active,
+body.glass-effect .term-btn:active {
+  background: rgba(0, 0, 0, 0.1) !important;
+  border: 1px solid rgba(0, 0, 0, 0.2) !important;
+  /* Soft indented Neumorphic shadows */
+  box-shadow: 
+    inset -2px -2px 6px rgba(255, 255, 255, 0.1),
+    inset 2px 2px 6px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Ensure Context Menu looks like glass and items have a subtle neumorphic hover */
+body.glass-effect .ctx-item {
+  border-radius: 6px;
+  margin: 2px 4px;
+  transition: all 0.2s ease;
+}
+
+body.glass-effect .ctx-item:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 
+    inset -1px -1px 3px rgba(255, 255, 255, 0.1),
+    inset 1px 1px 3px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Light mode specific Neumorphism overrides */
+html[data-mode="light"] body.glass-effect .icon-btn,
+html[data-mode="light"] body.glass-effect .ptab,
+html[data-mode="light"] body.glass-effect .tab,
+html[data-mode="light"] body.glass-effect .ui-slider,
+html[data-mode="light"] body.glass-effect .theme-picker-row,
+html[data-mode="light"] body.glass-effect .term-btn {
+  background: rgba(255, 255, 255, 0.3) !important;
+  border: 1px solid rgba(255, 255, 255, 0.5) !important;
+  box-shadow: 
+    -2px -2px 6px rgba(255, 255, 255, 0.8),
+    2px 2px 6px rgba(0, 0, 0, 0.1) !important;
+}
+
+html[data-mode="light"] body.glass-effect .icon-btn:active,
+html[data-mode="light"] body.glass-effect .icon-btn.active,
+html[data-mode="light"] body.glass-effect .ptab.active,
+html[data-mode="light"] body.glass-effect .tab.active,
+html[data-mode="light"] body.glass-effect input:checked + .ui-slider,
+html[data-mode="light"] body.glass-effect .theme-picker-row:hover,
+html[data-mode="light"] body.glass-effect .theme-picker-row.active,
+html[data-mode="light"] body.glass-effect .term-btn:active {
+  background: rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 
+    inset -2px -2px 6px rgba(255, 255, 255, 0.8),
+    inset 2px 2px 6px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Ensure the slider retains its rounded shape */
+body.glass-effect .ui-slider {
+  border-radius: 16px !important;
 }
