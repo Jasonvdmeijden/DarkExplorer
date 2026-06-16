@@ -387,13 +387,13 @@ const Term = (() => {
     }
   });
 
-  document.querySelectorAll('#term-keys .term-key[data-mod]').forEach(btn => {
+  document.querySelectorAll('.term-key[data-mod]').forEach(btn => {
     btn.addEventListener('click', () => { _toggleMod(btn.dataset.mod, btn); if (term) term.focus(); });
   });
-  document.querySelectorAll('#term-keys .term-key[data-arrow]').forEach(btn => {
+  document.querySelectorAll('.term-key[data-arrow]').forEach(btn => {
     btn.addEventListener('click', () => _sendArrow(btn.dataset.arrow));
   });
-  document.querySelectorAll('#term-keys .term-key[data-key="esc"]').forEach(btn => {
+  document.querySelectorAll('.term-key[data-key="esc"]').forEach(btn => {
     btn.addEventListener('click', _sendEscape);
   });
 

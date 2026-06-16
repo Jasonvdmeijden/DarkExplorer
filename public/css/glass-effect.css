@@ -83,8 +83,6 @@ body.glass-effect .pane,
 body.glass-effect .panel-section,
 body.glass-effect .panel-tabs,
 body.glass-effect #pathbar,
-body.glass-effect .col-head,
-body.glass-effect .group-header,
 body.glass-effect #terminal-container,
 body.glass-effect #term-keys {
   background: transparent !important;
@@ -93,6 +91,16 @@ body.glass-effect #term-keys {
   border-radius: 0 !important;
   border: none !important;
   box-shadow: none !important;
+}
+
+/* Scroll-reactive glass headers for file lists and groups */
+body.glass-effect .col-head,
+body.glass-effect .group-header {
+  background: color-mix(in srgb, var(--bg-surface) 60%, transparent) !important;
+  backdrop-filter: blur(10px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(10px) saturate(180%) !important;
+  border-bottom: 1px solid var(--glass-border) !important;
+  border-radius: 0 !important;
 }
 
 /* Disk analyzer — transparent within #center glass; keep structural border-left/bottom */
@@ -157,7 +165,7 @@ body.glass-effect .xterm-screen {
    accent drag indicator. */
 body.glass-effect #layout {
   gap: 12px;
-  padding: 12px calc(12px + var(--layout-pad-h));
+  padding: 12px;
   background: transparent;
 }
 body.glass-effect #panes {
@@ -229,18 +237,20 @@ body.glass-effect .git-sync-btn,
 body.glass-effect .git-icon-btn,
 body.glass-effect .pane-close-btn,
 body.glass-effect .xlsx-tab,
+body.glass-effect #disk-refresh,
 body.glass-effect #btn-new-tab,
 body.glass-effect #btn-split {
   background: rgba(255, 255, 255, 0.05) !important;
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
   border-radius: 8px !important;
+  margin: 0 !important;
+  padding: 6px 10px !important;
   /* Soft extruded Neumorphic shadows */
   box-shadow: 
     -2px -2px 6px rgba(255, 255, 255, 0.1),
     2px 2px 6px rgba(0, 0, 0, 0.2) !important;
   transition: all 0.2s ease;
 }
-
 /* Active/Pressed Neumorphic States (Sunken) */
 body.glass-effect .icon-btn:active,
 body.glass-effect .icon-btn.active,
@@ -301,6 +311,8 @@ html[data-mode="light"] body.glass-effect #btn-new-tab,
 html[data-mode="light"] body.glass-effect #btn-split {
   background: rgba(255, 255, 255, 0.3) !important;
   border: 1px solid rgba(255, 255, 255, 0.5) !important;
+  margin: 0 !important;
+  padding: 6px 10px !important;
   box-shadow: 
     -2px -2px 6px rgba(255, 255, 255, 0.8),
     2px 2px 6px rgba(0, 0, 0, 0.1) !important;

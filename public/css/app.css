@@ -2,7 +2,7 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
   /* Single consistent horizontal padding used by toolbar, layout, terminal, statusbar */
-  --layout-pad-h: 0.6rem;
+  --layout-pad-h: 10px;
 }
 html {
   width: 100%;
@@ -102,18 +102,19 @@ input:checked + .ui-slider:before {
 #toolbar {
   display: flex;
   align-items: center;
-  gap: 0;
-  padding: 0 var(--layout-pad-h);
-  height: 44px;
+  gap: 5px;
+  padding: 5px var(--layout-pad-h);
+  height: auto;
+  min-height: 44px;
   background: var(--bg-surface);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   user-select: none;
 }
 
-.toolbar-left  { display: flex; align-items: center; gap: .15rem; flex: 1; min-width: 0; padding-right: .5rem; }
+.toolbar-left  { display: flex; align-items: center; gap: 5px; flex: 1; min-width: 0; padding-right: .5rem; }
 .toolbar-center{ display: flex; align-items: center; justify-content: center; flex: 0 0 auto; padding: 0 .5rem; }
-.toolbar-right { display: flex; align-items: center; gap: .1rem; padding-left: .5rem; }
+.toolbar-right { display: flex; align-items: center; gap: 5px; padding-left: .5rem; }
 
 .logo-icon {
   font-size: 17px;
@@ -163,7 +164,7 @@ input:checked + .ui-slider:before {
   border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
-  padding: 0 .6rem;
+  padding: 0 10px;
   cursor: text;
   transition: border-color .15s;
   overflow: hidden;
@@ -261,42 +262,39 @@ aside, #panel-left, #panel-right {
   display: flex;
   align-items: center;
   border-bottom: 1px solid var(--border);
-  padding: 0 .4rem;
-  gap: .2rem;
+  padding: 5px 10px;
+  gap: 5px;
   min-height: 40px;
   flex-shrink: 0;
 }
 
-/* Terminal title bar: two rows (modifiers+actions / arrows) */
-#term-keys.panel-tabs {
+/* Terminal header actions */
+#term-header {
   height: auto;
-  padding: .3rem .4rem;
-  gap: .3rem;
-  flex-wrap: wrap;
-}
-.term-row-break {
-  width: 100%;
-  height: 0;
-  flex-basis: 100%;
-}
-
-.ptab {
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  font-size: .78rem;
-  padding: .25rem .55rem;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: background .1s, color .1s;
-  min-height: 32px;
-  display: inline-flex;
+  min-height: 40px;
+  padding: 5px 10px;
+  gap: 5px;
+  display: flex;
   align-items: center;
 }
-.ptab:hover  { background: var(--bg-hover); color: var(--text-primary); }
-.ptab.active { background: var(--accent-dim); color: var(--accent); font-weight: 600; }
 
-.panel-content { flex: 1; overflow-y: auto; }
+#term-keys-top {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+#term-keys-bottom {
+  display: none;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-top: 1px solid var(--border);
+  overflow-x: auto;
+}
+#term-keys-bottom::-webkit-scrollbar { display: none; }
+
+.panel-content { flex: 1; overflow-y: auto; padding: 10px; }
 
 /* ── Splitters ── */
 .splitter {
@@ -323,8 +321,8 @@ aside, #panel-left, #panel-right {
   display: flex;
   align-items: center;
   border-bottom: 1px solid var(--border);
-  padding: 0 .4rem;
-  gap: .2rem;
+  padding: 5px 10px;
+  gap: 5px;
   min-height: 40px;
   overflow-x: auto;
   flex-shrink: 0;
@@ -385,7 +383,7 @@ aside, #panel-left, #panel-right {
 /* ── Panes ── */
 #panes {
   display: flex;
-  flex: 1;
+  flex-1;
   overflow: hidden;
 }
 
@@ -402,7 +400,7 @@ aside, #panel-left, #panel-right {
   display: flex;
   align-items: center;
   gap: .4rem;
-  padding: .25rem .6rem;
+  padding: 4px 10px;
   background: var(--bg-panel);
   border-bottom: 1px solid var(--border);
   font-size: .74rem;
@@ -424,7 +422,7 @@ aside, #panel-left, #panel-right {
 .file-pane {
   flex: 1;
   overflow-y: auto;
-  padding: .5rem;
+  padding: 10px;
 }
 
 /* ── Details view ── */
@@ -527,7 +525,7 @@ aside, #panel-left, #panel-right {
   display: flex;
   align-items: center;
   gap: .5rem;
-  padding: .25rem .6rem;
+  padding: 4px 10px;
   border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: .82rem;
@@ -675,7 +673,7 @@ aside, #panel-left, #panel-right {
   flex-shrink: 0;
   padding: 0 var(--layout-pad-h);
 }
-#terminal-container { flex: 1; overflow: hidden; padding: .3rem; }
+#terminal-container { flex: 1; overflow: hidden; padding: 0 10px 10px 10px; }
 
 /* Modifier keys live in .panel-tabs — no separate container needed */
 .term-key {
@@ -683,7 +681,7 @@ aside, #panel-left, #panel-right {
   border: 1px solid var(--border);
   color: var(--text-secondary);
   border-radius: var(--radius-sm);
-  padding: .25rem .6rem;
+  padding: 4px 10px;
   font-size: .78rem;
   font-family: var(--font-mono);
   line-height: 1;
@@ -698,6 +696,7 @@ aside, #panel-left, #panel-right {
 }
 .term-key:hover  { background: var(--bg-hover); color: var(--text-primary); }
 .term-key.active { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
+
 
 /* ── Status bar ── */
 #statusbar {
@@ -782,7 +781,7 @@ aside, #panel-left, #panel-right {
   display: flex;
   align-items: center;
   gap: .35rem;
-  padding: .2rem .5rem .2rem 0;
+  padding: 4px 10px;
   cursor: pointer;
   font-size: .82rem;
   border-radius: var(--radius-sm);
@@ -1585,6 +1584,21 @@ dialog#preview-modal::backdrop {
   }
   #splitter-bottom { display: none !important; }
 
+  /* Responsive Terminal Keys */
+  #term-keys-top { display: none !important; }
+  #term-keys-bottom { 
+    display: flex !important; 
+    padding: 5px var(--layout-pad-h) !important;
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), 10px) !important;
+  }
+  #terminal-container { padding: 0 10px !important; }
+
+  .term-key {
+    min-width: 2rem;
+    padding: 4px 8px;
+    font-size: .72rem;
+  }
+
   /* Safe areas handled globally by body padding — only need visual-padding overrides here */
 
   /* Compact status-bar stats on mobile: hide labels (CPU/MEM/DSK/NET), keep values only.
@@ -1741,7 +1755,7 @@ dialog#preview-modal::backdrop {
 /* List rows */
 .disk-row {
   position: relative; display: flex; align-items: center; gap: .55rem;
-  padding: .45rem .55rem;
+  padding: 6px 10px;
   border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: .82rem;
@@ -2190,7 +2204,7 @@ html[data-mode="light"] .stat-chip b {
 .git-section-body {}
 .git-file-row {
   display: flex; align-items: center; gap: .4rem;
-  padding: .2rem .8rem .2rem 1.4rem;
+  padding: 4px 10px;
   font-size: .79rem; cursor: pointer;
   transition: background .08s;
 }
