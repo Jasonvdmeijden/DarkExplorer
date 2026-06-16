@@ -1365,62 +1365,96 @@ dialog#preview-modal::backdrop {
 @media (max-width: 768px) {
   /* Compact toolbar */
   #toolbar { 
-    padding: max(env(safe-area-inset-top, 0px), 8px) 8px 8px 8px !important;
-    gap: 8px; 
-    flex-wrap: wrap;
+    display: flex !important;
+    flex-wrap: wrap !important;
     height: auto !important;
-    align-items: center;
+    padding: max(env(safe-area-inset-top, 0px), 8px) 10px 10px 10px !important;
+    gap: 8px 6px !important;
+    align-items: center !important;
+    background: var(--bg-surface);
   }
-  .toolbar-sep { display: none; }
-  /* Hide back/forward, new-folder, upload, view-details on phone */
-  #btn-new-folder, #btn-upload,
-  #btn-back, #btn-forward, #btn-view-details { display: none; }
-  
-  .toolbar-center { flex: 0 0 auto; padding: 0; }
 
-  /* Pathbar gets its own row via flex-basis 100% wrapper behavior */
-  .toolbar-left {
-    flex: 1 1 100%;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex-wrap: wrap;
+  .toolbar-left, .toolbar-center, .toolbar-right {
+    display: contents !important;
   }
+
+  .toolbar-sep { display: none !important; }
+
+  /* Hide less critical buttons on small mobile */
+  #btn-new-folder, #btn-upload, #btn-back, #btn-forward, #btn-view-details { 
+    display: none !important; 
+  }
+
+  /* Order elements for a clean 2-row layout */
+  #btn-toggle-tree { order: 1; }
+  #btn-up { order: 2; }
   
+  /* Center-ish group */
+  #btn-search { order: 10; margin-left: auto !important; height: 42px; min-width: 42px; }
+  #btn-sort { order: 11; }
+  #btn-filter { order: 12; }
+  
+  /* Right group */
+  #btn-view-mosaic { order: 20; }
+  #btn-view-list { order: 21; }
+  #btn-view-disk { order: 22; }
+  #btn-theme-picker { order: 30; }
+
+  /* Pathbar gets its own row */
   #pathbar {
-    order: -1;
-    flex: 1 1 100%;
-    height: 36px;
+    order: 40;
+    flex: 1 1 100% !important;
+    width: 100% !important;
+    height: 40px !important;
+    margin: 2px 0 0 0 !important;
+    border-radius: var(--radius-md) !important;
+    background: var(--bg-panel) !important;
   }
-  
-  #btn-up { order: -2; height: 36px; min-width: 36px; }
-  #btn-toggle-tree { order: -3; }
-  
-  #btn-search { height: 36px; min-width: 36px; }
 
-  /* Left panel becomes a fixed drawer — 75% of the screen on mobile, capped at 420px on tablets */
+  #breadcrumb {
+    font-size: 0.9rem !important;
+    padding: 0 4px !important;
+  }
+
+  .crumb {
+    max-width: 120px !important;
+  }
+
+  /* Bigger touch targets */
+  .icon-btn {
+    min-width: 42px !important;
+    min-height: 42px !important;
+    font-size: 16px !important;
+    border-radius: var(--radius-md) !important;
+  }
+
+  #btn-search svg, #btn-theme-picker svg, #btn-sort svg, #btn-filter svg, #btn-view-disk svg {
+    width: 18px !important;
+    height: 18px !important;
+  }
+
+  /* Left panel becomes a fixed drawer — 85% of the screen on mobile */
   #panel-left {
-    display: flex !important; /* override display:none from earlier media block */
+    display: flex !important;
     position: fixed !important;
     left: 0; top: 0; bottom: 0;
     z-index: 200;
-    width: min(75dvw, 420px) !important;
+    width: min(85dvw, 420px) !important;
     transform: translateX(-100%);
-    transition: transform .25s ease;
-    box-shadow: 4px 0 20px rgba(0, 0, 0, .4);
+    transition: transform .25s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 4px 0 25px rgba(0, 0, 0, 0.5);
   }
   #panel-left.mobile-open { transform: translateX(0); }
   #splitter-left { display: none !important; }
 
   /* Bigger touch targets */
   .file-row {
-    min-height: 44px;
-    padding: .4rem .75rem;
+    min-height: 48px;
+    padding: 0.5rem 0.8rem;
     align-items: center;
   }
-  .icon-btn { min-width: 36px; min-height: 36px; }
-  .ctx-item { padding: .65rem 1rem; font-size: .9rem; }
-  .tree-node { padding: .45rem .5rem; }
+  .ctx-item { padding: 0.75rem 1.2rem; font-size: 0.95rem; }
+  .tree-node { padding: 0.6rem 0.5rem; font-size: 0.9rem; }
 
   /* Full-screen preview modal on mobile */
   dialog#preview-modal[open] {

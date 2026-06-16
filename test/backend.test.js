@@ -12,7 +12,7 @@ const fs = require('fs');
 const path = require('path');
 
 const BASE = 'http://localhost:3322';
-const OTP = (process.argv[process.argv.indexOf('--otp') + 1] || 'LGR8D5').trim().toUpperCase();
+const OTP = (process.argv.includes('--otp') ? process.argv[process.argv.indexOf('--otp') + 1] : 'LGR8D5').trim().toUpperCase();
 const TMP_DIR  = path.join(process.env.TEMP || '/tmp', 'de_test_' + Date.now());
 const TMP_FILE = path.join(TMP_DIR, 'hello.txt');
 
@@ -149,7 +149,9 @@ async function testHTTP() {
 
   section('HTTP — thumbnail');
   // use a real file that exists
-  r = await req('GET', '/thumbnail?path=' + encodeURIComponent('C:\\Windows\\System32\\drivers\\etc\\hosts') + '&width=100');
+  const isWin = process.platform === 'win32';
+  const testSysFile = isWin ? 'C:\\Windows\\System32\\drivers\\etc\\hosts' : '/etc/hosts';
+  r = await req('GET', '/thumbnail?path=' + encodeURIComponent(testSysFile) + '&width=100');
   assert('GET /thumbnail text file → 204 (no thumb) or 200', r.status === 204 || r.status === 200);
 }
 
@@ -171,21 +173,23 @@ async function testWS() {
 
   section('WebSocket — fs:roots & fs:list');
 
+  const isWin = process.platform === 'win32';
   let roots = await wsSend('fs:roots', {});
   assert('fs:roots returns array', Array.isArray(roots));
-  assert('fs:roots contains C:\\', roots.some(r => r.path && r.path.startsWith('C')));
+  assert('fs:roots contains correct root', roots.some(r => r.path && (isWin ? r.path.startsWith('C') : r.path === '/')));
 
   let items = await wsSend('fs:list', {});
   assert('fs:list (no path) returns drive roots', Array.isArray(items) && items.length > 0);
   assert('fs:list root items are dirs', items.every(i => i.isDir));
 
-  items = await wsSend('fs:list', { path: 'C:\\Windows' });
-  assert('fs:list C:\\Windows returns entries', Array.isArray(items) && items.length > 0);
+  const testRoot = isWin ? 'C:\\Windows' : '/etc';
+  items = await wsSend('fs:list', { path: testRoot });
+  assert(`fs:list ${testRoot} returns entries`, Array.isArray(items) && items.length > 0);
   assert('fs:list entries have name/path/isDir', items[0] && 'name' in items[0] && 'path' in items[0] && 'isDir' in items[0]);
 
   section('WebSocket — fs:stat');
 
-  const statResult = await wsSend('fs:stat', { path: 'C:\\Windows' });
+  const statResult = await wsSend('fs:stat', { path: testRoot });
   assert('fs:stat returns dir info', statResult && statResult.isDir === true);
   assert('fs:stat has mtime', typeof statResult.mtime === 'number');
 
@@ -230,7 +234,8 @@ async function testWS() {
 
   section('WebSocket — clipboard');
 
-  await wsSend('clipboard:set', { paths: ['C:\\test\\a', 'C:\\test\\b'], op: 'copy' });
+  const dummyPaths = isWin ? ['C:\\test\\a', 'C:\\test\\b'] : ['/tmp/test/a', '/tmp/test/b'];
+  await wsSend('clipboard:set', { paths: dummyPaths, op: 'copy' });
   const clip = await wsSend('clipboard:get', {});
   assert('clipboard:set/get round-trip', Array.isArray(clip.paths) && clip.paths.length === 2 && clip.op === 'copy');
 
@@ -240,11 +245,12 @@ async function testWS() {
 
   section('WebSocket — bookmarks');
 
-  await wsSend('bookmark:add', { path: 'C:\\Windows', label: 'Test bookmark' });
+  const bmTest = isWin ? 'C:\\Windows' : '/etc';
+  await wsSend('bookmark:add', { path: bmTest, label: 'Test bookmark' });
   const bookmarks = await wsSend('bookmark:list', {});
-  assert('bookmark:add + bookmark:list', Array.isArray(bookmarks) && bookmarks.some(b => b.path === 'C:\\Windows'));
+  assert('bookmark:add + bookmark:list', Array.isArray(bookmarks) && bookmarks.some(b => b.path === bmTest));
 
-  const bmId = bookmarks.find(b => b.path === 'C:\\Windows').id;
+  const bmId = bookmarks.find(b => b.path === bmTest).id;
   await wsSend('bookmark:remove', { id: bmId });
   const afterRemove = await wsSend('bookmark:list', {});
   assert('bookmark:remove removes it', !afterRemove.some(b => b.id === bmId));
@@ -255,10 +261,11 @@ async function testWS() {
   // the watcher may not have indexed everything yet — just check shape
   assert('search:filename returns results object', searchResult && 'results' in searchResult);
 
-  section('WebSocket — terminal');
+  section('WebSocket — terminal (pty)');
 
-  const termResult = await wsSend('terminal:create', { cwd: 'C:\\', cols: 80, rows: 24 });
-  assert('terminal:create returns sid', typeof termResult.sid === 'string');
+  const termCwd = isWin ? 'C:\\' : '/';
+  const termResult = await wsSend('terminal:create', { cwd: termCwd, cols: 80, rows: 24 });
+  assert('terminal:create returns id', termResult && typeof termResult.id === 'string');
   const sid = termResult.sid;
 
   // give it a moment then destroy

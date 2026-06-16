@@ -48,11 +48,9 @@ body.glass-effect #pathbar,
 body.glass-effect .col-head,
 body.glass-effect footer#statusbar,
 body.glass-effect .filter-menu,
-body.glass-effect #context-menu,
 body.glass-effect dialog#props-dialog,
 body.glass-effect dialog#preview-modal,
 body.glass-effect #search-panel,
-body.glass-effect #theme-picker-popover,
 body.glass-effect .group-header,
 body.glass-effect #terminal-container,
 body.glass-effect #term-keys {
@@ -71,6 +69,17 @@ body.glass-effect #term-keys {
   position: relative;
 }
 
+/* Floating elements in glass mode: keep fixed position and use tighter radius */
+body.glass-effect #context-menu,
+body.glass-effect #theme-picker-popover {
+  background: var(--bg-surface) !important;
+  backdrop-filter: blur(12px) saturate(180%) contrast(110%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%) contrast(110%);
+  border-radius: 12px;
+  border: 1px solid var(--glass-border) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4) !important;
+}
+
 /* Light mode specific intense glass styling */
 html[data-mode="light"] body.glass-effect #toolbar,
 html[data-mode="light"] body.glass-effect #panel-left,
@@ -85,11 +94,9 @@ html[data-mode="light"] body.glass-effect #pathbar,
 html[data-mode="light"] body.glass-effect .col-head,
 html[data-mode="light"] body.glass-effect footer#statusbar,
 html[data-mode="light"] body.glass-effect .filter-menu,
-html[data-mode="light"] body.glass-effect #context-menu,
 html[data-mode="light"] body.glass-effect dialog#props-dialog,
 html[data-mode="light"] body.glass-effect dialog#preview-modal,
 html[data-mode="light"] body.glass-effect #search-panel,
-html[data-mode="light"] body.glass-effect #theme-picker-popover,
 html[data-mode="light"] body.glass-effect .group-header,
 html[data-mode="light"] body.glass-effect #terminal-container,
 html[data-mode="light"] body.glass-effect #term-keys {
@@ -196,7 +203,20 @@ body.glass-effect .ptab,
 body.glass-effect .tab,
 body.glass-effect .ui-slider,
 body.glass-effect .theme-picker-row,
-body.glass-effect .term-btn {
+body.glass-effect .theme-mode-btn,
+body.glass-effect .term-btn,
+body.glass-effect .term-key,
+body.glass-effect .pv-tab,
+body.glass-effect .props-tab,
+body.glass-effect .share-btn,
+body.glass-effect .git-commit-btn,
+body.glass-effect .git-sync-btn,
+body.glass-effect .git-icon-btn,
+body.glass-effect .pane-close-btn,
+body.glass-effect .xlsx-tab,
+body.glass-effect #disk-refresh,
+body.glass-effect #btn-new-tab,
+body.glass-effect #btn-split {
   background: rgba(255, 255, 255, 0.05) !important;
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
   border-radius: 8px !important;
@@ -212,10 +232,18 @@ body.glass-effect .icon-btn:active,
 body.glass-effect .icon-btn.active,
 body.glass-effect .ptab.active,
 body.glass-effect .tab.active,
+body.glass-effect .pv-tab.active,
+body.glass-effect .props-tab.active,
+body.glass-effect .theme-mode-btn.active,
+body.glass-effect .xlsx-tab.active,
 body.glass-effect input:checked + .ui-slider,
 body.glass-effect .theme-picker-row:hover,
 body.glass-effect .theme-picker-row.active,
-body.glass-effect .term-btn:active {
+body.glass-effect .term-btn:active,
+body.glass-effect .term-key:active,
+body.glass-effect .git-commit-btn:active,
+body.glass-effect .git-sync-btn:active,
+body.glass-effect .git-icon-btn:active {
   background: rgba(0, 0, 0, 0.1) !important;
   border: 1px solid rgba(0, 0, 0, 0.2) !important;
   /* Soft indented Neumorphic shadows */
@@ -244,7 +272,20 @@ html[data-mode="light"] body.glass-effect .ptab,
 html[data-mode="light"] body.glass-effect .tab,
 html[data-mode="light"] body.glass-effect .ui-slider,
 html[data-mode="light"] body.glass-effect .theme-picker-row,
-html[data-mode="light"] body.glass-effect .term-btn {
+html[data-mode="light"] body.glass-effect .theme-mode-btn,
+html[data-mode="light"] body.glass-effect .term-btn,
+html[data-mode="light"] body.glass-effect .term-key,
+html[data-mode="light"] body.glass-effect .pv-tab,
+html[data-mode="light"] body.glass-effect .props-tab,
+html[data-mode="light"] body.glass-effect .share-btn,
+html[data-mode="light"] body.glass-effect .git-commit-btn,
+html[data-mode="light"] body.glass-effect .git-sync-btn,
+html[data-mode="light"] body.glass-effect .git-icon-btn,
+html[data-mode="light"] body.glass-effect .pane-close-btn,
+html[data-mode="light"] body.glass-effect .xlsx-tab,
+html[data-mode="light"] body.glass-effect #disk-refresh,
+html[data-mode="light"] body.glass-effect #btn-new-tab,
+html[data-mode="light"] body.glass-effect #btn-split {
   background: rgba(255, 255, 255, 0.3) !important;
   border: 1px solid rgba(255, 255, 255, 0.5) !important;
   box-shadow: 
@@ -256,10 +297,18 @@ html[data-mode="light"] body.glass-effect .icon-btn:active,
 html[data-mode="light"] body.glass-effect .icon-btn.active,
 html[data-mode="light"] body.glass-effect .ptab.active,
 html[data-mode="light"] body.glass-effect .tab.active,
+html[data-mode="light"] body.glass-effect .pv-tab.active,
+html[data-mode="light"] body.glass-effect .props-tab.active,
+html[data-mode="light"] body.glass-effect .theme-mode-btn.active,
+html[data-mode="light"] body.glass-effect .xlsx-tab.active,
 html[data-mode="light"] body.glass-effect input:checked + .ui-slider,
 html[data-mode="light"] body.glass-effect .theme-picker-row:hover,
 html[data-mode="light"] body.glass-effect .theme-picker-row.active,
-html[data-mode="light"] body.glass-effect .term-btn:active {
+html[data-mode="light"] body.glass-effect .term-btn:active,
+html[data-mode="light"] body.glass-effect .term-key:active,
+html[data-mode="light"] body.glass-effect .git-commit-btn:active,
+html[data-mode="light"] body.glass-effect .git-sync-btn:active,
+html[data-mode="light"] body.glass-effect .git-icon-btn:active {
   background: rgba(255, 255, 255, 0.1) !important;
   box-shadow: 
     inset -2px -2px 6px rgba(255, 255, 255, 0.8),
