@@ -82,10 +82,10 @@ body.glass-effect #tabs-bar,
 body.glass-effect .pane,
 body.glass-effect .panel-section,
 body.glass-effect .panel-tabs,
-body.glass-effect #pathbar,
 body.glass-effect #terminal-container,
 body.glass-effect #term-mods,
-body.glass-effect #term-arrows {
+body.glass-effect #term-arrows,
+body.glass-effect .group-header {
   background: transparent !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
@@ -94,9 +94,35 @@ body.glass-effect #term-arrows {
   box-shadow: none !important;
 }
 
-/* Scroll-reactive glass headers for file lists and groups */
-body.glass-effect .col-head,
-body.glass-effect .group-header {
+/* Path bar — glass input treatment matching the neumorphic button style */
+body.glass-effect #pathbar {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  box-shadow:
+    -2px -2px 6px rgba(255, 255, 255, 0.1),
+    2px 2px 6px rgba(0, 0, 0, 0.2) !important;
+  border-radius: var(--radius-sm) !important;
+}
+body.glass-effect #pathbar:focus-within {
+  border-color: var(--accent) !important;
+  box-shadow:
+    -2px -2px 6px rgba(255, 255, 255, 0.1),
+    2px 2px 6px rgba(0, 0, 0, 0.2),
+    0 0 0 1px var(--accent) !important;
+}
+html[data-mode="light"] body.glass-effect #pathbar {
+  background: rgba(255, 255, 255, 0.3) !important;
+  border: 1px solid rgba(255, 255, 255, 0.5) !important;
+  box-shadow:
+    -2px -2px 6px rgba(255, 255, 255, 0.8),
+    2px 2px 6px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Sticky column header gets a frosted treatment so content scrolling under it
+   remains readable — group headers are no longer sticky so they don't need this */
+body.glass-effect .col-head {
   background: color-mix(in srgb, var(--bg-surface) 60%, transparent) !important;
   backdrop-filter: blur(10px) saturate(180%) !important;
   -webkit-backdrop-filter: blur(10px) saturate(180%) !important;

@@ -514,19 +514,16 @@ aside, #panel-left, #panel-right {
   text-transform: uppercase;
   letter-spacing: .05em;
   color: var(--text-muted);
+  background: var(--bg-panel);
   border-bottom: 1px solid var(--border);
-  background: var(--bg-surface);
-  position: sticky;
-  top: 32px; /* right below the column headers */
-  z-index: 5;
   display: flex;
   align-items: center;
   width: 100%;
   box-sizing: border-box;
 }
 .view-mosaic .group-header {
-  top: 0;
   background: transparent;
+  border-bottom: none;
   padding: 1rem .5rem .2rem;
 }
 
@@ -1577,8 +1574,8 @@ dialog#preview-modal::backdrop {
   .col-h:not(:first-child), .cell:not(:first-child) { display: none; }
   .col-h:first-child, .cell:first-child { width: 100% !important; }
 
-  /* Tighten tab bar */
-  #tabs-bar { padding: 0 .25rem; }
+  /* Tab bar — proper breathing room on mobile */
+  #tabs-bar { padding: 4px var(--layout-pad-h); }
   #tabs-list { gap: .15rem; }
 
   /* Full-screen terminal panel on mobile */
@@ -1638,6 +1635,23 @@ dialog#preview-modal::backdrop {
 
   /* Safe areas are now handled via fixed positioning (top/left/right/bottom).
      This ensures they update properly on orientation changes. */
+
+  /* Git panel — larger touch targets and readable sizes on mobile */
+  .git-repo-bar,
+  .git-branch-bar,
+  .git-sync-bar { min-height: 52px; padding: .5rem .6rem; }
+
+  .git-clone-form input[type="text"],
+  .git-repo-select,
+  .git-branch-select,
+  .git-op-select,
+  .git-stash-msg { min-height: 42px; font-size: .88rem; padding: .4rem .6rem; }
+
+  .git-commit-msg { font-size: .88rem; min-height: 72px; padding: .4rem .6rem; }
+
+  .git-commit-btn { min-height: 42px !important; font-size: .88rem; padding: .45rem; }
+
+  .git-sync-btn { min-height: 42px; font-size: .82rem; padding: .4rem .6rem; }
 }
 
 /* ── Open-in-tab button (replaces download) ── */
@@ -2006,17 +2020,35 @@ html[data-mode="light"] .stat-chip b {
 
 /* ── Bookmark add bar ── */
 .bookmark-add-bar {
-  display: flex; align-items: center; gap: .3rem;
+  display: flex;
+  align-items: center;
+  gap: .3rem;
   padding: .3rem .5rem;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+  min-height: 40px;
+  box-sizing: border-box;
 }
 .bookmark-add-bar input {
-  flex: 1; background: var(--bg-base); border: 1px solid var(--border);
-  border-radius: var(--radius-sm); color: var(--text-primary);
-  padding: .2rem .45rem; font-size: .76rem; outline: none;
+  flex: 1;
+  min-width: 0;
+  width: 0;
+  min-height: 32px;
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  padding: .2rem .45rem;
+  font-size: .76rem;
+  outline: none;
+  box-sizing: border-box;
 }
 .bookmark-add-bar input:focus { border-color: var(--border-focus); }
+
+@media (max-width: 768px) {
+  .bookmark-add-bar { min-height: 52px; padding: .4rem .6rem; }
+  .bookmark-add-bar input { min-height: 42px; font-size: .85rem; padding: .3rem .6rem; }
+}
 .bookmark-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ── Git panel ── */
@@ -2044,6 +2076,9 @@ html[data-mode="light"] .stat-chip b {
   font-size: .78rem;
   padding: .4rem .55rem;
   outline: none;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 32px;
 }
 .git-clone-form input[type="text"]:focus { border-color: var(--accent); }
 .git-clone-hint {
@@ -2086,6 +2121,8 @@ html[data-mode="light"] .stat-chip b {
   font-family: var(--font-mono);
   outline: none;
   min-width: 0;
+  min-height: 32px;
+  box-sizing: border-box;
 }
 .git-repo-select:focus { border-color: var(--accent); }
 .git-clone-actions .git-commit-btn { flex: 1; min-width: 0; font-size: .78rem; }
@@ -2106,6 +2143,7 @@ html[data-mode="light"] .stat-chip b {
   flex: 1; background: var(--bg-base); border: 1px solid var(--border);
   border-radius: var(--radius-sm); color: var(--text-primary);
   padding: .22rem .45rem; font-size: .78rem; cursor: pointer; outline: none;
+  min-height: 32px; box-sizing: border-box; min-width: 0;
 }
 .git-branch-select:focus { border-color: var(--border-focus); }
 .git-icon-btn {
@@ -2180,6 +2218,7 @@ html[data-mode="light"] .stat-chip b {
   background: var(--bg-base); border: 1px solid var(--border);
   border-radius: var(--radius-sm); color: var(--text-primary);
   padding: .25rem .45rem; font-size: .76rem; outline: none;
+  min-height: 32px; box-sizing: border-box; width: 100%;
 }
 .git-stash-msg:focus { border-color: var(--border-focus); }
 .git-stash-untracked {
@@ -2194,6 +2233,7 @@ html[data-mode="light"] .stat-chip b {
   border-radius: var(--radius-sm); color: var(--text-primary);
   padding: .3rem .45rem; font-size: .78rem; font-family: inherit;
   resize: vertical; min-height: 50px; outline: none; display: block;
+  box-sizing: border-box;
 }
 .git-commit-msg:focus { border-color: var(--border-focus); }
 .git-commit-btn {
