@@ -130,7 +130,6 @@ body.glass-effect .netflix-container {
 
 /* Row & Carousels */
 .netflix-row {
-  padding: 0 4%;
   margin-bottom: 35px;
 }
 
@@ -138,7 +137,7 @@ body.glass-effect .netflix-container {
   font-size: 1.4rem;
   font-weight: 700;
   color: var(--text-primary);
-  margin: 0 0 15px 0;
+  margin: 0 4% 15px 4%;
 }
 
 .netflix-carousel-container {
@@ -150,10 +149,11 @@ body.glass-effect .netflix-container {
 .netflix-carousel {
   display: flex;
   overflow-x: auto;
+  overflow-y: hidden;
   gap: 10px;
   scroll-behavior: smooth;
   width: 100%;
-  padding: 10px 0;
+  padding: 30px 4%;
 }
 
 .netflix-carousel::-webkit-scrollbar {
@@ -190,8 +190,8 @@ body.glass-effect .netflix-container {
   transform: translateY(-50%) scale(1.1);
 }
 
-.carousel-nav-btn.prev { left: -25px; }
-.carousel-nav-btn.next { right: -25px; }
+.carousel-nav-btn.prev { left: 1%; }
+.carousel-nav-btn.next { right: 1%; }
 
 /* Cards (Tiles) */
 .netflix-card {
