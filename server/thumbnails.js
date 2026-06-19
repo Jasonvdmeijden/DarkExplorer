@@ -26,7 +26,11 @@ const CONVERT_EXTS = new Set([
   '.heic','.heif',
   '.dng','.cr2','.cr3','.nef','.arw','.raf','.orf','.rw2'
 ]);
-const VIDEO_EXTS = new Set(['.mp4','.webm','.mov','.mkv','.avi','.m4v']);
+const VIDEO_EXTS = new Set([
+  '.mp4','.m4v','.webm','.mov','.mkv','.avi','.3gp','.ogv','.flv','.f4v',
+  '.wmv','.ts','.mpeg','.mpg','.m2v','.3g2','.divx','.asf','.rm','.rmvb',
+  '.vob','.mts','.m2ts','.h264'
+]);
 const TEXT_EXTS  = new Set([
   '.txt','.md','.js','.mjs','.ts','.tsx','.jsx','.json','.yaml','.yml',
   '.html','.css','.scss','.py','.rb','.go','.rs','.java','.c','.cpp',

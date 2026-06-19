@@ -89,17 +89,45 @@ function makeRow(filePath, s) {
 
 const BATCH = 100;
 let queue = [];
+let ftsQueue = [];
+
+const deleteFts = db.prepare('DELETE FROM files_fts WHERE path = ?');
+const insertFts = db.prepare('INSERT INTO files_fts (path, content) VALUES (?, ?)');
+
+const batchFts = db.transaction((rows) => {
+  for (const r of rows) {
+    try {
+      deleteFts.run(r.path);
+      insertFts.run(r.path, r.content);
+    } catch {}
+  }
+});
 
 function flush() {
-  if (queue.length === 0) return;
-  const batch = queue.splice(0, BATCH);
-  // Errors caught inside batchUpsert body — no rollback needed, no process.abort()
-  try { batchUpsert(batch); } catch { /* SQLITE_BUSY on COMMIT — skip batch */ }
+  if (queue.length > 0) {
+    const batch = queue.splice(0, BATCH);
+    try { batchUpsert(batch); } catch { /* SQLITE_BUSY on COMMIT — skip batch */ }
+  }
+  if (ftsQueue.length > 0) {
+    const batch = ftsQueue.splice(0, BATCH);
+    try { batchFts(batch); } catch { /* SQLITE_BUSY on COMMIT — skip batch */ }
+  }
 }
 
-function enqueue(row) {
+async function enqueue(row) {
   queue.push(row);
-  if (queue.length >= BATCH) flush();
+  if (queue.length >= BATCH) {
+    flush();
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+}
+
+async function enqueueFts(row) {
+  ftsQueue.push(row);
+  if (ftsQueue.length >= BATCH) {
+    flush();
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
 }
 
 function getRoots() {
@@ -128,7 +156,15 @@ async function crawl(dirPath) {
     if (isExcluded(full)) continue;
     try {
       const s = await fsp.stat(full);
-      enqueue(makeRow(full, s));
+      const row = makeRow(full, s);
+      await enqueue(row);
+
+      if (!row.is_dir && row.ext && TEXT_EXTS.has(row.ext) && s.size <= 100 * 1024) {
+        try {
+          const content = await fsp.readFile(full, 'utf8');
+          await enqueueFts({ path: full, content });
+        } catch {}
+      }
     } catch { continue; }
     if (e.isDirectory()) await crawl(full);
   }
@@ -138,6 +174,7 @@ async function crawl(dirPath) {
   // Clear the files table for a fresh start on Mac/Linux when exclusions change
   if (process.platform !== 'win32') {
     db.prepare('DELETE FROM files').run();
+    db.prepare('DELETE FROM files_fts').run();
   }
 
   const roots = getRoots();

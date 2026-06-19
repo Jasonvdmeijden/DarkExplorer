@@ -96,6 +96,24 @@ db.exec(`
     started_at    INTEGER,
     finished_at   INTEGER
   );
+
+  CREATE TABLE IF NOT EXISTS media_progress (
+    path         TEXT PRIMARY KEY,
+    progress_pct REAL NOT NULL,
+    current_time REAL NOT NULL,
+    duration     REAL NOT NULL,
+    updated_at   INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS media_favorites (
+    path         TEXT PRIMARY KEY,
+    added_at     INTEGER NOT NULL
+  );
+
+  CREATE VIRTUAL TABLE IF NOT EXISTS files_fts USING fts5(
+    path,
+    content
+  );
 `);
 
 db.prepare('INSERT OR IGNORE INTO disk_scan_state (id, status, scanned_count) VALUES (1, \'idle\', 0)').run();

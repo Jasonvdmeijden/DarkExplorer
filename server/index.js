@@ -57,7 +57,7 @@ app.post('/enroll', express.json(), (req, res) => {
   const result = auth.enrollDevice(code, label);
   if (!result.ok) return res.status(401).json({ error: result.error });
   res.setHeader('Set-Cookie', `de_token=${result.token}; Path=/; SameSite=Strict; Max-Age=31536000`);
-  res.json({ token: result.token });
+  res.json({ token: result.token, deviceId: result.deviceId });
 });
 
 function requireAuth(req, res, next) {
@@ -109,7 +109,12 @@ const AUDIO_MIME = {
 };
 const VIDEO_MIME = {
   mp4: 'video/mp4', m4v: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime',
-  mkv: 'video/x-matroska', avi: 'video/x-msvideo', '3gp': 'video/3gpp', ogv: 'video/ogg'
+  mkv: 'video/x-matroska', avi: 'video/x-msvideo', '3gp': 'video/3gpp', ogv: 'video/ogg',
+  flv: 'video/x-flv', f4v: 'video/x-f4v', wmv: 'video/x-ms-wmv', ts: 'video/mp2t',
+  mpeg: 'video/mpeg', mpg: 'video/mpeg', m2v: 'video/mpeg', '3g2': 'video/3gpp2',
+  divx: 'video/divx', asf: 'video/x-ms-asf', rm: 'application/vnd.rn-realmedia',
+  rmvb: 'application/vnd.rn-realmedia', vob: 'video/dvd', mts: 'video/mp2t',
+  m2ts: 'video/mp2t', h264: 'video/h264'
 };
 
 app.get('/serve', requireAuth, async (req, res) => {
@@ -151,10 +156,11 @@ if (!fs_.existsSync(TRANSCODE_DIR)) fs_.mkdirSync(TRANSCODE_DIR, { recursive: tr
 // One ffmpeg per source file at a time; concurrent requests for the same file share the promise
 const _transcodeInflight = new Map();
 
-async function _ensureTranscoded(srcPath) {
+async function _ensureTranscoded(srcPath, quality) {
   const stat = await files.stat(srcPath);
   const crypto = require('crypto');
-  const key = crypto.createHash('md5').update(`${srcPath}:${stat.mtime || stat.mtimeMs}`).digest('hex');
+  const keyStr = `${srcPath}:${stat.mtime || stat.mtimeMs}` + (quality ? `:${quality}` : '');
+  const key = crypto.createHash('md5').update(keyStr).digest('hex');
   const outPath = path.join(TRANSCODE_DIR, key + '.mp4');
   if (fs_.existsSync(outPath)) return { outPath, fromCache: true };
   if (_transcodeInflight.has(outPath)) return _transcodeInflight.get(outPath);
@@ -178,7 +184,12 @@ async function _ensureTranscoded(srcPath) {
     console.log(`[transcode] building cache for ${path.basename(srcPath)} (video=${v?.codec_name}${vIsH264?' copy':' reencode'}, audio=${a?.codec_name}${aIsAac?' copy':' aac'})`);
 
     const args = ['-hide_banner','-loglevel','warning','-y','-i', srcPath];
-    if (vIsH264) args.push('-c:v','copy'); else args.push('-c:v','libx264','-preset','veryfast','-crf','23');
+    if (quality) {
+      args.push('-vf', `scale=-2:${quality}`, '-maxrate', '2000k', '-bufsize', '4000k');
+      args.push('-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23');
+    } else {
+      if (vIsH264) args.push('-c:v','copy'); else args.push('-c:v','libx264','-preset','veryfast','-crf','23');
+    }
     if (aIsAac)  args.push('-c:a','copy'); else args.push('-c:a','aac','-b:a','192k');
     // +faststart writes the moov atom to the start of the file after encoding completes →
     // browsers can start playback immediately and seek freely.
@@ -230,10 +241,11 @@ const fsp = require('fs/promises');
 
 app.get('/transcode', requireAuth, async (req, res) => {
   const filePath = req.query.path;
+  const quality = req.query.quality;
   if (!filePath) return res.status(400).json({ error: 'Missing path' });
-  console.log(`[transcode] request: ${path.basename(filePath)}`);
+  console.log(`[transcode] request: ${path.basename(filePath)}${quality ? ` (quality: ${quality})` : ''}`);
   try {
-    const { outPath, fromCache } = await _ensureTranscoded(filePath);
+    const { outPath, fromCache } = await _ensureTranscoded(filePath, quality);
     if (!fromCache) _pruneTranscodeCache(); // fire-and-forget
     res.setHeader('Cache-Control', 'private, max-age=3600');
     res.sendFile(outPath); // Express handles Range requests automatically
@@ -241,6 +253,120 @@ app.get('/transcode', requireAuth, async (req, res) => {
     console.error('[transcode] failed:', e.message);
     res.status(500).json({ error: e.message });
   }
+});
+
+app.get('/media-info', requireAuth, async (req, res) => {
+  const filePath = req.query.path;
+  if (!filePath) return res.status(400).json({ error: 'Missing path' });
+  try {
+    const { spawn } = require('child_process');
+    const probed = await new Promise((resolve, reject) => {
+      const p = spawn('ffprobe', [
+        '-v', 'error', '-print_format', 'json',
+        '-show_streams', '-show_format', filePath
+      ]);
+      let buf = '';
+      p.stdout.on('data', d => buf += d);
+      p.on('error', reject);
+      p.on('close', (code) => {
+        if (code !== 0) return reject(new Error(`ffprobe exited with code ${code}`));
+        try { resolve(JSON.parse(buf)); } catch (e) { reject(e); }
+      });
+    });
+
+    const streams = probed.streams || [];
+    const format = probed.format || {};
+    const video = streams.find(s => s.codec_type === 'video');
+    const audio = streams.find(s => s.codec_type === 'audio');
+
+    const info = {
+      format: {
+        filename: format.filename,
+        format_name: format.format_name,
+        format_long_name: format.format_long_name,
+        duration: format.duration ? parseFloat(format.duration) : null,
+        size: format.size ? parseInt(format.size, 10) : null,
+        bit_rate: format.bit_rate ? parseInt(format.bit_rate, 10) : null,
+      },
+      video: video ? {
+        codec_name: video.codec_name,
+        codec_long_name: video.codec_long_name,
+        profile: video.profile || null,
+        width: video.width,
+        height: video.height,
+        display_aspect_ratio: video.display_aspect_ratio || null,
+        pix_fmt: video.pix_fmt || null,
+        r_frame_rate: video.r_frame_rate || null,
+        avg_frame_rate: video.avg_frame_rate || null,
+        bit_rate: video.bit_rate ? parseInt(video.bit_rate, 10) : null,
+        // HDR metadata
+        color_primaries: video.color_primaries || null,
+        color_transfer: video.color_transfer || null,
+        color_space: video.color_space || null,
+        color_range: video.color_range || null,
+      } : null,
+      audio: audio ? {
+        codec_name: audio.codec_name,
+        codec_long_name: audio.codec_long_name,
+        sample_rate: audio.sample_rate ? parseInt(audio.sample_rate, 10) : null,
+        channels: audio.channels || null,
+        channel_layout: audio.channel_layout || null,
+        bit_rate: audio.bit_rate ? parseInt(audio.bit_rate, 10) : null,
+      } : null,
+      streams: streams.map(s => ({
+        index: s.index,
+        codec_type: s.codec_type,
+        codec_name: s.codec_name,
+        codec_long_name: s.codec_long_name,
+      })),
+    };
+
+    res.json(info);
+  } catch (e) {
+    console.error('[media-info] failed:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/media-progress', requireAuth, (req, res) => {
+  const db = require('./db');
+  res.json(db.prepare('SELECT * FROM media_progress ORDER BY updated_at DESC').all());
+});
+
+app.post('/media-progress', requireAuth, require('express').json(), (req, res) => {
+  const db = require('./db');
+  const { path, progress_pct, current_time, duration } = req.body;
+  if (!path) return res.status(400).json({error: 'Missing path'});
+  db.prepare('INSERT OR REPLACE INTO media_progress (path, progress_pct, current_time, duration, updated_at) VALUES (?, ?, ?, ?, ?)')
+    .run(path, progress_pct, current_time, duration, Date.now());
+  res.json({ok:true});
+});
+
+app.delete('/media-progress', requireAuth, require('express').json(), (req, res) => {
+  const db = require('./db');
+  const { path } = req.body;
+  db.prepare('DELETE FROM media_progress WHERE path = ?').run(path);
+  res.json({ok:true});
+});
+
+app.get('/media-favorites', requireAuth, (req, res) => {
+  const db = require('./db');
+  res.json(db.prepare('SELECT * FROM media_favorites ORDER BY added_at DESC').all());
+});
+
+app.post('/media-favorites', requireAuth, require('express').json(), (req, res) => {
+  const db = require('./db');
+  const { path } = req.body;
+  if (!path) return res.status(400).json({error: 'Missing path'});
+  db.prepare('INSERT OR REPLACE INTO media_favorites (path, added_at) VALUES (?, ?)').run(path, Date.now());
+  res.json({ok:true});
+});
+
+app.delete('/media-favorites', requireAuth, require('express').json(), (req, res) => {
+  const db = require('./db');
+  const { path } = req.body;
+  db.prepare('DELETE FROM media_favorites WHERE path = ?').run(path);
+  res.json({ok:true});
 });
 
 app.get('/thumbnail', requireAuth, async (req, res) => {
@@ -397,6 +523,14 @@ async function handle(type, payload, reply, ws, device) {
     })); break;
     case 'share:list':   reply({ items: shares.listForPath(payload.path) }); break;
     case 'share:revoke': shares.revoke(payload.id); reply({ ok: true }); break;
+    case 'fs:media-list': {
+      try {
+        reply(await files.mediaList(payload.path));
+      } catch (e) {
+        reply(null, e.message);
+      }
+      break;
+    }
     case 'fs:roots': {
       const types = files.driveTypes();
       reply(files.roots().map(r => ({ name: r, path: r, isDir: true, driveType: types[r] ?? null })));

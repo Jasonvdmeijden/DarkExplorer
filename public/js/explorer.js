@@ -298,7 +298,24 @@ const Explorer = (() => {
     if (view === 'mosaic')      renderMosaic();
     else if (view === 'list')   renderList();
     else if (view === 'disk')   renderDisk();
+    else if (view === 'media')  renderMedia();
     else                        renderDetails();
+  }
+
+  function renderMedia() {
+    pane1.innerHTML = '';
+    const host = document.createElement('div');
+    host.className = 'file-pane view-media';
+    pane1.appendChild(host);
+    if (!currentPath) {
+      host.innerHTML = '<div style="padding:1.5rem;color:var(--text-muted)">Navigate to a folder to use Netflix Media view.</div>';
+      return;
+    }
+    if (typeof NetflixMedia === 'undefined') {
+      host.innerHTML = '<div style="padding:1.5rem;color:var(--text-muted)">Netflix Media script failed to load — check console.</div>';
+      return;
+    }
+    NetflixMedia.render(host, currentPath);
   }
 
   // Disk-usage view — full-pane sunburst rooted at currentPath
@@ -483,50 +500,70 @@ const Explorer = (() => {
 
     const sortedItems = sortItems(items);
     let currentGroup = null;
+    let renderedCount = 0;
+    const CHUNK_SIZE = 100;
 
-    sortedItems.forEach(item => {
-      if (groupKey !== 'none') {
-        const groupVal = getGroupValue(item, groupKey);
-        if (groupVal !== currentGroup) {
-          table.appendChild(renderGroupHeader(groupVal));
-          currentGroup = groupVal;
+    function renderNextChunk() {
+      const nextChunk = sortedItems.slice(renderedCount, renderedCount + CHUNK_SIZE);
+      if (nextChunk.length === 0) return;
+
+      nextChunk.forEach(item => {
+        if (groupKey !== 'none') {
+          const groupVal = getGroupValue(item, groupKey);
+          if (groupVal !== currentGroup) {
+            table.appendChild(renderGroupHeader(groupVal));
+            currentGroup = groupVal;
+          }
         }
-      }
 
-      const row = document.createElement('div');
-      row.className = 'file-row' + (selected.has(item.path) ? ' selected' : '');
-      row.dataset.path = item.path;
+        const row = document.createElement('div');
+        row.className = 'file-row' + (selected.has(item.path) ? ' selected' : '');
+        row.dataset.path = item.path;
 
-      cols.forEach(col => {
-        const cell = document.createElement('div');
-        cell.className = 'cell' + (col.key !== 'name' ? ' cell-muted' : '');
-        cell.style.width = col.width;
-        if (col.key === 'name') {
-          cell.innerHTML = `<div class="cell-name">${getTagDot(item)}<span class="file-icon">${fileIcon(item)}</span><span class="file-name-text">${escHtml(item.name)}</span></div>`;
-        } else if (col.key === 'size') {
-          if (item.isDir) { cell.textContent = '…'; cell.dataset.sizeFor = item.path; }
-          else cell.textContent = formatSize(item.size);
-        } else if (col.key === 'ext') {
-          cell.textContent = item.ext ? item.ext.replace('.','') : (item.isDir ? 'folder' : '—');
-        } else if (col.key === 'mtime' || col.key === 'ctime') {
-          cell.textContent = item[col.key] ? new Date(item[col.key]).toLocaleString() : '—';
-        }
-        row.appendChild(cell);
+        cols.forEach(col => {
+          const cell = document.createElement('div');
+          cell.className = 'cell' + (col.key !== 'name' ? ' cell-muted' : '');
+          cell.style.width = col.width;
+          if (col.key === 'name') {
+            cell.innerHTML = `<div class="cell-name">${getTagDot(item)}<span class="file-icon">${fileIcon(item)}</span><span class="file-name-text">${escHtml(item.name)}</span></div>`;
+          } else if (col.key === 'size') {
+            if (item.isDir) { cell.textContent = '…'; cell.dataset.sizeFor = item.path; }
+            else cell.textContent = formatSize(item.size);
+          } else if (col.key === 'ext') {
+            cell.textContent = item.ext ? item.ext.replace('.','') : (item.isDir ? 'folder' : '—');
+          } else if (col.key === 'mtime' || col.key === 'ctime') {
+            cell.textContent = item[col.key] ? new Date(item[col.key]).toLocaleString() : '—';
+          }
+          row.appendChild(cell);
+        });
+
+        attachRowEvents(row, item);
+        table.appendChild(row);
       });
 
-      attachRowEvents(row, item);
-      table.appendChild(row);
-    });
+      renderedCount += nextChunk.length;
 
-    // Fetch folder sizes asynchronously after table is built
-    table.querySelectorAll('[data-size-for]').forEach(cell => {
-      WS.send('fs:folder-size', { path: cell.dataset.sizeFor })
-        .then(r => {
-          cell.textContent = r.diskTotal
-            ? `${formatSize(r.size)} of ${formatSize(r.diskTotal)}`
-            : formatSize(r.size);
-        })
-        .catch(() => { cell.textContent = '—'; });
+      // Fetch folder sizes asynchronously for only the newly rendered folder cells
+      table.querySelectorAll('[data-size-for]:not([data-size-requested])').forEach(cell => {
+        cell.setAttribute('data-size-requested', 'true');
+        WS.send('fs:folder-size', { path: cell.dataset.sizeFor })
+          .then(r => {
+            cell.textContent = r.diskTotal
+              ? `${formatSize(r.size)} of ${formatSize(r.diskTotal)}`
+              : formatSize(r.size);
+          })
+          .catch(() => { cell.textContent = '—'; });
+      });
+    }
+
+    // Render initial chunk
+    renderNextChunk();
+
+    // Listen for scroll to load more
+    wrap.addEventListener('scroll', () => {
+      if (wrap.scrollHeight - wrap.scrollTop - wrap.clientHeight < 200) {
+        renderNextChunk();
+      }
     });
 
     wrap.appendChild(table);
@@ -543,22 +580,41 @@ const Explorer = (() => {
 
     const sortedItems = sortItems(items);
     let currentGroup = null;
+    let renderedCount = 0;
+    const CHUNK_SIZE = 100;
 
-    sortedItems.forEach(item => {
-      if (groupKey !== 'none') {
-        const groupVal = getGroupValue(item, groupKey);
-        if (groupVal !== currentGroup) {
-          list.appendChild(renderGroupHeader(groupVal));
-          currentGroup = groupVal;
+    function renderNextChunk() {
+      const nextChunk = sortedItems.slice(renderedCount, renderedCount + CHUNK_SIZE);
+      if (nextChunk.length === 0) return;
+
+      nextChunk.forEach(item => {
+        if (groupKey !== 'none') {
+          const groupVal = getGroupValue(item, groupKey);
+          if (groupVal !== currentGroup) {
+            list.appendChild(renderGroupHeader(groupVal));
+            currentGroup = groupVal;
+          }
         }
-      }
 
-      const row = document.createElement('div');
-      row.className = 'file-row' + (selected.has(item.path) ? ' selected' : '');
-      row.dataset.path = item.path;
-      row.innerHTML = `${getTagDot(item)}<span class="file-icon">${fileIcon(item)}</span><span>${escHtml(item.name)}</span>`;
-      attachRowEvents(row, item);
-      list.appendChild(row);
+        const row = document.createElement('div');
+        row.className = 'file-row' + (selected.has(item.path) ? ' selected' : '');
+        row.dataset.path = item.path;
+        row.innerHTML = `${getTagDot(item)}<span class="file-icon">${fileIcon(item)}</span><span>${escHtml(item.name)}</span>`;
+        attachRowEvents(row, item);
+        list.appendChild(row);
+      });
+
+      renderedCount += nextChunk.length;
+    }
+
+    // Render initial chunk
+    renderNextChunk();
+
+    // Listen for scroll to load more
+    wrap.addEventListener('scroll', () => {
+      if (wrap.scrollHeight - wrap.scrollTop - wrap.clientHeight < 200) {
+        renderNextChunk();
+      }
     });
 
     wrap.appendChild(list);
@@ -626,20 +682,39 @@ const Explorer = (() => {
     container.style.gridTemplateColumns = `repeat(${mosaicCols}, 1fr)`;
 
     let currentGroup = null;
+    let renderedCount = 0;
+    const CHUNK_SIZE = 100;
 
-    sorted.forEach(item => {
-      if (groupKey !== 'none') {
-        const groupVal = getGroupValue(item, groupKey);
-        if (groupVal !== currentGroup) {
-          const header = renderGroupHeader(groupVal);
-          header.style.gridColumn = '1 / -1'; // Span across all columns in mosaic
-          container.appendChild(header);
-          currentGroup = groupVal;
+    function renderNextChunk() {
+      const nextChunk = sorted.slice(renderedCount, renderedCount + CHUNK_SIZE);
+      if (nextChunk.length === 0) return;
+
+      nextChunk.forEach(item => {
+        if (groupKey !== 'none') {
+          const groupVal = getGroupValue(item, groupKey);
+          if (groupVal !== currentGroup) {
+            const header = renderGroupHeader(groupVal);
+            header.style.gridColumn = '1 / -1'; // Span across all columns in mosaic
+            container.appendChild(header);
+            currentGroup = groupVal;
+          }
         }
-      }
-      container.appendChild(makeMosaicTile(item, tileW, Math.round(tileW * 0.75)));
-    });
+        container.appendChild(makeMosaicTile(item, tileW, Math.round(tileW * 0.75)));
+      });
+
+      renderedCount += nextChunk.length;
     }
+
+    // Render initial chunk
+    renderNextChunk();
+
+    // Listen for scroll to load more
+    container.addEventListener('scroll', () => {
+      if (container.scrollHeight - container.scrollTop - container.clientHeight < 200) {
+        renderNextChunk();
+      }
+    });
+  }
 
   function makeMosaicTile(item, tileW, tileH, navList) {
     const tile = document.createElement('div');

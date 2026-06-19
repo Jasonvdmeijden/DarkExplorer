@@ -366,12 +366,12 @@ const Preview = (() => {
   }
 
   const IMG_EXT_SET = new Set(['jpg','jpeg','png','gif','webp','avif','svg','bmp','ico','tiff','tif','heic','heif','dng','cr2','cr3','nef','arw','raf','orf','rw2']);
-  const VID_EXT_SET = new Set(['mp4','webm','mov','mkv','avi','m4v','3gp','flv','ogv','wmv','ts','m2ts']);
+  const VID_EXT_SET = new Set(['mp4','webm','mov','mkv','avi','m4v','3gp','flv','ogv','wmv','ts','m2ts','mpg','mpeg','m2v','3g2','divx','asf','rm','rmvb','vob','mts','h264']);
   // Try /serve first for all containers — modern browsers handle MKV/MOV/H.265
   // natively. The error handler below falls back to /transcode if the browser
   // rejects the stream. Eagerly routing to /transcode was wrong for large H.265
   // files because the re-encode takes many minutes before anything plays.
-  const VIDEO_DIRECT_OK_EXTS = new Set(['mp4','webm','m4v','mkv','mov','avi','wmv','ts','m2ts','3gp','flv','ogv']);
+  const VIDEO_DIRECT_OK_EXTS = new Set(['mp4','webm','m4v','mkv','mov','avi','wmv','ts','m2ts','3gp','flv','ogv','mpg','mpeg','m2v','3g2','divx','asf','rm','rmvb','vob','mts','h264']);
   function _videoSrc(item) {
     const ext = (item.ext || '').replace('.','').toLowerCase();
     const token = localStorage.getItem('de_token') || '';
@@ -995,32 +995,93 @@ const Preview = (() => {
 
     toolbar.appendChild(saveBtn);
     toolbar.appendChild(cancelBtn);
-
-    const textarea = document.createElement('textarea');
-    textarea.className = 'raw-edit-textarea';
-    textarea.spellcheck = false;
-    textarea.value = rawContent;
-
     content.appendChild(toolbar);
-    content.appendChild(textarea);
-    textarea.focus();
 
-    saveBtn.addEventListener('click', async () => {
-      try {
-        await WS.send('fs:write', { path: currentFile.path, content: textarea.value });
-        rawContent = textarea.value;
-        setMode('raw');
-      } catch (e) {
-        alert('Save failed: ' + e.message);
+    const ext = currentFile ? (currentFile.ext || '').replace('.', '').toLowerCase() : '';
+
+    if (window.CodeMirror) {
+      let mode = 'text/plain';
+      if (CodeMirror.findModeByExtension) {
+        const modeInfo = CodeMirror.findModeByExtension(ext);
+        if (modeInfo) {
+          mode = modeInfo.mime || modeInfo.mode;
+        }
       }
-    });
+      if (mode === 'text/plain') {
+        const map = {
+          'js': 'javascript',
+          'ts': 'javascript',
+          'json': 'application/json',
+          'py': 'python',
+          'html': 'text/html',
+          'xml': 'xml',
+          'css': 'css',
+          'md': 'markdown',
+          'sh': 'shell',
+          'bash': 'shell',
+          'c': 'text/x-csrc',
+          'cpp': 'text/x-c++src',
+          'java': 'text/x-java',
+        };
+        if (map[ext]) mode = map[ext];
+      }
+
+      const editor = CodeMirror(content, {
+        value: rawContent,
+        mode: mode,
+        theme: 'dracula',
+        lineNumbers: true,
+        lineWrapping: true,
+        tabSize: 2,
+        extraKeys: {
+          "Ctrl-S": () => { saveBtn.click(); },
+          "Cmd-S": () => { saveBtn.click(); }
+        }
+      });
+
+      const wrapper = editor.getWrapperElement();
+      wrapper.style.flex = '1';
+      wrapper.style.minHeight = '0';
+      wrapper.style.fontFamily = 'var(--font-mono)';
+      wrapper.style.fontSize = '0.85rem';
+      
+      setTimeout(() => editor.refresh(), 50);
+      editor.focus();
+
+      saveBtn.addEventListener('click', async () => {
+        try {
+          const val = editor.getValue();
+          await WS.send('fs:write', { path: currentFile.path, content: val });
+          rawContent = val;
+          setMode('raw');
+        } catch (e) {
+          alert('Save failed: ' + e.message);
+        }
+      });
+    } else {
+      const textarea = document.createElement('textarea');
+      textarea.className = 'raw-edit-textarea';
+      textarea.spellcheck = false;
+      textarea.value = rawContent;
+      content.appendChild(textarea);
+      textarea.focus();
+
+      saveBtn.addEventListener('click', async () => {
+        try {
+          await WS.send('fs:write', { path: currentFile.path, content: textarea.value });
+          rawContent = textarea.value;
+          setMode('raw');
+        } catch (e) {
+          alert('Save failed: ' + e.message);
+        }
+      });
+
+      textarea.addEventListener('keydown', e => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveBtn.click(); }
+      });
+    }
 
     cancelBtn.addEventListener('click', () => setMode('raw'));
-
-    // Ctrl+S to save
-    textarea.addEventListener('keydown', e => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveBtn.click(); }
-    });
   }
 
   function renderUrl() {

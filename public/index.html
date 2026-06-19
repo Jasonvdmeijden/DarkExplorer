@@ -9,6 +9,7 @@
   <link id="theme-css" rel="stylesheet" href="/css/themes/dark.css">
   <link rel="stylesheet" href="/css/app.css">
   <link rel="stylesheet" href="/css/glass-effect.css">
+  <link rel="stylesheet" href="/css/media.css">
 
   <!-- CDN libraries -->
   <link rel="stylesheet" href="/vendor/xterm.css">
@@ -21,6 +22,20 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
   <link id="hljs-dark"  rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
   <link id="hljs-light" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-light.min.css" disabled>
+
+  <!-- CodeMirror Editor -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/dracula.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/neo.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/javascript/javascript.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/python/python.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/xml/xml.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/css/css.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/markdown/markdown.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/clike/clike.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/shell/shell.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/meta.min.js" defer></script>
 </head>
 <body>
 
@@ -61,6 +76,7 @@
           <circle cx="12" cy="12" r="3" fill="var(--bg-surface)" stroke="currentColor" stroke-width="1.25"/>
         </svg>
       </button>
+      <button class="icon-btn" id="btn-view-media"   title="Netflix Media View" data-view="media">📺</button>
       <span class="toolbar-sep"></span>
       <button class="icon-btn" id="btn-new-folder" title="New folder (Ctrl+Shift+N)">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -242,6 +258,7 @@
   <script src="/js/explorer.js"></script>
   <script src="/js/git.js"></script>
   <script src="/js/stats.js"></script>
+  <script src="/js/media.js"></script>
   <script src="/js/app.js"></script>
 </body>
 </html>

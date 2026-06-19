@@ -15,8 +15,11 @@ const BASE = 'http://localhost:3322';
 const OTP = (process.argv.includes('--otp') ? process.argv[process.argv.indexOf('--otp') + 1] : 'LGR8D5').trim().toUpperCase();
 const TMP_DIR  = path.join(process.env.TEMP || '/tmp', 'de_test_' + Date.now());
 const TMP_FILE = path.join(TMP_DIR, 'hello.txt');
+const isWin = process.platform === 'win32';
+const testSysFile = isWin ? 'C:\\Windows\\System32\\drivers\\etc\\hosts' : '/etc/hosts';
 
 let TOKEN = null;
+let DEVICE_ID = null;
 let pass = 0, fail = 0;
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -124,6 +127,7 @@ async function testHTTP() {
   assert('POST /enroll valid OTP → 200', r.status === 200);
   assert('POST /enroll returns token', typeof r.data.token === 'string' && r.data.token.length > 0);
   TOKEN = r.data.token;
+  DEVICE_ID = r.data.deviceId;
   const cookieSet = r.headers['set-cookie']?.[0] || '';
   assert('POST /enroll sets de_token cookie', cookieSet.includes('de_token='));
 
@@ -140,17 +144,14 @@ async function testHTTP() {
 
   const savedToken = TOKEN;
   TOKEN = null;
-  r = await req('GET', '/download?path=C:/Windows/System32/drivers/etc/hosts');
+  r = await req('GET', '/download?path=' + encodeURIComponent(testSysFile));
   assert('GET /download without token → 401', r.status === 401);
   TOKEN = savedToken;
 
-  r = await req('GET', '/download?path=C:/Windows/System32/drivers/etc/hosts');
+  r = await req('GET', '/download?path=' + encodeURIComponent(testSysFile));
   assert('GET /download with token → 200 or file response', r.status === 200 || r.status === 400);
 
   section('HTTP — thumbnail');
-  // use a real file that exists
-  const isWin = process.platform === 'win32';
-  const testSysFile = isWin ? 'C:\\Windows\\System32\\drivers\\etc\\hosts' : '/etc/hosts';
   r = await req('GET', '/thumbnail?path=' + encodeURIComponent(testSysFile) + '&width=100');
   assert('GET /thumbnail text file → 204 (no thumb) or 200', r.status === 204 || r.status === 200);
 }
@@ -265,7 +266,7 @@ async function testWS() {
 
   const termCwd = isWin ? 'C:\\' : '/';
   const termResult = await wsSend('terminal:create', { cwd: termCwd, cols: 80, rows: 24 });
-  assert('terminal:create returns id', termResult && typeof termResult.id === 'string');
+  assert('terminal:create returns sid', termResult && typeof termResult.sid === 'string');
   const sid = termResult.sid;
 
   // give it a moment then destroy
@@ -288,17 +289,15 @@ async function testWS() {
 async function testAdminRevoke() {
   section('HTTP — admin device revoke');
 
-  let r = await req('GET', '/admin/devices');
-  const testDevice = r.data.find(d => d.label === 'test-device');
-  if (!testDevice) {
-    assert('find test-device for revoke', false, 'not found in device list');
+  if (!DEVICE_ID) {
+    assert('DEVICE_ID is present', false, 'DEVICE_ID was not set during enrollment');
     return;
   }
-  r = await req('DELETE', `/admin/devices/${testDevice.id}`);
+  let r = await req('DELETE', `/admin/devices/${DEVICE_ID}`);
   assert('DELETE /admin/devices/:id → 200', r.status === 200 && r.data.ok === true);
 
   // token should now be invalid
-  r = await req('GET', '/download?path=C:/anything');
+  r = await req('GET', '/download?path=' + encodeURIComponent(testSysFile));
   assert('revoked token rejected by API', r.status === 401);
 }
 

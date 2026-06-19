@@ -191,6 +191,10 @@ function searchFilename(query, limit = 50) {
 // --- content search ---
 
 async function searchContent({ term, isRegex, includes, excludes, page = 0, pageSize = 100 }) {
+  if (!term) {
+    return { results: [], total: 0, page, pageSize };
+  }
+
   let pattern;
   try {
     pattern = new RegExp(isRegex ? term : escapeRegex(term), 'i');
@@ -200,31 +204,58 @@ async function searchContent({ term, isRegex, includes, excludes, page = 0, page
 
   const includeGlobs = (includes || []).map(globToRegex);
   const excludeGlobs = (excludes || [...config.search.exclusions]).map(globToRegex);
-  const maxSize = config.search.maxFileSizeBytes;
 
-  const rows = db.prepare('SELECT path, size FROM files WHERE is_dir = 0').all();
+  let rows = [];
+  try {
+    if (!isRegex) {
+      const escapedTerm = term.replace(/"/g, '""');
+      const stmt = db.prepare(`
+        SELECT f.path, fts.content
+        FROM files f
+        JOIN files_fts fts ON f.path = fts.path
+        WHERE f.is_dir = 0 AND fts.content MATCH ?
+      `);
+      rows = stmt.all(`"${escapedTerm}"`);
+    } else {
+      const words = term.match(/[a-zA-Z0-9]{3,}/g);
+      if (words && words.length > 0) {
+        const ftsQuery = words.map(w => `"${w}"`).join(' AND ');
+        const stmt = db.prepare(`
+          SELECT f.path, fts.content
+          FROM files f
+          JOIN files_fts fts ON f.path = fts.path
+          WHERE f.is_dir = 0 AND fts.content MATCH ?
+        `);
+        rows = stmt.all(ftsQuery);
+      } else {
+        rows = db.prepare(`
+          SELECT f.path, fts.content
+          FROM files f
+          JOIN files_fts fts ON f.path = fts.path
+          WHERE f.is_dir = 0
+        `).all();
+      }
+    }
+  } catch (err) {
+    console.error('[searchContent] FTS5 query failed:', err.message);
+    return { results: [], total: 0, page, pageSize };
+  }
 
   const candidates = rows.filter(r => {
-    if (r.size > maxSize) return false;
-    if (!TEXT_EXTS.has(path.extname(r.path).toLowerCase())) return false;
     if (excludeGlobs.some(re => re.test(r.path))) return false;
     if (includeGlobs.length && !includeGlobs.some(re => re.test(r.path))) return false;
     return true;
   });
 
   const results = [];
-  for (const { path: filePath } of candidates) {
-    try {
-      const text = await fsp.readFile(filePath, 'utf8');
-      const lines = text.split('\n');
-      for (let i = 0; i < lines.length; i++) {
-        if (pattern.test(lines[i])) {
-          results.push({ path: filePath, line: i + 1, text: lines[i].trim() });
-          if (results.length >= (page + 1) * pageSize + pageSize) break;
-        }
+  for (const { path: filePath, content } of candidates) {
+    if (!content) continue;
+    const lines = content.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      if (pattern.test(lines[i])) {
+        results.push({ path: filePath, line: i + 1, text: lines[i].trim() });
       }
-    } catch { /* skip unreadable */ }
-    if (results.length >= (page + 1) * pageSize + pageSize) break;
+    }
   }
 
   const start = page * pageSize;
