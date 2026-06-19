@@ -207,14 +207,27 @@ const NetflixMedia = (() => {
       const startHover = () => {
         hoverTimer = setTimeout(() => {
           card.classList.add('hovered');
-          videoEl.play().catch(() => {});
+          if (videoEl.tagName === 'VIDEO') videoEl.play().catch(() => {});
         }, 400);
       };
       const endHover = () => {
         clearTimeout(hoverTimer);
         card.classList.remove('hovered');
-        videoEl.pause();
-        try { videoEl.currentTime = 0; } catch {}
+        if (videoEl.tagName === 'VIDEO') {
+          videoEl.pause();
+          try { videoEl.currentTime = 0; } catch {}
+        }
+      };
+
+      videoEl.onerror = () => {
+        const fallback = document.createElement('div');
+        fallback.className = 'netflix-card-img fallback-icon';
+        fallback.innerHTML = `<svg viewBox="0 0 24 24" fill="var(--text-secondary)" width="48" height="48"><path d="M4 6h16v12H4z" opacity=".3"/><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zM10 8v8l6-4z"/></svg>`;
+        fallback.style.display = 'flex';
+        fallback.style.alignItems = 'center';
+        fallback.style.justifyContent = 'center';
+        fallback.style.background = 'rgba(255,255,255,0.05)';
+        videoEl.replaceWith(fallback);
       };
 
       // Mark card as loaded when video data arrives
@@ -323,12 +336,27 @@ const NetflixMedia = (() => {
 
         const videoEl = item.querySelector('video');
         item.addEventListener('mouseenter', () => {
-          videoEl.play().catch(() => {});
+          if (videoEl.tagName === 'VIDEO') videoEl.play().catch(() => {});
         });
         item.addEventListener('mouseleave', () => {
-          videoEl.pause();
-          try { videoEl.currentTime = 0; } catch {}
+          if (videoEl.tagName === 'VIDEO') {
+            videoEl.pause();
+            try { videoEl.currentTime = 0; } catch {}
+          }
         });
+
+        videoEl.onerror = () => {
+          const fallback = document.createElement('div');
+          fallback.className = 'fallback-icon';
+          fallback.innerHTML = `<svg viewBox="0 0 24 24" fill="var(--text-secondary)" width="48" height="48"><path d="M4 6h16v12H4z" opacity=".3"/><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zM10 8v8l6-4z"/></svg>`;
+          fallback.style.display = 'flex';
+          fallback.style.alignItems = 'center';
+          fallback.style.justifyContent = 'center';
+          fallback.style.background = 'rgba(255,255,255,0.05)';
+          fallback.style.width = '100%';
+          fallback.style.height = '100%';
+          videoEl.replaceWith(fallback);
+        };
 
         item.addEventListener('click', () => {
           dialog.close();
