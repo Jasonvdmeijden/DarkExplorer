@@ -323,10 +323,9 @@ async function folderSize(dirPath) {
 const VIDEO_MIME_TYPES = {
   mp4: 'video/mp4', m4v: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime',
   mkv: 'video/x-matroska', avi: 'video/x-msvideo', '3gp': 'video/3gpp', ogv: 'video/ogg',
-  flv: 'video/x-flv', f4v: 'video/x-f4v', wmv: 'video/x-ms-wmv', ts: 'video/mp2t',
+  flv: 'video/x-flv', f4v: 'video/x-f4v', wmv: 'video/x-ms-wmv',
   mpeg: 'video/mpeg', mpg: 'video/mpeg', m2v: 'video/mpeg', '3g2': 'video/3gpp2',
-  divx: 'video/divx', asf: 'video/x-ms-asf', rm: 'application/vnd.rn-realmedia',
-  rmvb: 'application/vnd.rn-realmedia', vob: 'video/dvd', mts: 'video/mp2t',
+  divx: 'video/divx', vob: 'video/dvd', mts: 'video/mp2t',
   m2ts: 'video/mp2t', h264: 'video/h264'
 };
 const VIDEO_EXTENSIONS = new Set(Object.keys(VIDEO_MIME_TYPES).map(x => '.' + x));
