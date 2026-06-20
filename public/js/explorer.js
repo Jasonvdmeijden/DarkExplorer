@@ -735,17 +735,23 @@ const Explorer = (() => {
 
     const removeLoader = () => { if (loader.parentNode) loader.remove(); };
 
+    let videoPreview = null;
     if (GALLERY_VID_EXTS.has(ext)) {
-      const vid = document.createElement('video');
-      vid.autoplay = true;
-      vid.muted    = true;
-      vid.loop     = true;
-      vid.setAttribute('playsinline', '');
-      vid.preload  = 'auto';
-      vid.src      = src;
-      vid.addEventListener('loadeddata', removeLoader, { once: true });
-      vid.onerror  = () => { removeLoader(); vid.replaceWith(makeIconTile(item)); };
-      tile.appendChild(vid);
+      // Static frame by default — the animated preview clip is only fetched
+      // lazily on hover (desktop) or first tap (touch), see attachRowEvents.
+      const img = document.createElement('img');
+      img.loading = 'lazy';
+      img.src     = src;
+      img.addEventListener('load', removeLoader, { once: true });
+      img.onerror = () => { removeLoader(); img.replaceWith(makeIconTile(item)); };
+      tile.appendChild(img);
+
+      const previewWrap = document.createElement('div');
+      previewWrap.className = 'mosaic-preview-wrap';
+      tile.appendChild(previewWrap);
+
+      const previewUrl = `/video-preview?path=${encodeURIComponent(item.path)}&width=${Math.round(tileW * 1.5)}&token=${token}&v=${ver}`;
+      videoPreview = VideoPreview.makeController(previewWrap, () => previewUrl);
     } else if (item.livePhotoMov) {
       // iPhone Live Photo (HEIC + sibling .MOV) — play the live photo on loop
       const vid = document.createElement('video');
@@ -782,6 +788,7 @@ const Explorer = (() => {
     label.textContent = item.name;
     tile.appendChild(label);
 
+    tile._videoPreview = videoPreview;
     attachRowEvents(tile, item, navList);
     return tile;
   }
@@ -821,6 +828,7 @@ const Explorer = (() => {
     });
 
     el.addEventListener('dblclick', () => {
+      el._videoPreview?.unload();
       if (item.isDir) {
         navigate(item.path);
       } else {
@@ -832,6 +840,23 @@ const Explorer = (() => {
         }
       }
     });
+
+    // Video tiles: lazily load the preview clip on hover instead of eagerly
+    // for every visible thumbnail. Touch fires synthetic mouseenter/mouseleave
+    // around a tap, which would race with the two-tap arm/open logic in the
+    // touchend handler below — so hover here is desktop-only.
+    if (el._videoPreview) {
+      let hoverTimer = null;
+      el.addEventListener('mouseenter', () => {
+        if (VideoPreview.isTouch()) return;
+        hoverTimer = setTimeout(() => el._videoPreview.load(), 300);
+      });
+      el.addEventListener('mouseleave', () => {
+        if (VideoPreview.isTouch()) return;
+        clearTimeout(hoverTimer);
+        el._videoPreview.unload();
+      });
+    }
 
     // Touch: double-tap → context menu; single-tap → open/navigate
     // Scroll-detection: if finger moves > TAP_SLOP px between touchstart and touchend, treat as scroll.
@@ -861,6 +886,21 @@ const Explorer = (() => {
       if (!_touchStart) return;  // was a scroll — do nothing, let the browser handle it
       _touchStart = null;
       e.preventDefault();
+
+      // Video tiles: first tap arms the preview clip instead of opening,
+      // second tap (preview already loaded) opens for real. Long-press still
+      // reaches the context menu via the native contextmenu event.
+      if (el._videoPreview) {
+        if (!el._videoPreview.loaded) {
+          VideoPreview.armExclusive(el._videoPreview);
+          el._videoPreview.load();
+        } else {
+          el._videoPreview.unload();
+          _openItem();
+        }
+        return;
+      }
+
       const now = Date.now(), touch = e.changedTouches[0];
       if (now - _lastTap < 280) {
         if (_tapTimer) { clearTimeout(_tapTimer); _tapTimer = null; }

@@ -232,12 +232,29 @@ const Theme = (() => {
     });
     _popover.appendChild(list);
 
-    // Position below the anchor button (right-anchored)
+    // Position below the anchor button (right-anchored by default)
     const r = anchor.getBoundingClientRect();
     _popover.style.position = 'fixed';
-    _popover.style.top  = (r.bottom + 6) + 'px';
+    _popover.style.left  = 'auto';
+    _popover.style.top   = (r.bottom + 6) + 'px';
     _popover.style.right = Math.max(8, window.innerWidth - r.right) + 'px';
     _popover.style.display = 'block';
+
+    // Measure the rendered box and flip/clamp into the viewport — on narrow
+    // phones the anchor can sit close enough to the left edge that right-
+    // anchoring pushes the popover off-screen (same pattern as showContextMenu).
+    const pr = _popover.getBoundingClientRect();
+    if (pr.left < 8) {
+      _popover.style.right = 'auto';
+      _popover.style.left  = '8px';
+    }
+    const pr2 = _popover.getBoundingClientRect();
+    if (pr2.right > window.innerWidth - 8) {
+      _popover.style.left = Math.max(8, window.innerWidth - 8 - pr2.width) + 'px';
+    }
+    if (pr2.bottom > window.innerHeight - 8) {
+      _popover.style.top = Math.max(8, r.top - pr2.height - 6) + 'px';
+    }
   }
 
   // Tiny preview swatch — a 14×14 box coloured to roughly match the theme's bg+accent.

@@ -567,6 +567,9 @@ aside, #panel-left, #panel-right {
 .mosaic-item.selected { outline: 2px solid var(--accent); }
 .mosaic-item img,
 .mosaic-item video { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* Lazily-loaded video preview clip overlays the static frame underneath it */
+.mosaic-preview-wrap { position: absolute; inset: 0; pointer-events: none; }
+.mosaic-preview-wrap .video-preview-clip { width: 100%; height: 100%; object-fit: cover; display: block; }
 .mosaic-loader {
   position: absolute;
   inset: 0;
@@ -833,7 +836,7 @@ aside, #panel-left, #panel-right {
 }
 
 @media (max-width: 480px) {
-  .toolbar-right .icon-btn:not(#btn-theme-picker):not(#btn-toggle-terminal) { display: none; }
+  .toolbar-right .icon-btn:not(#btn-theme-picker):not(#btn-toggle-terminal):not(#btn-view-media) { display: none; }
 }
 
 /* ── Animations ── */
@@ -1938,6 +1941,7 @@ dialog#props-dialog::backdrop { background: rgba(6,6,16,.6); backdrop-filter: bl
   z-index: 500;
   padding: .35rem;
   min-width: 220px;
+  max-width: calc(100vw - 16px);
   max-height: 70vh;
   overflow-y: auto;
 }

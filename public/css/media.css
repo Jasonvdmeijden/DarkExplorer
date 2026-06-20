@@ -17,21 +17,25 @@ body.glass-effect .netflix-container {
   background-color: transparent !important;
 }
 
+.netflix-body {
+  padding-top: 18px;
+}
+
 /* Header */
 .netflix-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px 4%;
-  background: linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%);
+  gap: 20px;
+  padding: 16px 4%;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
   z-index: 10;
 }
 
-.netflix-logo {
-  color: var(--accent);
-  font-size: 1.8rem;
-  font-weight: bold;
-  letter-spacing: 1px;
+body.glass-effect .netflix-header {
+  background: transparent;
+  border-bottom: 1px solid var(--glass-border);
 }
 
 .netflix-search-wrap input {
@@ -40,14 +44,14 @@ body.glass-effect .netflix-container {
   color: var(--text-primary);
   padding: 8px 15px;
   border-radius: 4px;
-  width: 250px;
+  width: 280px;
   font-size: 14px;
   outline: none;
   transition: all 0.3s ease;
 }
 
 .netflix-search-wrap input:focus {
-  width: 320px;
+  width: 360px;
   border-color: var(--accent);
   background: var(--bg-surface);
 }
@@ -69,21 +73,21 @@ body.glass-effect .netflix-container {
 }
 
 .netflix-btn:hover {
-  background-color: #f6121d;
+  background-color: var(--accent-hover);
   transform: scale(1.05);
 }
 
 .netflix-btn.secondary {
-  background-color: rgba(109, 109, 110, 0.7);
-  color: white;
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .netflix-btn.secondary:hover {
-  background-color: rgba(109, 109, 110, 0.4);
+  background-color: var(--bg-active);
 }
 
 .netflix-btn.danger {
-  background-color: #b9090b;
+  background-color: var(--danger);
 }
 
 .netflix-btn.danger:hover {
@@ -104,13 +108,13 @@ body.glass-effect .netflix-container {
   min-height: 400px;
   gap: 15px;
   font-size: 1.2rem;
-  color: #999;
+  color: var(--text-secondary);
 }
 
 .netflix-spin {
   width: 40px;
   height: 40px;
-  border: 4px solid rgba(255,255,255,0.1);
+  border: 4px solid var(--border);
   border-left-color: var(--accent);
   border-radius: 50%;
   animation: netflix-rotate 1s linear infinite;
@@ -123,21 +127,21 @@ body.glass-effect .netflix-container {
 .netflix-error, .netflix-empty {
   padding: 50px;
   text-align: center;
-  color: #aaa;
+  color: var(--text-secondary);
 }
 
 /* Hero Section Removed */
 
 /* Row & Carousels */
 .netflix-row {
-  margin-bottom: 35px;
+  margin-bottom: 24px;
 }
 
 .netflix-row-title {
   font-size: 1.4rem;
   font-weight: 700;
   color: var(--text-primary);
-  margin: 0 4% 15px 4%;
+  margin: 0 4% 10px 4%;
 }
 
 .netflix-carousel-container {
@@ -150,10 +154,13 @@ body.glass-effect .netflix-container {
   display: flex;
   overflow-x: auto;
   overflow-y: hidden;
-  gap: 10px;
+  gap: 12px;
   scroll-behavior: smooth;
   width: 100%;
-  padding: 30px 4%;
+  /* Vertical padding is headroom for the hover/focus scale-up (cards grow up
+     to 15% from their 135px-tall media box) so it doesn't clip against the
+     carousel's overflow-y:hidden — kept tight to avoid dead air between rows */
+  padding: 14px 4% 18px;
 }
 
 .netflix-carousel::-webkit-scrollbar {
@@ -205,12 +212,7 @@ body.glass-effect .netflix-container {
   cursor: pointer;
   transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), box-shadow 0.3s ease;
   transform-origin: center center;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-}
-
-body.glass-effect .netflix-card {
-  background-color: rgba(255,255,255,0.03) !important;
-  border: 1px solid rgba(255,255,255,0.06);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.4);
 }
 
 .netflix-card:focus, .netflix-card.focused {
@@ -230,7 +232,7 @@ body.glass-effect .netflix-card {
   width: 100%;
   height: 135px;
   overflow: hidden;
-  background-color: #000;
+  background-color: var(--bg-surface);
 }
 
 .netflix-card-img {
@@ -248,7 +250,7 @@ body.glass-effect .netflix-card {
   pointer-events: none;
 }
 
-.netflix-card-preview-video {
+.netflix-card-preview-wrap .video-preview-clip {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -309,7 +311,7 @@ body.glass-effect .netflix-card {
 .netflix-card-progress {
   width: 100%;
   height: 4px;
-  background: #333;
+  background: var(--border);
   border-radius: 2px;
   margin-top: 8px;
   overflow: hidden;
@@ -352,7 +354,7 @@ body.glass-effect .netflix-modal-wrap {
   align-items: center;
   justify-content: space-between;
   padding: 20px 30px;
-  border-bottom: 1px solid #282828;
+  border-bottom: 1px solid var(--border);
 }
 
 body.glass-effect .netflix-modal-header {
@@ -397,8 +399,8 @@ body.glass-effect .netflix-modal-header {
 }
 
 .netflix-season-select-wrap select {
-  background: #222;
-  border: 1px solid #444;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
   color: var(--text-primary);
   padding: 6px 12px;
   border-radius: 4px;
@@ -423,18 +425,9 @@ body.glass-effect .netflix-modal-header {
   border: 1px solid transparent;
 }
 
-body.glass-effect .netflix-episode-row {
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.05);
-}
-
 .netflix-episode-row:hover {
   background: var(--bg-hover);
   border-color: var(--accent);
-}
-
-body.glass-effect .netflix-episode-row:hover {
-  background: rgba(255,255,255,0.08);
 }
 
 .netflix-episode-thumb-wrap {
@@ -444,7 +437,7 @@ body.glass-effect .netflix-episode-row:hover {
   height: 100px;
   border-radius: 6px;
   overflow: hidden;
-  background: #000;
+  background: var(--bg-surface);
 }
 
 .netflix-episode-thumb-wrap img,
@@ -452,6 +445,12 @@ body.glass-effect .netflix-episode-row:hover {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.netflix-episode-preview-wrap {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
 }
 
 .netflix-episode-play-icon {
@@ -547,6 +546,19 @@ body.glass-effect .netflix-episode-row:hover {
 .netflix-player-btn:hover {
   background: rgba(255,255,255,0.1);
   transform: scale(1.15);
+}
+
+/* Rewind/forward carry an icon + "10" label — too wide for the circular
+   single-glyph button shape, so they get a pill instead to avoid the text
+   wrapping onto two lines */
+#netflix-player-rewind,
+#netflix-player-forward {
+  width: auto;
+  white-space: nowrap;
+  padding: 0 12px;
+  font-size: 13px;
+  gap: 4px;
+  border-radius: 24px;
 }
 
 .netflix-player-title-info {
@@ -710,8 +722,8 @@ body.glass-effect .netflix-episode-row:hover {
   max-width: 500px;
   width: 90%;
   margin: 50px auto;
-  background: #181818;
-  border: 1px solid #333;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
   padding: 35px 25px;
   border-radius: 16px;
   box-shadow: 0 15px 40px rgba(0,0,0,0.5);
@@ -738,7 +750,7 @@ body.glass-effect .netflix-remote-panel {
 
 .remote-title-info span {
   font-size: 12px;
-  color: #aaa;
+  color: var(--text-secondary);
 }
 
 .remote-scrubber-wrap {
@@ -756,7 +768,7 @@ body.glass-effect .netflix-remote-panel {
   display: flex;
   justify-content: space-between;
   font-size: 11px;
-  color: #aaa;
+  color: var(--text-secondary);
   font-family: monospace;
   margin-top: 5px;
 }
@@ -771,8 +783,8 @@ body.glass-effect .netflix-remote-panel {
 }
 
 .remote-btn {
-  background: #252525;
-  border: 1px solid #444;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
   color: var(--text-primary);
   border-radius: 50%;
   height: 55px;
@@ -794,15 +806,30 @@ body.glass-effect .remote-btn {
 }
 
 .remote-btn:active {
-  background: #333;
+  background: var(--bg-hover);
   transform: scale(0.95);
 }
 
 body.glass-effect .remote-btn:active {
   background: rgba(0, 0, 0, 0.1) !important;
-  box-shadow: 
+  box-shadow:
     inset -2px -2px 6px rgba(255, 255, 255, 0.1),
     inset 2px 2px 6px rgba(0, 0, 0, 0.3) !important;
+}
+
+html[data-mode="light"] body.glass-effect .remote-btn {
+  background: rgba(255, 255, 255, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow:
+    -2px -2px 6px rgba(255, 255, 255, 0.8),
+    2px 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+html[data-mode="light"] body.glass-effect .remote-btn:active {
+  background: rgba(255, 255, 255, 0.1) !important;
+  box-shadow:
+    inset -2px -2px 6px rgba(255, 255, 255, 0.8),
+    inset 2px 2px 6px rgba(0, 0, 0, 0.15) !important;
 }
 
 .remote-btn.control-play {
@@ -823,27 +850,13 @@ body.glass-effect .remote-btn:active {
   gap: 15px;
   width: 100%;
   font-size: 13px;
-  color: #ddd;
+  color: var(--text-secondary);
 }
 
 .remote-volume-row input[type=range] {
   flex: 1;
   accent-color: var(--accent);
   cursor: pointer;
-}
-
-.live-photo-badge {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  background: #007aff;
-  color: var(--text-primary);
-  font-size: 9px;
-  font-weight: 700;
-  padding: 2px 6px;
-  border-radius: 4px;
-  letter-spacing: 0.5px;
-  pointer-events: none;
 }
 
 /* ── Settings Popup (gear menu in player) ── */
@@ -882,7 +895,7 @@ body.glass-effect .remote-btn:active {
   justify-content: space-between;
   gap: 12px;
   font-size: 13px;
-  color: #ddd;
+  color: var(--text-primary);
 }
 
 .settings-row label {
@@ -908,7 +921,7 @@ body.glass-effect .remote-btn:active {
   position: relative;
   width: 40px;
   height: 22px;
-  background: #444;
+  background: var(--border);
   border-radius: 11px;
   border: none;
   cursor: pointer;
@@ -948,7 +961,7 @@ body.glass-effect .remote-btn:active {
 }
 
 .settings-info-grid .info-value {
-  color: #ddd;
+  color: var(--text-primary);
 }
 
 /* ── Category Tab Bar ── */
@@ -960,9 +973,9 @@ body.glass-effect .remote-btn:active {
 }
 
 .netflix-category-tab {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #ccc;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
   padding: 7px 22px;
   border-radius: 20px;
   font-size: 13px;
@@ -972,7 +985,7 @@ body.glass-effect .remote-btn:active {
 }
 
 .netflix-category-tab:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 
@@ -980,6 +993,16 @@ body.glass-effect .remote-btn:active {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--text-primary);
+}
+
+body.glass-effect .netflix-category-tab {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+html[data-mode="light"] body.glass-effect .netflix-category-tab {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.5);
 }
 
 /* ── Seek Animation Overlays ── */
@@ -1057,17 +1080,17 @@ body.glass-effect .remote-btn:active {
 }
 
 #netflix-catalog-body::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--scrollbar-thumb);
   border-radius: 3px;
 }
 
 #netflix-catalog-body::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: var(--scrollbar-thumb-hover);
 }
 
 #netflix-catalog-body {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255,255,255,0.15) transparent;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
 /* ── Season Pill Buttons ── */
@@ -1079,9 +1102,9 @@ body.glass-effect .remote-btn:active {
 }
 
 .netflix-season-pill {
-  background: #252525;
-  border: 1px solid #444;
-  color: #ccc;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
   padding: 7px 18px;
   border-radius: 20px;
   font-size: 13px;
@@ -1091,7 +1114,7 @@ body.glass-effect .remote-btn:active {
 }
 
 .netflix-season-pill:hover {
-  background: #333;
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 
@@ -1109,6 +1132,11 @@ body.glass-effect .netflix-season-pill {
 body.glass-effect .netflix-season-pill.active {
   background: var(--accent);
   border-color: var(--accent);
+}
+
+html[data-mode="light"] body.glass-effect .netflix-season-pill {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.5);
 }
 
 /* ── Shimmer Loading Animation on Cards ── */
@@ -1209,27 +1237,107 @@ body.glass-effect .netflix-season-pill.active {
 
 /* ── Mobile Responsive Overrides ── */
 @media (max-width: 768px) {
+  /* Header — wrap so the search bar drops to its own full-width row instead
+     of overflowing alongside the action buttons */
+  .netflix-header {
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 12px 4%;
+  }
+  .netflix-search-wrap { order: 3; width: 100%; }
+  .netflix-search-wrap input,
+  .netflix-search-wrap input:focus { width: 100%; }
+  .netflix-header-actions { order: 2; margin-left: auto; }
+  .netflix-btn { padding: 7px 14px; font-size: 13px; }
+
+  /* Category tabs */
+  .netflix-category-tab { padding: 6px 16px; font-size: 12px; }
+
   /* Catalog */
   .netflix-card { flex: 0 0 140px; width: 140px; }
   .netflix-card-media { height: 80px; }
   .netflix-row-title { font-size: 1.1rem; margin-bottom: 10px; }
   .carousel-nav-btn { display: none !important; /* Touch swipe is enough */ }
-  .netflix-carousel { padding: 5px 0; }
+  .netflix-carousel { padding: 15px 0 20px; }
 
-  /* Player Controls */
-  .netflix-controls-header { padding: 15px; }
-  .netflix-controls-bottom { padding: 15px; }
+  /* Player — escapes body's safe-area padding (position:fixed), so the
+     control chrome re-applies it itself; the video stays edge-to-edge */
+  .netflix-controls {
+    padding: 0;
+  }
+  .netflix-controls-header {
+    padding: max(env(safe-area-inset-top, 0px), 15px) max(env(safe-area-inset-right, 0px), 15px) 0 max(env(safe-area-inset-left, 0px), 15px);
+    gap: 12px;
+  }
+  .netflix-controls-bottom {
+    padding: 0 max(env(safe-area-inset-right, 0px), 15px) max(env(safe-area-inset-bottom, 0px), 15px) max(env(safe-area-inset-left, 0px), 15px);
+  }
   .netflix-progress-area { margin-bottom: 10px; gap: 8px; }
   .netflix-buttons-row { flex-wrap: wrap; justify-content: center; gap: 10px; }
   .netflix-volume-wrap { display: none; /* Physical buttons preferred */ }
   .netflix-player-btn { height: 40px; width: 40px; font-size: 20px; }
-  
-  /* Next Overlay */
-  .netflix-countdown-popup { bottom: 20px; right: 20px; padding: 15px; }
+  #netflix-player-rewind,
+  #netflix-player-forward { width: auto; padding: 0 10px; font-size: 12px; }
+  .netflix-player-big-btn { height: 76px; width: 76px; font-size: 2.2rem; }
+  .netflix-player-title-info .episode-title { font-size: 15px; }
+
+  /* Settings popup — anchor to safe-area-aware screen edges instead of a
+     fixed min-width that can overflow narrow phones */
+  .netflix-settings-popup {
+    left: max(env(safe-area-inset-left, 0px), 15px);
+    right: max(env(safe-area-inset-right, 0px), 15px);
+    bottom: max(env(safe-area-inset-bottom, 0px), 80px);
+    min-width: auto;
+    width: auto;
+  }
+
+  /* Next-up countdown — keep clear of the home indicator / side notches */
+  .netflix-countdown-popup {
+    bottom: max(env(safe-area-inset-bottom, 0px), 20px);
+    right: max(env(safe-area-inset-right, 0px), 20px);
+    left: max(env(safe-area-inset-left, 0px), 20px);
+    max-width: none;
+    padding: 15px;
+  }
 
   /* Modal */
   .netflix-modal-body { padding: 15px; }
   .netflix-episode-row { flex-direction: column; align-items: flex-start; gap: 10px; }
   .netflix-episode-thumb-wrap { width: 100%; height: auto; aspect-ratio: 16/9; flex: none; }
   .netflix-episode-info { width: 100%; }
+
+  /* Series-details dialog — full-screen like the other major dialogs on mobile */
+  dialog#netflix-series-dialog[open] {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100dvw !important;
+    height: 100dvh !important;
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px) !important;
+  }
+  dialog#netflix-series-dialog[open] .netflix-modal-wrap {
+    border-radius: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+  dialog#netflix-series-dialog[open] .netflix-modal-body {
+    flex: 1;
+    max-height: none;
+  }
+
+  /* Remote panel — shrink the keypad so it fits narrow phone widths */
+  .netflix-remote-panel { margin: 20px auto; padding: 25px 18px; }
+  .remote-keypad { gap: 8px; }
+  .remote-btn { height: 46px; width: 46px; font-size: 1rem; }
+  .remote-btn.control-play { height: 64px; width: 64px; font-size: 1.5rem; }
+}
+
+@media (max-width: 480px) {
+  .netflix-header-actions .netflix-btn span.label { display: none; }
+  .netflix-card { flex: 0 0 120px; width: 120px; }
+  .netflix-card-media { height: 68px; }
+  .netflix-player-big-btn { height: 64px; width: 64px; font-size: 1.8rem; }
 }

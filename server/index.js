@@ -392,6 +392,27 @@ app.get('/thumbnail', requireAuth, async (req, res) => {
   }
 });
 
+// On-demand 5s preview clip — only requested by the client on hover/tap,
+// never eagerly for every visible thumbnail (see thumbnails.js getPreviewClip).
+app.get('/video-preview', requireAuth, async (req, res) => {
+  const filePath = req.query.path;
+  const width = parseInt(req.query.width) || 400;
+  if (!filePath) return res.status(400).json({ error: 'Missing path' });
+  try {
+    const clipPath = await thumbs.getPreviewClip(filePath, width);
+    if (!clipPath) {
+      res.setHeader('Cache-Control', 'no-store, must-revalidate');
+      return res.status(204).end();
+    }
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.sendFile(clipPath);
+  } catch (e) {
+    console.warn(`[video-preview] EXCEPTION for ${path.basename(filePath)}: ${e.message}`);
+    res.setHeader('Cache-Control', 'no-store, must-revalidate');
+    res.status(204).end();
+  }
+});
+
 app.get('/zip-download', requireAuth, async (req, res) => {
   try {
     const paths = JSON.parse(req.query.paths);

@@ -21,13 +21,12 @@ const NetflixMedia = (() => {
     container.innerHTML = `
       <div class="netflix-container">
         <div class="netflix-header">
-          <div class="netflix-logo">DARK EXPLORER</div>
           <div class="netflix-search-wrap">
             <input type="text" id="netflix-search" placeholder="Titles, genres, episodes…" spellcheck="false">
           </div>
           <div class="netflix-header-actions">
-            <button id="netflix-btn-remote" class="netflix-btn secondary">📱 Remote Mode</button>
-            <button id="netflix-btn-refresh" class="netflix-btn secondary">↻ Rescan</button>
+            <button id="netflix-btn-remote" class="netflix-btn secondary">📱 <span class="label">Remote Mode</span></button>
+            <button id="netflix-btn-refresh" class="netflix-btn secondary">↻ <span class="label">Rescan</span></button>
           </div>
         </div>
         <div id="netflix-catalog-body" class="netflix-body">
@@ -177,9 +176,13 @@ const NetflixMedia = (() => {
 
       const isFavorited = favoritesList.includes(item.path);
 
+      // Default thumbnail is a cheap static frame; the animated preview clip
+      // is only fetched lazily on hover (desktop) or first tap (touch).
+      const previewUrl = `/video-preview?path=${encodeURIComponent(videoPath)}&width=400&token=${token}&v=${mtimeVer}`;
+
       card.innerHTML = `
         <div class="netflix-card-media">
-          <video class="netflix-card-img" src="${thumbUrl}" muted loop playsinline preload="auto"></video>
+          <img class="netflix-card-img" src="${thumbUrl}">
           <div class="netflix-card-preview-wrap"></div>
           ${badgesHtml ? `<div class="netflix-card-badges">${badgesHtml}</div>` : ''}
         </div>
@@ -200,38 +203,42 @@ const NetflixMedia = (() => {
         toggleFavorite(item.path, favBtn);
       });
 
-      // Hover preview handler (plays the video preview on hover)
-      let hoverTimer = null;
-      const videoEl = card.querySelector('video');
+      const imgEl = card.querySelector('.netflix-card-img');
+      const previewWrap = card.querySelector('.netflix-card-preview-wrap');
+      const preview = VideoPreview.makeController(previewWrap, () => previewUrl);
 
+      // Hover preview handler (lazily loads + plays the preview clip on hover).
+      // Touch fires synthetic mouseenter/mouseleave around a tap, which would
+      // race with (and undo) the explicit tap-arm logic in the click handler
+      // below — so hover is desktop-only, touch uses click alone.
+      let hoverTimer = null;
       const startHover = () => {
+        if (VideoPreview.isTouch()) return;
         hoverTimer = setTimeout(() => {
           card.classList.add('hovered');
-          if (videoEl.tagName === 'VIDEO') videoEl.play().catch(() => {});
+          preview.load();
         }, 400);
       };
       const endHover = () => {
+        if (VideoPreview.isTouch()) return;
         clearTimeout(hoverTimer);
         card.classList.remove('hovered');
-        if (videoEl.tagName === 'VIDEO') {
-          videoEl.pause();
-          try { videoEl.currentTime = 0; } catch {}
-        }
+        preview.unload();
       };
 
-      videoEl.onerror = () => {
+      imgEl.onerror = () => {
         const fallback = document.createElement('div');
         fallback.className = 'netflix-card-img fallback-icon';
         fallback.innerHTML = `<svg viewBox="0 0 24 24" fill="var(--text-secondary)" width="48" height="48"><path d="M4 6h16v12H4z" opacity=".3"/><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zM10 8v8l6-4z"/></svg>`;
         fallback.style.display = 'flex';
         fallback.style.alignItems = 'center';
         fallback.style.justifyContent = 'center';
-        fallback.style.background = 'rgba(255,255,255,0.05)';
-        videoEl.replaceWith(fallback);
+        fallback.style.background = 'var(--bg-hover)';
+        imgEl.replaceWith(fallback);
       };
 
-      // Mark card as loaded when video data arrives
-      videoEl.addEventListener('loadeddata', () => card.classList.add('loaded'), { once: true });
+      // Mark card as loaded once the static frame arrives
+      imgEl.addEventListener('load', () => card.classList.add('loaded'), { once: true });
 
       card.addEventListener('mouseenter', startHover);
       card.addEventListener('mouseleave', endHover);
@@ -244,6 +251,7 @@ const NetflixMedia = (() => {
 
       // Handle card select
       const selectCard = () => {
+        preview.unload();
         if (isDir) {
           showSeriesDetails(item);
         } else {
@@ -251,7 +259,19 @@ const NetflixMedia = (() => {
           playVideo(item, itemsList.filter(i => !i.episodes), itemsList.indexOf(item), 'Movies');
         }
       };
-      card.addEventListener('click', selectCard);
+      card.addEventListener('click', (e) => {
+        // Touch has no hover — first tap arms the preview instead of opening,
+        // second tap (preview already loaded) opens for real.
+        if (!isDir && VideoPreview.isTouch() && !preview.loaded) {
+          e.preventDefault();
+          e.stopPropagation();
+          VideoPreview.armExclusive(preview);
+          card.classList.add('hovered');
+          preview.load();
+          return;
+        }
+        selectCard();
+      });
       card.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') selectCard();
       });
@@ -320,11 +340,13 @@ const NetflixMedia = (() => {
         const item = document.createElement('div');
         item.className = 'netflix-episode-row';
         const thumbUrl = `/thumbnail?path=${encodeURIComponent(ep.path)}&width=220&token=${token}`;
+        const previewUrl = `/video-preview?path=${encodeURIComponent(ep.path)}&width=220&token=${token}`;
         const displayTitle = ep.name.slice(0, ep.name.lastIndexOf('.')) || ep.name;
 
         item.innerHTML = `
           <div class="netflix-episode-thumb-wrap">
-            <video src="${thumbUrl}" muted loop playsinline preload="auto"></video>
+            <img src="${thumbUrl}">
+            <div class="netflix-episode-preview-wrap"></div>
             <div class="netflix-episode-play-icon">▶</div>
           </div>
           <div class="netflix-episode-info">
@@ -334,34 +356,52 @@ const NetflixMedia = (() => {
           </div>
         `;
 
-        const videoEl = item.querySelector('video');
+        const imgEl = item.querySelector('img');
+        const previewWrap = item.querySelector('.netflix-episode-preview-wrap');
+        const preview = VideoPreview.makeController(previewWrap, () => previewUrl);
+
+        // Touch fires synthetic mouseenter/mouseleave around a tap, which
+        // would race with (and undo) the explicit tap-arm logic in the click
+        // handler below — so hover is desktop-only, touch uses click alone.
+        let hoverTimer = null;
         item.addEventListener('mouseenter', () => {
-          if (videoEl.tagName === 'VIDEO') videoEl.play().catch(() => {});
+          if (VideoPreview.isTouch()) return;
+          hoverTimer = setTimeout(() => preview.load(), 300);
         });
         item.addEventListener('mouseleave', () => {
-          if (videoEl.tagName === 'VIDEO') {
-            videoEl.pause();
-            try { videoEl.currentTime = 0; } catch {}
-          }
+          if (VideoPreview.isTouch()) return;
+          clearTimeout(hoverTimer);
+          preview.unload();
         });
 
-        videoEl.onerror = () => {
+        imgEl.onerror = () => {
           const fallback = document.createElement('div');
           fallback.className = 'fallback-icon';
           fallback.innerHTML = `<svg viewBox="0 0 24 24" fill="var(--text-secondary)" width="48" height="48"><path d="M4 6h16v12H4z" opacity=".3"/><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zM10 8v8l6-4z"/></svg>`;
           fallback.style.display = 'flex';
           fallback.style.alignItems = 'center';
           fallback.style.justifyContent = 'center';
-          fallback.style.background = 'rgba(255,255,255,0.05)';
+          fallback.style.background = 'var(--bg-hover)';
           fallback.style.width = '100%';
           fallback.style.height = '100%';
-          videoEl.replaceWith(fallback);
+          imgEl.replaceWith(fallback);
         };
 
-        item.addEventListener('click', () => {
+        const openEpisode = () => {
+          preview.unload();
           dialog.close();
           dialog.remove();
           playVideo(ep, list, idx, `${series.name} - Season ${seasonNum}`);
+        };
+        item.addEventListener('click', (e) => {
+          if (VideoPreview.isTouch() && !preview.loaded) {
+            e.preventDefault();
+            e.stopPropagation();
+            VideoPreview.armExclusive(preview);
+            preview.load();
+            return;
+          }
+          openEpisode();
         });
 
         grid.appendChild(item);
@@ -1191,7 +1231,7 @@ const NetflixMedia = (() => {
     const remoteBtn = hostEl.querySelector('#netflix-btn-remote');
 
     if (isRemoteMode) {
-      remoteBtn.textContent = '📺 Browse Mode';
+      remoteBtn.innerHTML = '📺 <span class="label">Browse Mode</span>';
       remoteBtn.classList.add('active');
       search.style.display = 'none';
 
@@ -1276,7 +1316,7 @@ const NetflixMedia = (() => {
       });
 
     } else {
-      remoteBtn.textContent = '📱 Remote Mode';
+      remoteBtn.innerHTML = '📱 <span class="label">Remote Mode</span>';
       remoteBtn.classList.remove('active');
       search.style.display = '';
       buildCatalogUI();

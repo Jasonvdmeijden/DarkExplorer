@@ -69,11 +69,13 @@ async function get(filePath, targetWidth = 300) {
     }
 
     if (VIDEO_EXTS.has(ext)) {
-      const mp4  = path.join(CACHE_DIR, key + '.mp4');
-      const webm = path.join(CACHE_DIR, key + '.webm');
-      if (fs.existsSync(mp4))  return mp4;
-      if (fs.existsSync(webm)) return webm;
-      return await videoClip(filePath, mp4, webm, targetWidth);
+      // Default thumbnail is a single still frame, not the 5s clip — generating
+      // a clip per video is expensive (ffmpeg encode) and was firing for every
+      // visible thumbnail at once. The clip itself is only generated on demand
+      // via getPreviewClip(), triggered by hover/tap on the client.
+      const cp = path.join(CACHE_DIR, key + '-frame.jpg');
+      if (fs.existsSync(cp)) return cp;
+      return await videoFrame(filePath, cp, targetWidth);
     }
 
     if (TEXT_EXTS.has(ext)) {
@@ -83,6 +85,50 @@ async function get(filePath, targetWidth = 300) {
     }
   } catch { /* fall through */ }
   return null;
+}
+
+// On-demand preview clip (5s, looping) — only called when the client actually
+// hovers/taps a video thumbnail, not for every thumbnail rendered.
+async function getPreviewClip(filePath, targetWidth = 400) {
+  try {
+    const stat = await fsp.stat(filePath);
+    const ext  = path.extname(filePath).toLowerCase();
+    if (!VIDEO_EXTS.has(ext)) return null;
+    const key  = cacheKey(filePath, stat.mtimeMs, targetWidth);
+    const mp4  = path.join(CACHE_DIR, key + '.mp4');
+    const webm = path.join(CACHE_DIR, key + '.webm');
+    if (fs.existsSync(mp4))  return mp4;
+    if (fs.existsSync(webm)) return webm;
+    return await videoClip(filePath, mp4, webm, targetWidth);
+  } catch { /* fall through */ }
+  return null;
+}
+
+// Cheap still frame at the same timestamp the preview clip starts from
+// (middle of the video minus 2.5s) — a plain frame grab, no transcoding,
+// so it's fast even under concurrent load.
+async function videoFrame(filePath, cp, targetWidth) {
+  if (!ffmpeg) return null;
+  const scale = `scale=${targetWidth}:-2`;
+  const start = await new Promise((resolve) => {
+    ffmpeg.ffprobe(filePath, (err, meta) => {
+      const dur = meta?.format?.duration || 0;
+      resolve(Math.max(0, dur / 2 - 2.5).toFixed(3));
+    });
+  });
+  return new Promise((resolve) => {
+    ffmpeg(filePath)
+      .inputOptions(['-ss', start])
+      .outputOptions(['-frames:v', '1', '-vf', scale])
+      .output(cp)
+      .on('end', () => resolve(cp))
+      .on('error', (e) => {
+        try { fs.unlinkSync(cp); } catch {}
+        console.warn('[thumbs] frame extraction failed:', e.message.split('\n')[0]);
+        resolve(null);
+      })
+      .run();
+  });
 }
 
 // Decode a HEIC/HEIF file to a JPEG buffer via heic-convert (WASM libheif+libde265).
@@ -215,8 +261,40 @@ function _probeAvailableCodecs() {
   });
 }
 
+// Concurrency cap: a folder with many episodes fires one /thumbnail request per
+// visible card at once. Without a cap, dozens of ffmpeg processes spawn simultaneously
+// competing for the same GPU encoder sessions / DLL init, and they all start failing
+// with STATUS_DLL_INIT_FAILED instead of just queuing — same class of issue as the
+// HEIC semaphore above.
+const _videoSem = { active: 0, queue: [] };
+const VIDEO_MAX_CONCURRENT = 3;
+
+function _acquireVideoSlot() {
+  return new Promise((resolve) => {
+    const tryAcquire = () => {
+      if (_videoSem.active < VIDEO_MAX_CONCURRENT) { _videoSem.active++; resolve(); }
+      else _videoSem.queue.push(tryAcquire);
+    };
+    tryAcquire();
+  });
+}
+function _releaseVideoSlot() {
+  _videoSem.active--;
+  const next = _videoSem.queue.shift();
+  if (next) next();
+}
+
 async function videoClip(filePath, mp4Path, webmPath, targetWidth) {
   if (!ffmpeg) return null;
+  await _acquireVideoSlot();
+  try {
+    return await _videoClipInner(filePath, mp4Path, webmPath, targetWidth);
+  } finally {
+    _releaseVideoSlot();
+  }
+}
+
+async function _videoClipInner(filePath, mp4Path, webmPath, targetWidth) {
   const scale = `scale=${targetWidth}:-2`;
 
   // Probe duration so we can clip from the middle of the video
@@ -416,4 +494,4 @@ async function getViewableImage(filePath) {
   }
 }
 
-module.exports = { get, getViewableImage };
+module.exports = { get, getViewableImage, getPreviewClip };
