@@ -68,6 +68,9 @@ function requireAuth(req, res, next) {
   next();
 }
 
+const streamRouter = require('./stream');
+app.use('/stream', requireAuth, streamRouter);
+
 app.use(express.static(path.join(__dirname, '..', 'public'), {
   setHeaders: (res, filePath) => {
     if (/\.(js|css|html)$/.test(filePath)) res.setHeader('Cache-Control', 'no-store');

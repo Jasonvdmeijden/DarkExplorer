@@ -299,6 +299,7 @@ const Explorer = (() => {
     else if (view === 'list')   renderList();
     else if (view === 'disk')   renderDisk();
     else if (view === 'media')  renderMedia();
+    else if (view === 'stream') renderStream();
     else                        renderDetails();
   }
 
@@ -316,6 +317,18 @@ const Explorer = (() => {
       return;
     }
     NetflixMedia.render(host, currentPath);
+  }
+
+  function renderStream() {
+    pane1.innerHTML = '';
+    const host = document.createElement('div');
+    host.className = 'file-pane view-stream';
+    pane1.appendChild(host);
+    if (typeof StreamView === 'undefined') {
+      host.innerHTML = '<div style="padding:1.5rem;color:var(--text-muted)">Stream View script failed to load — check console.</div>';
+      return;
+    }
+    StreamView.render(host, currentPath);
   }
 
   // Disk-usage view — full-pane sunburst rooted at currentPath
