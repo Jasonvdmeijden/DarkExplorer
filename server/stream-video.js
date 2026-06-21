@@ -21,7 +21,7 @@ router.get('/video', (req, res) => {
   
   // High performance hardware-accelerated MJPEG desktop capture
   const args = isMac 
-    ? ['-f', 'avfoundation', '-r', '30', '-i', '1', '-c:v', 'mjpeg', '-q:v', '3', '-f', 'mpjpeg', 'pipe:1']
+    ? ['-f', 'avfoundation', '-r', '30', '-i', 'Capture screen 0', '-c:v', 'mjpeg', '-q:v', '3', '-f', 'mpjpeg', 'pipe:1']
     : ['-f', 'gdigrab', '-framerate', '30', '-i', 'desktop', '-c:v', 'mjpeg', '-q:v', '3', '-f', 'mpjpeg', 'pipe:1'];
 
   activeStream = spawn('ffmpeg', args);

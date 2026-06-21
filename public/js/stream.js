@@ -206,7 +206,10 @@ window.StreamView = (function() {
         <button class="stream-play-btn" style="margin-top: 30px; background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.4); backdrop-filter: blur(5px);" onclick="this.parentElement.parentElement.remove()">Cancel</button>
       </div>
       <img id="stream-video-feed" style="display:none; width:100%; height:100%; object-fit:contain; background:black; position: absolute; top:0; left:0; z-index: 5;" />
-      <button id="stream-exit-btn" style="display:none; position:absolute; top:20px; left:20px; background:rgba(0,0,0,0.5); color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer; z-index:1001;">Exit Stream</button>
+      <div id="stream-controls" style="display:none; position:absolute; top:20px; left:20px; z-index:1001; gap: 10px; display: flex;">
+        <button id="stream-exit-btn" style="background:rgba(0,0,0,0.5); color:white; border:1px solid rgba(255,255,255,0.2); padding:10px 20px; border-radius:8px; cursor:pointer; backdrop-filter: blur(10px); font-weight: bold; transition: all 0.2s;">Exit Stream</button>
+        <button id="stream-fullscreen-btn" style="background:rgba(0,0,0,0.5); color:white; border:1px solid rgba(255,255,255,0.2); padding:10px 20px; border-radius:8px; cursor:pointer; backdrop-filter: blur(10px); font-weight: bold; transition: all 0.2s;">Full Screen</button>
+      </div>
     `;
     document.body.appendChild(overlay);
 
@@ -227,15 +230,26 @@ window.StreamView = (function() {
           document.getElementById('stream-loading-ui').style.display = 'none';
           const videoFeed = document.getElementById('stream-video-feed');
           const exitBtn = document.getElementById('stream-exit-btn');
+          const fsBtn = document.getElementById('stream-fullscreen-btn');
+          const controls = document.getElementById('stream-controls');
           
           videoFeed.style.display = 'block';
-          exitBtn.style.display = 'block';
+          controls.style.display = 'flex';
           
           // The MJPEG stream is authenticated via a short-lived token in the URL or cookies.
           // Since we use headers usually, we can pass token in URL.
           videoFeed.src = `/stream/video?token=${encodeURIComponent(token)}`;
           
+          fsBtn.onclick = () => {
+            if (!document.fullscreenElement) {
+              overlay.requestFullscreen().catch(err => console.log(err));
+            } else {
+              document.exitFullscreen();
+            }
+          };
+
           exitBtn.onclick = () => {
+            if (document.fullscreenElement) document.exitFullscreen();
             videoFeed.src = ''; // stop stream
             document.removeEventListener('keydown', handleKey);
             document.removeEventListener('keyup', handleKey);
