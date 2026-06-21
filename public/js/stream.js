@@ -13,10 +13,16 @@ const StreamView = (function() {
           <div>
             <h1 style="font-size: 2.5rem; font-weight: 800; margin-bottom: 0; color: var(--text-primary);">Explorer RTC</h1>
           </div>
-          <button id="stream-settings-btn" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; display: flex; align-items: center; gap: 8px; backdrop-filter: blur(10px);">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-            Settings
-          </button>
+          <div style="display: flex; gap: 10px;">
+            <button id="stream-desktop-btn" style="background: var(--accent); border: none; color: white; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+              Desktop
+            </button>
+            <button id="stream-settings-btn" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; display: flex; align-items: center; gap: 8px; backdrop-filter: blur(10px);">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+              Settings
+            </button>
+          </div>
         </div>
       </div>
       <div class="stream-row" id="stream-apps-row">
@@ -123,6 +129,16 @@ const StreamView = (function() {
     document.getElementById('stream-settings-close').onclick = () => {
       settingsModal.style.display = 'none';
     };
+    
+    document.getElementById('stream-desktop-btn').onclick = () => {
+      launchApp({
+        name: "Remote Desktop",
+        image: "https://images.unsplash.com/photo-1618424181497-157f25b6ce50?auto=format&fit=crop&q=80&w=400",
+        path: null,
+        appid: null
+      });
+    };
+
     document.getElementById('setting-bitrate').oninput = (e) => {
       document.getElementById('setting-bitrate-val').textContent = e.target.value;
     };
@@ -240,20 +256,9 @@ const StreamView = (function() {
     document.body.appendChild(overlay);
 
     const token = localStorage.getItem('de_token') || '';
-
-    // 1. Tell backend to launch the app natively on host
-    fetch('/stream/launch', {
-      method: 'POST',
-      headers: { 
-        'Authorization': 'Bearer ' + token,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ path: item.path, appid: item.appid })
-    }).then(res => res.json()).then(data => {
-      if (data.ok) {
-        // 2. Hide loading UI and inject WebRTC Feed
-        setTimeout(() => {
-        fetch('/stream/webrtc-config')
+    
+    const startWebRTCStream = () => {
+      fetch('/stream/webrtc-config')
         .then(res => res.json())
         .then(config => {
           const hostId = config.hostId || 1;
@@ -266,11 +271,11 @@ const StreamView = (function() {
           videoContainer.style.display = 'block';
           controls.style.display = 'block';
           
-          // Inject Moonlight WebRTC Frame directly into DarkExplorer overlay!
-          // We dynamically use the correct hostId fetched from the proxy database!
-          // We use appName=Desktop so the proxy can dynamically find the correct app ID instead of assuming 1!
-          const proxyUrl = window.location.protocol + "//" + window.location.hostname + ":8080/stream.html?hostId=" + hostId + "&appName=Desktop";
-          
+          // Delegate the actual app launching entirely to the Sunshine engine.
+          // By passing the dynamic appName to the proxy, Moonlight Web Stream will request Sunshine
+          // to execute the native application launch and isolation automatically.
+          const dynamicAppName = (item.name && item.name !== "Remote Desktop") ? encodeURIComponent(item.name) : "Desktop";
+          const proxyUrl = window.location.protocol + "//" + window.location.hostname + ":8080/stream.html?hostId=" + hostId + "&appName=" + dynamicAppName;
           const iframe = document.createElement('iframe');
           iframe.src = proxyUrl;
           iframe.style = "width: 100%; height: 100%; border: none; outline: none; background: #000;";
@@ -280,11 +285,10 @@ const StreamView = (function() {
 
           exitBtn.onclick = () => {
             if (document.fullscreenElement) document.exitFullscreen();
-            videoContainer.innerHTML = ''; // stop stream
+            videoContainer.innerHTML = '';
             overlay.remove();
           };
 
-          // Listen for the custom Shift+ESC keyboard shortcut from the proxy iframe
           const messageListener = (event) => {
             if (event.data && event.data.type === 'DARKEXPLORER_CLOSE') {
               if (document.fullscreenElement) document.exitFullscreen();
@@ -294,18 +298,32 @@ const StreamView = (function() {
             }
           };
           window.addEventListener('message', messageListener);
-
         });
-        }, 1500); // Give the app 1.5s to open before streaming screen
-      } else {
-        alert('Failed to launch application on host.');
+    };
+
+    if (item.path || item.appid) {
+      fetch('/stream/launch', {
+        method: 'POST',
+        headers: { 
+          'Authorization': 'Bearer ' + token,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ path: item.path, appid: item.appid })
+      }).then(res => res.json()).then(data => {
+        if (data.ok) {
+          setTimeout(startWebRTCStream, 1500);
+        } else {
+          alert('Failed to launch application on host.');
+          overlay.remove();
+        }
+      }).catch(e => {
+        console.error(e);
+        alert('Network error launching application.');
         overlay.remove();
-      }
-    }).catch(e => {
-      console.error(e);
-      alert('Network error launching application.');
-      overlay.remove();
-    });
+      });
+    } else {
+      setTimeout(startWebRTCStream, 500);
+    }
   }
 
   function hide() {

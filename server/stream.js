@@ -177,7 +177,7 @@ router.post('/launch', (req, res) => {
       const p = spawn(cmd, args, { detached: true, stdio: 'ignore' });
       p.unref();
     } else if (fp) {
-      // Launch local app
+      // Launch local app natively using macOS 'open' command which guarantees it opens
       const cmd = process.platform === 'darwin' ? 'open' : 'cmd';
       const args = process.platform === 'darwin' ? [fp] : ['/c', 'start', '', fp];
       const p = spawn(cmd, args, { detached: true, stdio: 'ignore' });
