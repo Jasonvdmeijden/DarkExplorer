@@ -16,6 +16,11 @@ else
     echo "Rust is already installed."
 fi
 
+if ! command -v cmake &> /dev/null; then
+    echo "Installing CMake..."
+    brew install cmake
+fi
+
 # 2. Install Sunshine natively on macOS or Windows
 if [[ "$OSTYPE" == "darwin"* ]]; then
     if [ ! -d "/Applications/Sunshine.app" ]; then
