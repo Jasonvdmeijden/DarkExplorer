@@ -15,10 +15,20 @@ const StreamView = (function() {
           </div>
         </div>
       </div>
-      <div style="width: 100%; height: calc(100% - 85px); position: relative; background: #000;">
-        <iframe id="moonlight-webrtc-frame" src="http://localhost:8080" style="width: 100%; height: 100%; border: none; outline: none; display: block;"></iframe>
+      <div style="width: 100%; height: calc(100% - 85px); position: relative; background: #000;" id="webrtc-container">
+        <!-- iframe will be injected here with dynamic host -->
       </div>
     `;
+
+    // Dynamically inject iframe to use the correct hostname instead of hardcoded localhost
+    const proxyUrl = window.location.protocol + "//" + window.location.hostname + ":8080";
+    const iframe = document.createElement('iframe');
+    iframe.id = "moonlight-webrtc-frame";
+    iframe.src = proxyUrl;
+    iframe.style = "width: 100%; height: 100%; border: none; outline: none; display: block;";
+    iframe.allow = "gamepad; microphone; autoplay; fullscreen; display-capture; clipboard-read; clipboard-write";
+    
+    document.getElementById('webrtc-container').appendChild(iframe);
   }
 
   function hide() {
