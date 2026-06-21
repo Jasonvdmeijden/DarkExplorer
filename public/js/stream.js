@@ -8,25 +8,50 @@ window.StreamView = (function() {
     container = hostEl;
     currentPath = pathStr;
     container.innerHTML = `
-      <div class="stream-header" style="padding: 40px 4% 20px 4%; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 30px;">
-        <h1 style="font-size: 2.5rem; font-weight: 800; margin-bottom: 10px; color: var(--text-primary);">Explorer RTC</h1>
-        <p style="font-size: 1.1rem; color: var(--text-muted); max-width: 800px; line-height: 1.5;">
-          Seamlessly launch and stream your installed applications and Steam library directly into the browser. Powered by hardware-accelerated zero-latency MJPEG capturing and interactive WebSocket input injection.
-        </p>
+      <div class="stream-nav" style="padding: 10px 4%; display: flex; gap: 10px; border-bottom: 1px solid var(--border-color); background: var(--bg-surface);">
+        <button id="stream-tab-library" style="background:var(--accent); color:black; border:none; padding:8px 16px; border-radius:4px; cursor:pointer; font-weight:bold;">Library</button>
+        <button id="stream-tab-player" style="display:none; background:transparent; color:var(--text-muted); border:1px solid var(--border-color); padding:8px 16px; border-radius:4px; cursor:pointer;">Now Playing</button>
       </div>
-      <div class="stream-row" id="stream-apps-row">
-        <h2 class="stream-row-title">Installed Applications</h2>
-        <div class="stream-carousel" id="stream-apps-carousel">
-          <div style="padding: 20px; color: #888;">Scanning for apps...</div>
+      <div id="stream-view-library">
+        <div class="stream-header" style="padding: 40px 4% 20px 4%; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 30px;">
+          <h1 style="font-size: 2.5rem; font-weight: 800; margin-bottom: 10px; color: var(--text-primary);">Explorer RTC</h1>
+          <p style="font-size: 1.1rem; color: var(--text-muted); max-width: 800px; line-height: 1.5;">
+            Seamlessly launch and stream your installed applications and Steam library directly into the browser. Powered by hardware-accelerated zero-latency MJPEG capturing and interactive WebSocket input injection.
+          </p>
+        </div>
+        <div class="stream-row" id="stream-apps-row">
+          <h2 class="stream-row-title">Installed Applications</h2>
+          <div class="stream-carousel" id="stream-apps-carousel">
+            <div style="padding: 20px; color: #888;">Scanning for apps...</div>
+          </div>
+        </div>
+        <div class="stream-row" id="stream-steam-row">
+          <h2 class="stream-row-title">Steam Library</h2>
+          <div class="stream-carousel" id="stream-steam-carousel">
+            <div style="padding: 20px; color: #888;">Scanning Steam library...</div>
+          </div>
         </div>
       </div>
-      <div class="stream-row" id="stream-steam-row">
-        <h2 class="stream-row-title">Steam Library</h2>
-        <div class="stream-carousel" id="stream-steam-carousel">
-          <div style="padding: 20px; color: #888;">Scanning Steam library...</div>
-        </div>
-      </div>
+      <div id="stream-view-player" style="display:none; width:100%; height:calc(100% - 50px); flex-direction:column; background:#000; position:relative;"></div>
     `;
+
+    document.getElementById('stream-tab-library').onclick = () => {
+      document.getElementById('stream-view-library').style.display = 'block';
+      document.getElementById('stream-view-player').style.display = 'none';
+      document.getElementById('stream-tab-library').style.background = 'var(--accent)';
+      document.getElementById('stream-tab-library').style.color = 'black';
+      document.getElementById('stream-tab-player').style.background = 'transparent';
+      document.getElementById('stream-tab-player').style.color = 'var(--text-muted)';
+    };
+
+    document.getElementById('stream-tab-player').onclick = () => {
+      document.getElementById('stream-view-library').style.display = 'none';
+      document.getElementById('stream-view-player').style.display = 'flex';
+      document.getElementById('stream-tab-player').style.background = 'var(--accent)';
+      document.getElementById('stream-tab-player').style.color = 'black';
+      document.getElementById('stream-tab-library').style.background = 'transparent';
+      document.getElementById('stream-tab-library').style.color = 'var(--text-muted)';
+    };
 
     fetchApps();
   }
@@ -86,24 +111,25 @@ window.StreamView = (function() {
   }
 
   function launchApp(item) {
-    const overlay = document.createElement('div');
-    overlay.className = 'stream-overlay';
-    overlay.style.flexDirection = 'column';
-    overlay.innerHTML = `
-      <div id="stream-loading-ui" class="stream-loading">
+    // Switch to player tab
+    document.getElementById('stream-tab-player').textContent = 'Now Playing: ' + item.name;
+    document.getElementById('stream-tab-player').style.display = 'inline-block';
+    document.getElementById('stream-tab-player').click();
+
+    const playerContainer = document.getElementById('stream-view-player');
+    playerContainer.innerHTML = `
+      <div id="stream-loading-ui" class="stream-loading" style="margin: auto;">
         <div class="stream-spinner"></div>
         <div>Connecting to Explorer RTC...</div>
         <div style="font-size:1rem;color:#ccc;margin-top:10px;">Launching ${item.name}</div>
-        <button class="stream-play-btn" style="margin-top:30px;background:var(--bg-surface);color:white;" onclick="this.parentElement.parentElement.remove()">Cancel</button>
+        <button class="stream-play-btn" style="margin-top:30px;background:var(--bg-surface);color:white;" onclick="document.getElementById('stream-tab-library').click()">Cancel</button>
       </div>
       <img id="stream-video-feed" style="display:none; width:100%; height:100%; object-fit:contain; background:black;" />
-      <button id="stream-exit-btn" style="display:none; position:absolute; top:20px; left:20px; background:rgba(0,0,0,0.5); color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer; z-index:1001;">Exit Stream</button>
+      <button id="stream-exit-btn" style="display:none; position:absolute; top:20px; left:20px; background:rgba(0,0,0,0.5); color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer; z-index:1001;">Stop Stream</button>
     `;
-    document.body.appendChild(overlay);
 
     const token = localStorage.getItem('de_token') || '';
 
-    // 1. Tell backend to launch the app natively on host
     fetch('/stream/launch', {
       method: 'POST',
       headers: { 
@@ -113,7 +139,6 @@ window.StreamView = (function() {
       body: JSON.stringify({ path: item.path, appid: item.appid })
     }).then(res => res.json()).then(data => {
       if (data.ok) {
-        // 2. Hide loading UI and show video feed
         setTimeout(() => {
           document.getElementById('stream-loading-ui').style.display = 'none';
           const videoFeed = document.getElementById('stream-video-feed');
@@ -122,27 +147,22 @@ window.StreamView = (function() {
           videoFeed.style.display = 'block';
           exitBtn.style.display = 'block';
           
-          // The MJPEG stream is authenticated via a short-lived token in the URL or cookies.
-          // Since we use headers usually, we can pass token in URL.
           videoFeed.src = `/stream/video?token=${encodeURIComponent(token)}`;
           
           exitBtn.onclick = () => {
-            videoFeed.src = ''; // stop stream
+            videoFeed.src = ''; 
             document.removeEventListener('keydown', handleKey);
             document.removeEventListener('keyup', handleKey);
-            overlay.remove();
+            document.getElementById('stream-tab-library').click();
+            document.getElementById('stream-tab-player').style.display = 'none';
           };
 
-          // --- Input Layer Setup ---
           function sendInput(payload) {
             WS.request('stream:input', payload).catch(()=>{});
           }
 
           videoFeed.addEventListener('mousemove', (e) => {
             const rect = videoFeed.getBoundingClientRect();
-            // The videoFeed is an img using object-fit: contain.
-            // For true 1:1 mapping we need to calculate the letterbox, 
-            // but for a quick seamless stream, normalized coordinates work well.
             const nx = (e.clientX - rect.left) / rect.width;
             const ny = (e.clientY - rect.top) / rect.height;
             sendInput({ action: 'mousemove', nx, ny });
@@ -163,10 +183,8 @@ window.StreamView = (function() {
             sendInput({ action: 'scroll', dx: Math.sign(e.deltaX), dy: -Math.sign(e.deltaY) });
           });
 
-          // Prevent context menu on right click
           videoFeed.addEventListener('contextmenu', e => e.preventDefault());
 
-          // Keyboard handling
           function mapKey(e) {
             let k = e.key.toLowerCase();
             if (k === ' ') return 'space';
@@ -193,15 +211,15 @@ window.StreamView = (function() {
           document.addEventListener('keydown', handleKey);
           document.addEventListener('keyup', handleKey);
 
-        }, 1500); // Give the app 1.5s to open before streaming screen
+        }, 1500);
       } else {
         alert('Failed to launch application on host.');
-        overlay.remove();
+        document.getElementById('stream-tab-library').click();
       }
     }).catch(e => {
       console.error(e);
       alert('Network error launching application.');
-      overlay.remove();
+      document.getElementById('stream-tab-library').click();
     });
   }
 
