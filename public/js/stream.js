@@ -205,9 +205,8 @@ const StreamView = (function() {
       <div id="stream-video-container" style="display:none; width:100%; height:100%; position: absolute; top:0; left:0; z-index: 5;">
          <!-- WebRTC Iframe injected here -->
       </div>
-      <div id="stream-controls" style="display:none; position:absolute; top:20px; left:20px; z-index:1001; gap: 10px; display: flex;">
-        <button id="stream-exit-btn" style="background:rgba(0,0,0,0.5); color:white; border:1px solid rgba(255,255,255,0.2); padding:10px 20px; border-radius:8px; cursor:pointer; backdrop-filter: blur(10px); font-weight: bold; transition: all 0.2s;">Exit Stream</button>
-        <button id="stream-fullscreen-btn" style="background:rgba(0,0,0,0.5); color:white; border:1px solid rgba(255,255,255,0.2); padding:10px 20px; border-radius:8px; cursor:pointer; backdrop-filter: blur(10px); font-weight: bold; transition: all 0.2s;">Full Screen</button>
+      <div id="stream-controls" style="display:none; position:absolute; top:20px; right:20px; z-index:1001;">
+        <button id="stream-exit-btn" style="background:rgba(255,0,0,0.8); color:white; border:1px solid rgba(255,255,255,0.3); padding:10px 20px; border-radius:8px; cursor:pointer; backdrop-filter: blur(10px); font-weight: bold; transition: all 0.2s; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">Close Game</button>
       </div>
     `;
     document.body.appendChild(overlay);
@@ -229,11 +228,10 @@ const StreamView = (function() {
           document.getElementById('stream-loading-ui').style.display = 'none';
           const videoContainer = document.getElementById('stream-video-container');
           const exitBtn = document.getElementById('stream-exit-btn');
-          const fsBtn = document.getElementById('stream-fullscreen-btn');
           const controls = document.getElementById('stream-controls');
           
           videoContainer.style.display = 'block';
-          controls.style.display = 'flex';
+          controls.style.display = 'block';
           
           // Inject Moonlight WebRTC Frame directly into DarkExplorer overlay!
           // We use window.location.hostname to ensure it works on remote devices, avoiding localhost CORS issues!
@@ -246,14 +244,6 @@ const StreamView = (function() {
           iframe.allow = "gamepad; microphone; autoplay; fullscreen; display-capture; clipboard-read; clipboard-write";
           
           videoContainer.appendChild(iframe);
-          
-          fsBtn.onclick = () => {
-            if (!document.fullscreenElement) {
-              overlay.requestFullscreen().catch(err => console.log(err));
-            } else {
-              document.exitFullscreen();
-            }
-          };
 
           exitBtn.onclick = () => {
             if (document.fullscreenElement) document.exitFullscreen();
