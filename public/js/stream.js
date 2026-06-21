@@ -91,6 +91,15 @@ const StreamView = (function() {
               </div>
               <input type="checkbox" id="setting-network" style="width: 20px; height: 20px; accent-color: var(--accent);">
             </div>
+            <hr style="border: 0; height: 1px; background: rgba(255,255,255,0.1); margin: 10px 0;">
+            <div>
+              <label style="display: block; color: var(--text-secondary); margin-bottom: 8px; font-weight: bold;">WebRTC Engine Setup</label>
+              <span style="font-size: 0.85rem; color: var(--text-muted); display: block; margin-bottom: 15px;">Configure the internal Moonlight engine and pair it with the server. You only need to do this once.</span>
+              <button id="stream-settings-setup-btn" style="width: 100%; padding: 12px; background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; font-weight: bold; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 10px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
+                Open Engine Setup
+              </button>
+            </div>
           </div>
           <button id="stream-settings-save" style="width: 100%; padding: 12px; background: var(--accent); color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 1.1rem; cursor: pointer; margin-top: 25px;">Save Settings</button>
         </div>
@@ -126,6 +135,24 @@ const StreamView = (function() {
       localStorage.setItem('de_stream_hdr', document.getElementById('setting-hdr').checked);
       localStorage.setItem('de_stream_network', document.getElementById('setting-network').checked);
       settingsModal.style.display = 'none';
+    };
+
+    document.getElementById('stream-settings-setup-btn').onclick = () => {
+      settingsModal.style.display = 'none';
+      
+      const setupOverlay = document.createElement('div');
+      setupOverlay.style = "position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 3000; background: black;";
+      setupOverlay.innerHTML = `
+        <div style="position: absolute; top: 20px; right: 20px; z-index: 3001;">
+          <button id="setup-close-btn" style="background: rgba(255,0,0,0.8); color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer;">Close Setup</button>
+        </div>
+        <iframe src="${window.location.protocol}//${window.location.hostname}:8080/" style="width: 100%; height: 100%; border: none;"></iframe>
+      `;
+      document.body.appendChild(setupOverlay);
+      
+      document.getElementById('setup-close-btn').onclick = () => {
+        setupOverlay.remove();
+      };
     };
 
     fetchApps();
