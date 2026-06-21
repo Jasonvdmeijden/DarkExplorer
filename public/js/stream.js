@@ -237,16 +237,13 @@ const StreamView = (function() {
           
           // Inject Moonlight WebRTC Frame directly into DarkExplorer overlay!
           // We use window.location.hostname to ensure it works on remote devices, avoiding localhost CORS issues!
-          // We attempt to auto-load the Desktop (hostId=1, appId=1). If it fails, they will just see the Moonlight library and can click the game there.
-          const proxyUrl = window.location.protocol + "//" + window.location.hostname + ":8080/stream.html?hostId=1&appId=1";
+          // We load the Moonlight Engine dashboard so the user can pair it securely.
+          const proxyUrl = window.location.protocol + "//" + window.location.hostname + ":8080/";
           
           const iframe = document.createElement('iframe');
           iframe.src = proxyUrl;
           iframe.style = "width: 100%; height: 100%; border: none; outline: none; background: #000;";
           iframe.allow = "gamepad; microphone; autoplay; fullscreen; display-capture; clipboard-read; clipboard-write";
-          
-          // Fallback UI to Moonlight Library if auto-launch fails
-          iframe.onerror = () => { iframe.src = window.location.protocol + "//" + window.location.hostname + ":8080"; };
           
           videoContainer.appendChild(iframe);
           
