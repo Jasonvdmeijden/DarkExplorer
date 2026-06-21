@@ -294,6 +294,9 @@ window.StreamView = (function() {
           }
 
           function handleKey(e) {
+            // Allow system shortcuts (Cmd+R, Cmd+Shift+4, etc) to pass through naturally
+            if (e.metaKey) return; 
+            
             e.preventDefault();
             const action = e.type === 'keydown' ? 'keydown' : 'keyup';
             sendInput({ action, key: mapKey(e) });
