@@ -189,17 +189,17 @@ const StreamView = (function() {
     const overlay = document.createElement('div');
     overlay.className = 'stream-overlay';
     overlay.style.flexDirection = 'column';
-    overlay.style.background = \`linear-gradient(to bottom, rgba(0,0,0,0.8), rgba(0,0,0,1)), url('\${item.image}')\`;
+    overlay.style.background = `linear-gradient(to bottom, rgba(0,0,0,0.8), rgba(0,0,0,1)), url('${item.image}')`;
     overlay.style.backgroundSize = 'cover';
     overlay.style.backgroundPosition = 'center';
     
     // Instead of an img tag for MJPEG, we use the Moonlight WebRTC iframe!
-    overlay.innerHTML = \`
+    overlay.innerHTML = `
       <div id="stream-loading-ui" class="stream-loading" style="z-index: 10;">
-        <img src="\${item.image}" style="width: 120px; height: 120px; border-radius: 20px; margin-bottom: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+        <img src="${item.image}" style="width: 120px; height: 120px; border-radius: 20px; margin-bottom: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
         <div class="stream-spinner"></div>
         <div style="font-size: 1.2rem; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">Connecting to Explorer RTC...</div>
-        <div style="font-size: 1rem; color: #ccc; margin-top: 10px; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">Launching \${item.name}</div>
+        <div style="font-size: 1rem; color: #ccc; margin-top: 10px; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">Launching ${item.name}</div>
         <button class="stream-play-btn" style="margin-top: 30px; background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.4); backdrop-filter: blur(5px);" onclick="this.parentElement.parentElement.remove()">Cancel</button>
       </div>
       <div id="stream-video-container" style="display:none; width:100%; height:100%; position: absolute; top:0; left:0; z-index: 5;">
@@ -209,7 +209,7 @@ const StreamView = (function() {
         <button id="stream-exit-btn" style="background:rgba(0,0,0,0.5); color:white; border:1px solid rgba(255,255,255,0.2); padding:10px 20px; border-radius:8px; cursor:pointer; backdrop-filter: blur(10px); font-weight: bold; transition: all 0.2s;">Exit Stream</button>
         <button id="stream-fullscreen-btn" style="background:rgba(0,0,0,0.5); color:white; border:1px solid rgba(255,255,255,0.2); padding:10px 20px; border-radius:8px; cursor:pointer; backdrop-filter: blur(10px); font-weight: bold; transition: all 0.2s;">Full Screen</button>
       </div>
-    \`;
+    `;
     document.body.appendChild(overlay);
 
     const token = localStorage.getItem('de_token') || '';
