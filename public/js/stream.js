@@ -237,8 +237,8 @@ const StreamView = (function() {
           
           // Inject Moonlight WebRTC Frame directly into DarkExplorer overlay!
           // We use window.location.hostname to ensure it works on remote devices, avoiding localhost CORS issues!
-          // Now that Moonlight is paired, we pass ?hostId=1&appId=1 to auto-launch the stream and completely hide the Moonlight Library UI!
-          const proxyUrl = window.location.protocol + "//" + window.location.hostname + ":8080/stream.html?hostId=1&appId=1";
+          // Temporarily loading Dashboard so the user can pair it.
+          const proxyUrl = window.location.protocol + "//" + window.location.hostname + ":8080/";
           
           const iframe = document.createElement('iframe');
           iframe.src = proxyUrl;
