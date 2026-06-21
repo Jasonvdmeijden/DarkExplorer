@@ -120,9 +120,35 @@
 
 .stream-card-img {
   width: 100%;
-  height: 280px;
+  height: 200px;
   object-fit: cover;
   background: #111;
+}
+
+.stream-card-fav {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(0,0,0,0.6);
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  cursor: pointer;
+  z-index: 10;
+  backdrop-filter: blur(5px);
+  transition: transform 0.2s, color 0.2s;
+}
+
+.stream-card-fav:hover {
+  transform: scale(1.2);
+}
+
+.stream-card-fav.active {
+  color: #ffc107;
 }
 
 .stream-card-meta {

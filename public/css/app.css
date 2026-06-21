@@ -2298,3 +2298,6 @@ html[data-mode="light"] .stat-chip b {
 .diff-del  { display: block; background: rgba(239,68,68,.08);  color: #ef4444; }
 .diff-hunk { display: block; color: #7c6ef5; font-weight: 600; }
 .diff-meta { display: block; color: var(--text-muted); }
+
+/* Immersive Mode */
+body.immersive-mode #tabs-bar { display: none !important; }

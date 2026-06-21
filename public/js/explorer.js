@@ -295,6 +295,12 @@ const Explorer = (() => {
   });
 
   function renderView() {
+    if (view === 'stream' || view === 'media') {
+      document.body.classList.add('immersive-mode');
+    } else {
+      document.body.classList.remove('immersive-mode');
+    }
+
     if (view === 'mosaic')      renderMosaic();
     else if (view === 'list')   renderList();
     else if (view === 'disk')   renderDisk();

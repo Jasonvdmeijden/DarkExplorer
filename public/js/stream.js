@@ -8,22 +8,21 @@ const StreamView = (function() {
     appContainer.appendChild(container);
 
     container.innerHTML = `
-      <div class="stream-header" style="padding: 40px 4% 20px 4%; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 30px; position: relative;">
-        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-          <div>
-            <h1 style="font-size: 2.5rem; font-weight: 800; margin-bottom: 0; color: var(--text-primary);">Explorer RTC</h1>
-          </div>
-          <div style="display: flex; gap: 10px;">
-            <button id="stream-desktop-btn" style="background: var(--accent); border: none; color: white; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
-              Desktop
-            </button>
-            <button id="stream-settings-btn" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; display: flex; align-items: center; gap: 8px; backdrop-filter: blur(10px);">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-              Settings
-            </button>
-          </div>
+      <div class="stream-header" style="padding: 20px 4%; display: flex; justify-content: flex-end; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 30px;">
+        <div style="display: flex; gap: 15px;">
+          <button class="stream-play-btn" id="stream-desktop-btn" style="background: var(--accent); color: white; padding: 10px 20px; font-size: 1rem;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+            Desktop
+          </button>
+          <button class="stream-play-btn" id="stream-settings-btn" style="background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2); backdrop-filter: blur(10px); padding: 10px 20px; font-size: 1rem;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            Settings
+          </button>
         </div>
+      </div>
+      <div class="stream-row" id="stream-fav-row" style="display:none;">
+        <h2 class="stream-row-title">Favorites</h2>
+        <div class="stream-carousel" id="stream-fav-carousel"></div>
       </div>
       <div class="stream-row" id="stream-apps-row">
         <h2 class="stream-row-title">Installed Applications</h2>
@@ -174,6 +173,9 @@ const StreamView = (function() {
     fetchApps();
   }
 
+  let cachedApps = [];
+  let cachedSteam = [];
+
   async function fetchApps() {
     try {
       const token = localStorage.getItem('de_token') || '';
@@ -181,12 +183,23 @@ const StreamView = (function() {
       if (!res.ok) throw new Error('Failed to scan apps');
       const data = await res.json();
       
-      renderCarousel('stream-apps-carousel', data.apps || [], 'app');
-      renderCarousel('stream-steam-carousel', data.steam || [], 'steam');
+      cachedApps = data.apps || [];
+      cachedSteam = data.steam || [];
+      renderAllCarousels();
     } catch (e) {
       console.error('Stream view fetch error:', e);
       document.getElementById('stream-apps-carousel').innerHTML = '<div style="padding:20px;color:red">Failed to scan applications. Backend endpoint /stream/scan not yet implemented.</div>';
     }
+  }
+
+  function renderAllCarousels() {
+    let favs = JSON.parse(localStorage.getItem('de_stream_favs') || '[]');
+    const favRow = document.getElementById('stream-fav-row');
+    if (favRow) favRow.style.display = favs.length > 0 ? 'block' : 'none';
+    
+    renderCarousel('stream-fav-carousel', favs, 'favorite');
+    renderCarousel('stream-apps-carousel', cachedApps, 'app');
+    renderCarousel('stream-steam-carousel', cachedSteam, 'steam');
   }
 
   function renderCarousel(id, items, platform) {
@@ -218,9 +231,27 @@ const StreamView = (function() {
       plat.className = 'stream-card-platform';
       plat.textContent = platform.toUpperCase();
 
+      const favBtn = document.createElement('div');
+      favBtn.className = 'stream-card-fav';
+      let favs = JSON.parse(localStorage.getItem('de_stream_favs') || '[]');
+      if (favs.some(f => f.name === item.name)) {
+        favBtn.classList.add('active');
+      }
+      favBtn.innerHTML = '★';
+      favBtn.onclick = (ev) => {
+        ev.stopPropagation();
+        let currentFavs = JSON.parse(localStorage.getItem('de_stream_favs') || '[]');
+        const idx = currentFavs.findIndex(f => f.name === item.name);
+        if (idx >= 0) currentFavs.splice(idx, 1);
+        else currentFavs.push(item);
+        localStorage.setItem('de_stream_favs', JSON.stringify(currentFavs));
+        renderAllCarousels();
+      };
+
       meta.appendChild(title);
       meta.appendChild(plat);
       card.appendChild(img);
+      card.appendChild(favBtn);
       card.appendChild(meta);
 
       card.onclick = () => launchApp(item);
@@ -282,7 +313,11 @@ const StreamView = (function() {
           iframe.allow = "gamepad; microphone; autoplay; fullscreen; display-capture; clipboard-read; clipboard-write";
           
           videoContainer.appendChild(iframe);
-
+          
+          // Ensure the iframe has focus so keyboard and gamepad inputs are passed down!
+          iframe.focus();
+          iframe.onload = () => iframe.focus();
+          overlay.onclick = () => iframe.focus();
           exitBtn.onclick = () => {
             if (document.fullscreenElement) document.exitFullscreen();
             videoContainer.innerHTML = '';
