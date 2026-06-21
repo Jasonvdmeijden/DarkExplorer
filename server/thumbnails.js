@@ -201,6 +201,10 @@ async function imageThumb(filePath, cp, targetWidth) {
 
 // Per-codec output options. Hardware encoders need their own preset/quality flags.
 const CODEC_OPTS = {
+  // macOS VideoToolbox HEVC — Apple Silicon/Intel. Full 10-bit HDR support! Requires hvc1 tag for Safari.
+  hevc_videotoolbox: ['-q:v','60','-tag:v','hvc1'],
+  // macOS VideoToolbox H264
+  h264_videotoolbox: ['-q:v','60'],
   // NVIDIA NVENC — significantly faster than CPU (often 10×+). Available with recent drivers.
   h264_nvenc:        ['-preset','p4','-tune','hq','-rc','vbr','-cq','23'],
   // Intel Quick Sync — modern Intel CPUs/iGPUs.
@@ -211,8 +215,6 @@ const CODEC_OPTS = {
   h264_vaapi:        ['-qp','24'],
   // Windows MediaFoundation — built-in Windows hardware encoder (slowest of the HW ones but always present).
   h264_mf:           [],
-  // macOS VideoToolbox — Apple Silicon and Intel Macs hardware encoder.
-  h264_videotoolbox: ['-q:v','60'],
   // Software fallback.
   libx264:           ['-preset','veryfast','-crf','24'],
   libvpx:            ['-b:v','500k','-deadline','realtime'],
@@ -221,7 +223,7 @@ const CODEC_OPTS = {
 // Per-platform preference order (only encoders in CODEC_OPTS are considered).
 const CODEC_PREFERENCE = {
   win32:  ['h264_nvenc','h264_qsv','h264_amf','h264_mf','libx264'],
-  darwin: ['h264_videotoolbox','libx264'],
+  darwin: ['hevc_videotoolbox','h264_videotoolbox','libx264'],
   linux:  ['h264_nvenc','h264_qsv','h264_vaapi','libx264'],
 };
 
@@ -233,12 +235,13 @@ const _deadCodecs = new Set();
 // Matching hwaccel for the decode side. Saves significant CPU because ffmpeg otherwise
 // decodes the input video in software even when the encoder is on the GPU.
 const HWACCEL_FOR = {
+  hevc_videotoolbox: 'videotoolbox',
+  h264_videotoolbox: 'videotoolbox',
   h264_nvenc:        'cuda',
   h264_qsv:          'qsv',
   h264_amf:          'd3d11va',
   h264_vaapi:        'vaapi',
   h264_mf:           'd3d11va',
-  h264_videotoolbox: 'videotoolbox',
 };
 
 function _probeAvailableCodecs() {
@@ -310,6 +313,7 @@ async function _videoClipInner(filePath, mp4Path, webmPath, targetWidth) {
   const tryCodec = (codec) => new Promise((resolve) => {
     const extraOpts = CODEC_OPTS[codec] || [];
     const isVaapi   = codec === 'h264_vaapi';
+    const isMacHW   = codec === 'h264_videotoolbox';
     const hwaccel   = HWACCEL_FOR[codec];
     const cmd = ffmpeg(filePath);
 
@@ -326,7 +330,7 @@ async function _videoClipInner(filePath, mp4Path, webmPath, targetWidth) {
       .inputOptions(['-ss', start, '-t', '5'])
       .outputOptions([
         '-t','5',
-        '-vf', isVaapi ? `${scale},format=nv12,hwupload` : scale,
+        '-vf', isVaapi ? `${scale},format=nv12,hwupload` : `${scale},format=yuv420p`,
         '-an',
         '-c:v', codec,
         ...extraOpts,
@@ -494,4 +498,9 @@ async function getViewableImage(filePath) {
   }
 }
 
-module.exports = { get, getViewableImage, getPreviewClip };
+async function getBestEncoder() {
+  const codecs = await _probeAvailableCodecs();
+  return codecs.find(c => !_deadCodecs.has(c)) || 'libx264';
+}
+
+module.exports = { get, getViewableImage, getPreviewClip, getBestEncoder, CODEC_OPTS, HWACCEL_FOR };

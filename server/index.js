@@ -181,14 +181,31 @@ async function _ensureTranscoded(srcPath, quality) {
     const a = (probed.streams || []).find(s => s.codec_type === 'audio');
     const vIsH264 = v && v.codec_name === 'h264';
     const aIsAac  = a && (a.codec_name === 'aac' || a.codec_name === 'mp3');
-    console.log(`[transcode] building cache for ${path.basename(srcPath)} (video=${v?.codec_name}${vIsH264?' copy':' reencode'}, audio=${a?.codec_name}${aIsAac?' copy':' aac'})`);
+    const thumbs = require('./thumbnails');
+    const bestCodec = await thumbs.getBestEncoder();
+    const opts      = thumbs.CODEC_OPTS[bestCodec] || [];
+    const hwaccel   = thumbs.HWACCEL_FOR[bestCodec];
+    console.log(`[transcode] building cache for ${path.basename(srcPath)} (video=${v?.codec_name}${vIsH264?' copy':' reencode'}, audio=${a?.codec_name}${aIsAac?' copy':' aac'}) using ${bestCodec}`);
 
-    const args = ['-hide_banner','-loglevel','warning','-y','-i', srcPath];
-    if (quality) {
-      args.push('-vf', `scale=-2:${quality}`, '-maxrate', '2000k', '-bufsize', '4000k');
-      args.push('-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23');
+    const args = ['-hide_banner','-loglevel','warning','-y'];
+    const isVaapi = bestCodec === 'h264_vaapi';
+    const isH264  = bestCodec.includes('h264') || bestCodec.includes('libx264');
+    const scaleFilter = quality ? `scale=-2:${quality}` : null;
+    const finalFilter = scaleFilter ? (isVaapi ? `${scaleFilter},format=nv12,hwupload` : (isH264 ? `${scaleFilter},format=yuv420p` : scaleFilter)) : null;
+
+    if (hwaccel) {
+      if (isVaapi) args.push('-vaapi_device', '/dev/dri/renderD128', '-hwaccel', 'vaapi');
+      else args.push('-hwaccel', hwaccel);
+    }
+    args.push('-i', srcPath);
+
+    if (finalFilter) args.push('-vf', finalFilter);
+
+    if (quality || !vIsH264) {
+      args.push('-c:v', bestCodec, ...opts);
+      if (quality && bestCodec === 'libx264') args.push('-maxrate', '2000k', '-bufsize', '4000k');
     } else {
-      if (vIsH264) args.push('-c:v','copy'); else args.push('-c:v','libx264','-preset','veryfast','-crf','23');
+      args.push('-c:v', 'copy');
     }
     if (aIsAac)  args.push('-c:a','copy'); else args.push('-c:a','aac','-b:a','192k');
     // +faststart writes the moov atom to the start of the file after encoding completes →
