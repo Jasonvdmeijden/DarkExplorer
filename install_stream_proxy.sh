@@ -51,9 +51,10 @@ cd "$PROXY_DIR"
 npm install
 source "$HOME/.cargo/env"
 npm run build
+cargo build --release
 
 echo "==========================================================="
 echo "Installation complete!"
 echo "To start the proxy, navigate to $PROXY_DIR and run:"
-echo "npm start"
+echo "./target/release/web-server"
 echo "==========================================================="
