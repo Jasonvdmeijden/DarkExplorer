@@ -8,14 +8,11 @@ window.StreamView = (function() {
     container = hostEl;
     currentPath = pathStr;
     container.innerHTML = `
-      <div class="stream-hero" id="stream-hero" style="background-image: url('https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&q=80&w=2000');">
-        <div class="stream-hero-content">
-          <div class="stream-hero-title">Library Sync</div>
-          <div class="stream-hero-desc">Discovering all installed games and applications across Steam, Xbox, and Local Apps. Preparing them for zero-latency WebRTC streaming via Sunshine.</div>
-          <button class="stream-play-btn" onclick="alert('Sunshine backend manager is not yet fully implemented in Phase 1!')">
-            ▶ Stream Now
-          </button>
-        </div>
+      <div class="stream-header" style="padding: 40px 4% 20px 4%; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 30px;">
+        <h1 style="font-size: 2.5rem; font-weight: 800; margin-bottom: 10px; color: var(--text-primary);">Explorer RTC</h1>
+        <p style="font-size: 1.1rem; color: var(--text-muted); max-width: 800px; line-height: 1.5;">
+          Seamlessly launch and stream your installed applications and Steam library directly into the browser. Powered by hardware-accelerated zero-latency MJPEG capturing and interactive WebSocket input injection.
+        </p>
       </div>
       <div class="stream-row" id="stream-apps-row">
         <h2 class="stream-row-title">Installed Applications</h2>
