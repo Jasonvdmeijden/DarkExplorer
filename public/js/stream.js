@@ -8,11 +8,19 @@ window.StreamView = (function() {
     container = hostEl;
     currentPath = pathStr;
     container.innerHTML = `
-      <div class="stream-header" style="padding: 40px 4% 20px 4%; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 30px;">
-        <h1 style="font-size: 2.5rem; font-weight: 800; margin-bottom: 10px; color: var(--text-primary);">Explorer RTC</h1>
-        <p style="font-size: 1.1rem; color: var(--text-muted); max-width: 800px; line-height: 1.5;">
-          Seamlessly launch and stream your installed applications and Steam library directly into the browser. Powered by hardware-accelerated zero-latency MJPEG capturing and interactive WebSocket input injection.
-        </p>
+      <div class="stream-header" style="padding: 40px 4% 20px 4%; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 30px; position: relative;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <div>
+            <h1 style="font-size: 2.5rem; font-weight: 800; margin-bottom: 10px; color: var(--text-primary);">Explorer RTC</h1>
+            <p style="font-size: 1.1rem; color: var(--text-muted); max-width: 800px; line-height: 1.5;">
+              Seamlessly launch and stream your installed applications and Steam library directly into the browser. Powered by hardware-accelerated zero-latency capturing and interactive WebSocket input injection.
+            </p>
+          </div>
+          <button id="stream-settings-btn" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; display: flex; align-items: center; gap: 8px; backdrop-filter: blur(10px);">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            Settings
+          </button>
+        </div>
       </div>
       <div class="stream-row" id="stream-apps-row">
         <h2 class="stream-row-title">Installed Applications</h2>
@@ -26,7 +34,75 @@ window.StreamView = (function() {
           <div style="padding: 20px; color: #888;">Scanning Steam library...</div>
         </div>
       </div>
+
+      <!-- Settings Modal -->
+      <div id="stream-settings-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); backdrop-filter: blur(5px); z-index: 2000; align-items: center; justify-content: center;">
+        <div style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 12px; width: 500px; max-width: 90%; padding: 30px; box-shadow: 0 20px 40px rgba(0,0,0,0.5);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">
+            <h2 style="margin: 0; font-size: 1.5rem; color: var(--text-primary);">Stream Settings</h2>
+            <button id="stream-settings-close" style="background: transparent; border: none; color: var(--text-muted); font-size: 1.5rem; cursor: pointer;">&times;</button>
+          </div>
+          
+          <div style="display: flex; flex-direction: column; gap: 20px;">
+            <div>
+              <label style="display: block; color: var(--text-secondary); margin-bottom: 8px; font-weight: bold;">Resolution</label>
+              <select id="setting-resolution" style="width: 100%; padding: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 6px; outline: none;">
+                <option value="1080">1080p (1920x1080)</option>
+                <option value="1440">1440p (2560x1440)</option>
+                <option value="4k">4K (3840x2160)</option>
+                <option value="720">720p (1280x720)</option>
+              </select>
+            </div>
+            <div>
+              <label style="display: block; color: var(--text-secondary); margin-bottom: 8px; font-weight: bold;">Framerate (FPS)</label>
+              <select id="setting-fps" style="width: 100%; padding: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 6px; outline: none;">
+                <option value="60">60 FPS</option>
+                <option value="120">120 FPS</option>
+                <option value="30">30 FPS</option>
+              </select>
+            </div>
+            <div>
+              <label style="display: block; color: var(--text-secondary); margin-bottom: 8px; font-weight: bold;">Video Bitrate (Mbps)</label>
+              <input type="range" id="setting-bitrate" min="5" max="150" value="30" style="width: 100%; accent-color: var(--accent);">
+              <div style="text-align: right; color: var(--accent); font-weight: bold; margin-top: 5px;"><span id="setting-bitrate-val">30</span> Mbps</div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <input type="checkbox" id="setting-vsync" checked style="width: 18px; height: 18px; accent-color: var(--accent);">
+              <label for="setting-vsync" style="color: var(--text-secondary); font-weight: bold;">Enable V-Sync</label>
+            </div>
+          </div>
+
+          <div style="margin-top: 30px; display: flex; justify-content: flex-end; gap: 10px;">
+            <button id="stream-settings-save" style="background: var(--accent); color: black; border: none; padding: 10px 20px; border-radius: 6px; font-weight: bold; cursor: pointer;">Save Settings</button>
+          </div>
+        </div>
+      </div>
     `;
+
+    // Attach Settings Handlers
+    const settingsModal = document.getElementById('stream-settings-modal');
+    document.getElementById('stream-settings-btn').onclick = () => {
+      // Load saved settings
+      document.getElementById('setting-resolution').value = localStorage.getItem('de_stream_res') || '1080';
+      document.getElementById('setting-fps').value = localStorage.getItem('de_stream_fps') || '60';
+      document.getElementById('setting-bitrate').value = localStorage.getItem('de_stream_bitrate') || '30';
+      document.getElementById('setting-bitrate-val').textContent = document.getElementById('setting-bitrate').value;
+      document.getElementById('setting-vsync').checked = (localStorage.getItem('de_stream_vsync') !== 'false');
+      settingsModal.style.display = 'flex';
+    };
+    document.getElementById('stream-settings-close').onclick = () => {
+      settingsModal.style.display = 'none';
+    };
+    document.getElementById('setting-bitrate').oninput = (e) => {
+      document.getElementById('setting-bitrate-val').textContent = e.target.value;
+    };
+    document.getElementById('stream-settings-save').onclick = () => {
+      localStorage.setItem('de_stream_res', document.getElementById('setting-resolution').value);
+      localStorage.setItem('de_stream_fps', document.getElementById('setting-fps').value);
+      localStorage.setItem('de_stream_bitrate', document.getElementById('setting-bitrate').value);
+      localStorage.setItem('de_stream_vsync', document.getElementById('setting-vsync').checked);
+      settingsModal.style.display = 'none';
+    };
 
     fetchApps();
   }
