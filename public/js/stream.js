@@ -11,10 +11,7 @@ window.StreamView = (function() {
       <div class="stream-header" style="padding: 40px 4% 20px 4%; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 30px; position: relative;">
         <div style="display: flex; justify-content: space-between; align-items: flex-start;">
           <div>
-            <h1 style="font-size: 2.5rem; font-weight: 800; margin-bottom: 10px; color: var(--text-primary);">Explorer RTC</h1>
-            <p style="font-size: 1.1rem; color: var(--text-muted); max-width: 800px; line-height: 1.5;">
-              Seamlessly launch and stream your installed applications and Steam library directly into the browser. Powered by hardware-accelerated zero-latency capturing and interactive WebSocket input injection.
-            </p>
+            <h1 style="font-size: 2.5rem; font-weight: 800; margin-bottom: 0; color: var(--text-primary);">Explorer RTC</h1>
           </div>
           <button id="stream-settings-btn" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; display: flex; align-items: center; gap: 8px; backdrop-filter: blur(10px);">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
@@ -66,9 +63,34 @@ window.StreamView = (function() {
               <input type="range" id="setting-bitrate" min="5" max="150" value="30" style="width: 100%; accent-color: var(--accent);">
               <div style="text-align: right; color: var(--accent); font-weight: bold; margin-top: 5px;"><span id="setting-bitrate-val">30</span> Mbps</div>
             </div>
-            <div style="display: flex; align-items: center; gap: 10px;">
-              <input type="checkbox" id="setting-vsync" checked style="width: 18px; height: 18px; accent-color: var(--accent);">
-              <label for="setting-vsync" style="color: var(--text-secondary); font-weight: bold;">Enable V-Sync</label>
+            <div>
+              <label style="display: block; color: var(--text-secondary); margin-bottom: 8px; font-weight: bold;">Audio Configuration</label>
+              <select id="setting-audio" style="width: 100%; padding: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 6px; outline: none;">
+                <option value="stereo">Stereo (2.0)</option>
+                <option value="surround51">Surround (5.1)</option>
+                <option value="surround71">Surround (7.1)</option>
+              </select>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.02); padding: 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
+              <div>
+                <label for="setting-vsync" style="color: var(--text-primary); font-weight: bold; display: block;">Enable V-Sync</label>
+                <span style="font-size: 0.85rem; color: var(--text-muted);">Prevents screen tearing during high-motion scenes</span>
+              </div>
+              <input type="checkbox" id="setting-vsync" checked style="width: 20px; height: 20px; accent-color: var(--accent);">
+            </div>
+            <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.02); padding: 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
+              <div>
+                <label for="setting-hdr" style="color: var(--text-primary); font-weight: bold; display: block;">Enable HDR</label>
+                <span style="font-size: 0.85rem; color: var(--text-muted);">Requires an HDR compatible display</span>
+              </div>
+              <input type="checkbox" id="setting-hdr" style="width: 20px; height: 20px; accent-color: var(--accent);">
+            </div>
+            <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.02); padding: 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
+              <div>
+                <label for="setting-network" style="color: var(--text-primary); font-weight: bold; display: block;">Optimize Network Drops</label>
+                <span style="font-size: 0.85rem; color: var(--text-muted);">Drops frames to reduce latency on bad connections</span>
+              </div>
+              <input type="checkbox" id="setting-network" style="width: 20px; height: 20px; accent-color: var(--accent);">
             </div>
           </div>
 
@@ -86,8 +108,11 @@ window.StreamView = (function() {
       document.getElementById('setting-resolution').value = localStorage.getItem('de_stream_res') || '1080';
       document.getElementById('setting-fps').value = localStorage.getItem('de_stream_fps') || '60';
       document.getElementById('setting-bitrate').value = localStorage.getItem('de_stream_bitrate') || '30';
+      document.getElementById('setting-audio').value = localStorage.getItem('de_stream_audio') || 'stereo';
       document.getElementById('setting-bitrate-val').textContent = document.getElementById('setting-bitrate').value;
       document.getElementById('setting-vsync').checked = (localStorage.getItem('de_stream_vsync') !== 'false');
+      document.getElementById('setting-hdr').checked = (localStorage.getItem('de_stream_hdr') === 'true');
+      document.getElementById('setting-network').checked = (localStorage.getItem('de_stream_network') === 'true');
       settingsModal.style.display = 'flex';
     };
     document.getElementById('stream-settings-close').onclick = () => {
@@ -100,7 +125,10 @@ window.StreamView = (function() {
       localStorage.setItem('de_stream_res', document.getElementById('setting-resolution').value);
       localStorage.setItem('de_stream_fps', document.getElementById('setting-fps').value);
       localStorage.setItem('de_stream_bitrate', document.getElementById('setting-bitrate').value);
+      localStorage.setItem('de_stream_audio', document.getElementById('setting-audio').value);
       localStorage.setItem('de_stream_vsync', document.getElementById('setting-vsync').checked);
+      localStorage.setItem('de_stream_hdr', document.getElementById('setting-hdr').checked);
+      localStorage.setItem('de_stream_network', document.getElementById('setting-network').checked);
       settingsModal.style.display = 'none';
     };
 
