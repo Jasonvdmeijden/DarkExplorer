@@ -22,6 +22,7 @@ const gitOps   = require('./git');
 const sysStats = require('./stats');
 const shares   = require('./shares');
 const security = require('./security');
+const robot    = require('./robot');
 
 if (process.argv.includes('--gen-otp')) {
   const code = auth.generateOtp();
@@ -729,6 +730,9 @@ async function handle(type, payload, reply, ws, device) {
 
     // --- stats ---
     case 'stats:get': sysStats.getStats().then(reply).catch(() => reply({})); break;
+
+    // --- stream ---
+    case 'stream:input': robot.handleInput(payload); break;
 
     // --- workspace state ---
     case 'state:set': {

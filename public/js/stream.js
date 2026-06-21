@@ -131,8 +131,71 @@ window.StreamView = (function() {
           
           exitBtn.onclick = () => {
             videoFeed.src = ''; // stop stream
+            document.removeEventListener('keydown', handleKey);
+            document.removeEventListener('keyup', handleKey);
             overlay.remove();
           };
+
+          // --- Input Layer Setup ---
+          function sendInput(payload) {
+            WS.request('stream:input', payload).catch(()=>{});
+          }
+
+          videoFeed.addEventListener('mousemove', (e) => {
+            const rect = videoFeed.getBoundingClientRect();
+            // The videoFeed is an img using object-fit: contain.
+            // For true 1:1 mapping we need to calculate the letterbox, 
+            // but for a quick seamless stream, normalized coordinates work well.
+            const nx = (e.clientX - rect.left) / rect.width;
+            const ny = (e.clientY - rect.top) / rect.height;
+            sendInput({ action: 'mousemove', nx, ny });
+          });
+
+          videoFeed.addEventListener('mousedown', (e) => {
+            const btn = e.button === 2 ? 'right' : e.button === 1 ? 'middle' : 'left';
+            sendInput({ action: 'mousedown', button: btn });
+          });
+
+          videoFeed.addEventListener('mouseup', (e) => {
+            const btn = e.button === 2 ? 'right' : e.button === 1 ? 'middle' : 'left';
+            sendInput({ action: 'mouseup', button: btn });
+          });
+
+          videoFeed.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            sendInput({ action: 'scroll', dx: Math.sign(e.deltaX), dy: -Math.sign(e.deltaY) });
+          });
+
+          // Prevent context menu on right click
+          videoFeed.addEventListener('contextmenu', e => e.preventDefault());
+
+          // Keyboard handling
+          function mapKey(e) {
+            let k = e.key.toLowerCase();
+            if (k === ' ') return 'space';
+            if (k === 'control') return 'control';
+            if (k === 'meta') return 'command';
+            if (k === 'shift') return 'shift';
+            if (k === 'alt') return 'alt';
+            if (k === 'enter') return 'enter';
+            if (k === 'escape') return 'escape';
+            if (k === 'backspace') return 'backspace';
+            if (k === 'arrowup') return 'up';
+            if (k === 'arrowdown') return 'down';
+            if (k === 'arrowleft') return 'left';
+            if (k === 'arrowright') return 'right';
+            return k;
+          }
+
+          function handleKey(e) {
+            e.preventDefault();
+            const action = e.type === 'keydown' ? 'keydown' : 'keyup';
+            sendInput({ action, key: mapKey(e) });
+          }
+
+          document.addEventListener('keydown', handleKey);
+          document.addEventListener('keyup', handleKey);
+
         }, 1500); // Give the app 1.5s to open before streaming screen
       } else {
         alert('Failed to launch application on host.');
