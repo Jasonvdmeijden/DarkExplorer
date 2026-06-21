@@ -91,15 +91,58 @@ window.StreamView = (function() {
   function launchApp(item) {
     const overlay = document.createElement('div');
     overlay.className = 'stream-overlay';
+    overlay.style.flexDirection = 'column';
     overlay.innerHTML = `
-      <div class="stream-loading">
+      <div id="stream-loading-ui" class="stream-loading">
         <div class="stream-spinner"></div>
-        <div>Connecting to Sunshine WebRTC...</div>
+        <div>Connecting to Explorer RTC...</div>
         <div style="font-size:1rem;color:#ccc;margin-top:10px;">Launching ${item.name}</div>
         <button class="stream-play-btn" style="margin-top:30px;background:var(--bg-surface);color:white;" onclick="this.parentElement.parentElement.remove()">Cancel</button>
       </div>
+      <img id="stream-video-feed" style="display:none; width:100%; height:100%; object-fit:contain; background:black;" />
+      <button id="stream-exit-btn" style="display:none; position:absolute; top:20px; left:20px; background:rgba(0,0,0,0.5); color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer; z-index:1001;">Exit Stream</button>
     `;
     document.body.appendChild(overlay);
+
+    const token = localStorage.getItem('de_token') || '';
+
+    // 1. Tell backend to launch the app natively on host
+    fetch('/stream/launch', {
+      method: 'POST',
+      headers: { 
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ path: item.path, appid: item.appid })
+    }).then(res => res.json()).then(data => {
+      if (data.ok) {
+        // 2. Hide loading UI and show video feed
+        setTimeout(() => {
+          document.getElementById('stream-loading-ui').style.display = 'none';
+          const videoFeed = document.getElementById('stream-video-feed');
+          const exitBtn = document.getElementById('stream-exit-btn');
+          
+          videoFeed.style.display = 'block';
+          exitBtn.style.display = 'block';
+          
+          // The MJPEG stream is authenticated via a short-lived token in the URL or cookies.
+          // Since we use headers usually, we can pass token in URL.
+          videoFeed.src = `/stream/video?token=${encodeURIComponent(token)}`;
+          
+          exitBtn.onclick = () => {
+            videoFeed.src = ''; // stop stream
+            overlay.remove();
+          };
+        }, 1500); // Give the app 1.5s to open before streaming screen
+      } else {
+        alert('Failed to launch application on host.');
+        overlay.remove();
+      }
+    }).catch(e => {
+      console.error(e);
+      alert('Network error launching application.');
+      overlay.remove();
+    });
   }
 
   return { render };

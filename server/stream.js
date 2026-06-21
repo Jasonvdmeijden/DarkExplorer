@@ -3,6 +3,9 @@ const router = express.Router();
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const videoRouter = require('./stream-video');
+
+router.use('/', videoRouter);
 
 // Helper to safely check if a directory exists
 function dirExists(p) {
@@ -90,6 +93,31 @@ router.get('/scan', (req, res) => {
     apps: apps,
     steam: steam
   });
+});
+
+router.post('/launch', (req, res) => {
+  const { spawn } = require('child_process');
+  const fp = req.body.path;
+  const appid = req.body.appid;
+  
+  try {
+    if (appid) {
+      // Launch Steam game
+      const cmd = process.platform === 'darwin' ? 'open' : 'cmd';
+      const args = process.platform === 'darwin' ? [`steam://rungameid/${appid}`] : ['/c', 'start', `steam://rungameid/${appid}`];
+      const p = spawn(cmd, args, { detached: true, stdio: 'ignore' });
+      p.unref();
+    } else if (fp) {
+      // Launch local app
+      const cmd = process.platform === 'darwin' ? 'open' : 'cmd';
+      const args = process.platform === 'darwin' ? [fp] : ['/c', 'start', '', fp];
+      const p = spawn(cmd, args, { detached: true, stdio: 'ignore' });
+      p.unref();
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
 });
 
 module.exports = router;
