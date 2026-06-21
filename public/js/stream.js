@@ -267,7 +267,8 @@ const StreamView = (function() {
           
           // Inject Moonlight WebRTC Frame directly into DarkExplorer overlay!
           // We dynamically use the correct hostId fetched from the proxy database!
-          const proxyUrl = window.location.protocol + "//" + window.location.hostname + ":8080/stream.html?hostId=" + hostId + "&appId=1";
+          // We use appName=Desktop so the proxy can dynamically find the correct app ID instead of assuming 1!
+          const proxyUrl = window.location.protocol + "//" + window.location.hostname + ":8080/stream.html?hostId=" + hostId + "&appName=Desktop";
           
           const iframe = document.createElement('iframe');
           iframe.src = proxyUrl;
