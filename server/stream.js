@@ -7,6 +7,8 @@ const videoRouter = require('./stream-video');
 
 router.use('/', videoRouter);
 
+const { exec } = require('child_process');
+
 // Helper to safely check if a directory exists
 function dirExists(p) {
   try { return fs.statSync(p).isDirectory(); } catch { return false; }
@@ -23,11 +25,11 @@ function scanMacApps() {
       const entries = fs.readdirSync(sp);
       for (const entry of entries) {
         if (entry.endsWith('.app')) {
+          const appPath = path.join(sp, entry);
           apps.push({
             name: entry.replace('.app', ''),
-            path: path.join(sp, entry),
-            // We can add actual icon extraction later, fallback to generic image for now
-            image: null
+            path: appPath,
+            image: `/stream/icon?path=${encodeURIComponent(appPath)}`
           });
         }
       }
@@ -37,6 +39,54 @@ function scanMacApps() {
   }
   return apps;
 }
+
+// Endpoint to dynamically extract and serve macOS App icons
+router.get('/icon', (req, res) => {
+  const appPath = req.query.path;
+  if (!appPath || !appPath.endsWith('.app')) return res.status(400).send('Invalid app path');
+
+  const cacheDir = path.join(__dirname, '..', 'data', 'appicons');
+  if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
+
+  const appName = path.basename(appPath, '.app');
+  const cachedPng = path.join(cacheDir, `${appName}.png`);
+
+  if (fs.existsSync(cachedPng)) {
+    return res.sendFile(cachedPng);
+  }
+
+  // Parse Info.plist to find the .icns file
+  const infoPlistPath = path.join(appPath, 'Contents', 'Info.plist');
+  let icnsName = 'AppIcon.icns'; // fallback
+  
+  if (fs.existsSync(infoPlistPath)) {
+    try {
+      const plistContent = fs.readFileSync(infoPlistPath, 'utf8');
+      // Simple regex to extract CFBundleIconFile
+      const iconMatch = plistContent.match(/<key>CFBundleIconFile<\/key>\s*<string>([^<]+)<\/string>/);
+      if (iconMatch) {
+        icnsName = iconMatch[1];
+        if (!icnsName.endsWith('.icns')) icnsName += '.icns';
+      }
+    } catch (e) { }
+  }
+
+  const icnsPath = path.join(appPath, 'Contents', 'Resources', icnsName);
+  
+  if (!fs.existsSync(icnsPath)) {
+    // Return generic fallback
+    return res.redirect('https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=400');
+  }
+
+  // Use sips to convert .icns to .png
+  exec(`sips -s format png "${icnsPath}" --out "${cachedPng}"`, (err) => {
+    if (err) {
+      console.error('Failed to convert icns:', err);
+      return res.redirect('https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=400');
+    }
+    res.sendFile(cachedPng);
+  });
+});
 
 // Simple Steam Scanner (Mac specifically for now, but easily expandable to Windows)
 function scanSteamGames() {
