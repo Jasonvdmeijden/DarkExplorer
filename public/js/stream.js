@@ -252,6 +252,11 @@ const StreamView = (function() {
       if (data.ok) {
         // 2. Hide loading UI and inject WebRTC Feed
         setTimeout(() => {
+        fetch('/stream/webrtc-config')
+        .then(res => res.json())
+        .then(config => {
+          const hostId = config.hostId || 1;
+          
           document.getElementById('stream-loading-ui').style.display = 'none';
           const videoContainer = document.getElementById('stream-video-container');
           const exitBtn = document.getElementById('stream-exit-btn');
@@ -261,9 +266,8 @@ const StreamView = (function() {
           controls.style.display = 'block';
           
           // Inject Moonlight WebRTC Frame directly into DarkExplorer overlay!
-          // We use window.location.hostname to ensure it works on remote devices, avoiding localhost CORS issues!
-          // Now that Moonlight is paired, we pass ?hostId=1&appId=1 to auto-launch the stream and completely hide the Moonlight Library UI!
-          const proxyUrl = window.location.protocol + "//" + window.location.hostname + ":8080/stream.html?hostId=1&appId=1";
+          // We dynamically use the correct hostId fetched from the proxy database!
+          const proxyUrl = window.location.protocol + "//" + window.location.hostname + ":8080/stream.html?hostId=" + hostId + "&appId=1";
           
           const iframe = document.createElement('iframe');
           iframe.src = proxyUrl;
@@ -277,9 +281,7 @@ const StreamView = (function() {
             videoContainer.innerHTML = ''; // stop stream
             overlay.remove();
           };
-
-          // Removed old MJPEG custom input handlers since WebRTC handles it natively.
-
+        });
         }, 1500); // Give the app 1.5s to open before streaming screen
       } else {
         alert('Failed to launch application on host.');

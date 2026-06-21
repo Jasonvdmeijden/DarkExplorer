@@ -14,6 +14,25 @@ function dirExists(p) {
   try { return fs.statSync(p).isDirectory(); } catch { return false; }
 }
 
+router.get('/webrtc-config', (req, res) => {
+  try {
+    const dataPath = path.join(os.homedir(), 'moonlight-web-stream', 'server', 'data.json');
+    if (fs.existsSync(dataPath)) {
+      const data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+      if (data.hosts) {
+        const hostIds = Object.keys(data.hosts);
+        if (hostIds.length > 0) {
+          return res.json({ hostId: hostIds[0] });
+        }
+      }
+    }
+    res.json({ hostId: null });
+  } catch (e) {
+    console.error('Failed to read Moonlight data.json:', e);
+    res.json({ hostId: null });
+  }
+});
+
 // Simple Mac App Scanner
 function scanMacApps() {
   const apps = [];
