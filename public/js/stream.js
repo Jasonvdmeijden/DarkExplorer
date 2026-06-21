@@ -232,7 +232,8 @@ const StreamView = (function() {
       <div id="stream-video-container" style="display:none; width:100%; height:100%; position: absolute; top:0; left:0; z-index: 5;">
          <!-- WebRTC Iframe injected here -->
       </div>
-      <div id="stream-controls" style="display:none; position:absolute; top:20px; right:20px; z-index:1001;">
+      <div id="stream-controls" style="display:none; position:absolute; top:20px; right:20px; z-index:1001; display:flex; align-items:center; gap: 15px;">
+        <span style="color: rgba(255,255,255,0.7); font-size: 0.9rem; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.8); background: rgba(0,0,0,0.4); padding: 5px 10px; border-radius: 6px;">Press Shift+ESC to instantly exit stream</span>
         <button id="stream-exit-btn" style="background:rgba(255,0,0,0.8); color:white; border:1px solid rgba(255,255,255,0.3); padding:10px 20px; border-radius:8px; cursor:pointer; backdrop-filter: blur(10px); font-weight: bold; transition: all 0.2s; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">Close Game</button>
       </div>
     `;
@@ -282,6 +283,18 @@ const StreamView = (function() {
             videoContainer.innerHTML = ''; // stop stream
             overlay.remove();
           };
+
+          // Listen for the custom Shift+ESC keyboard shortcut from the proxy iframe
+          const messageListener = (event) => {
+            if (event.data && event.data.type === 'DARKEXPLORER_CLOSE') {
+              if (document.fullscreenElement) document.exitFullscreen();
+              videoContainer.innerHTML = '';
+              overlay.remove();
+              window.removeEventListener('message', messageListener);
+            }
+          };
+          window.addEventListener('message', messageListener);
+
         });
         }, 1500); // Give the app 1.5s to open before streaming screen
       } else {
