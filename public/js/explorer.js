@@ -17,6 +17,24 @@ const Explorer = (() => {
   let colorFilter = null; // null or color hex
   let typeFilter  = ''; // file extension filter
 
+  const EXEC_EXTS = ['exe','msi','bat','cmd','com','ps1','sh','app'];
+  const isExecItem = (item) => !item.isDir && EXEC_EXTS.includes((item.ext || '').replace('.', '').toLowerCase());
+
+  // Launches a runnable file on the server, then switches to the Stream view and
+  // connects to the Desktop session so the user immediately sees it running.
+  function runAndStream(item) {
+    WS.send('fs:exec', { path: item.path });
+    setView('stream');
+    if (typeof StreamView !== 'undefined' && StreamView.launchApp) {
+      StreamView.launchApp({
+        name: 'Remote Desktop',
+        image: 'https://images.unsplash.com/photo-1618424181497-157f25b6ce50?auto=format&fit=crop&q=80&w=400',
+        path: null,
+        appid: null
+      });
+    }
+  }
+
   const pane1   = (() => { const d = document.createElement('div'); d.className = 'pane'; d.id = 'pane-1'; return d; })();
   const ctxMenu = document.getElementById('context-menu');
 
@@ -850,13 +868,10 @@ const Explorer = (() => {
       el._videoPreview?.unload();
       if (item.isDir) {
         navigate(item.path);
+      } else if (isExecItem(item)) {
+        runAndStream(item);
       } else {
-        const ext = (item.ext || '').replace('.', '').toLowerCase();
-        if (['exe','msi','bat','cmd','com','ps1','sh','app'].includes(ext)) {
-          WS.send('fs:exec', { path: item.path });
-        } else {
-          Preview.open(item, previewList());
-        }
+        Preview.open(item, previewList());
       }
     });
 
@@ -884,8 +899,7 @@ const Explorer = (() => {
     const TAP_SLOP = 10; // px
     const _openItem = () => {
       if (item.isDir) { navigate(item.path); return; }
-      const ext = (item.ext || '').replace('.', '').toLowerCase();
-      if (['exe','msi','bat','cmd','com','ps1','sh','app'].includes(ext)) WS.send('fs:exec', { path: item.path });
+      if (isExecItem(item)) runAndStream(item);
       else Preview.open(item, previewList());
     };
     el.addEventListener('touchstart', (e) => {
@@ -1011,8 +1025,7 @@ const Explorer = (() => {
     const sel   = Array.from(selected);
     const multi = sel.length > 1;
     const ext   = (item.ext || '').replace('.', '').toLowerCase();
-    const isExec = !multi && !item.isDir &&
-      ['exe','msi','bat','cmd','com','ps1','sh','app'].includes(ext);
+    const isExec = !multi && isExecItem(item);
     const isZip  = !multi && !item.isDir && ext === 'zip';
 
     const tag = tagMap.get(item.path);
@@ -1020,11 +1033,16 @@ const Explorer = (() => {
 
     const menuItems = [
       { label: multi ? `Open all (${sel.length})` : 'Open',
-        action: () => { if (item.isDir) navigate(item.path); else Preview.open(item, items); } },
+        action: () => { if (item.isDir) navigate(item.path); else if (isExec) runAndStream(item); else Preview.open(item, items); } },
       !multi && { label: 'Open in new tab',                         action: () => Tabs.create(item.name, item.isDir ? item.path : parentOf(item.path)) },
       !multi && { label: '⊞ Open in split panel',                  action: () => openInSplit(item.isDir ? item.path : parentOf(item.path)) },
       !multi && !item.isDir && { label: 'Preview',                 action: () => Preview.open(item, items) },
-      isExec                 && { label: '▶ Run',                  action: () => WS.send('fs:exec', { path: item.path }) },
+      isExec                 && { label: '▶ Run',                  action: () => runAndStream(item) },
+      isExec                 && { label: (typeof StreamView !== 'undefined' && StreamView.isFavoriteApp(item.path)) ? '★ Remove from Favourite Apps' : '☆ Add to Favourite Apps',
+                                   action: () => {
+                                     const iconEndpoint = ext === 'app' ? '/stream/icon' : '/stream/icon-win';
+                                     StreamView.toggleFavoriteApp({ name: item.name.replace(/\.[^.]+$/, ''), path: item.path, image: `${iconEndpoint}?path=${encodeURIComponent(item.path)}` });
+                                   } },
       isZip                  && { label: '📂 Extract here',        action: () => extractZipHere(item.path) },
       isZip                  && { label: '📂 Extract to...',       action: () => extractZipTo(item.path) },
       'sep',
@@ -1239,13 +1257,10 @@ const Explorer = (() => {
         row.addEventListener('dblclick', () => {
           if (item.isDir) {
             paneNavigate(item.path);
+          } else if (isExecItem(item)) {
+            runAndStream(item);
           } else {
-            const ext = (item.ext || '').replace('.', '').toLowerCase();
-            if (['exe','msi','bat','cmd','com','ps1','sh','app'].includes(ext)) {
-              WS.send('fs:exec', { path: item.path });
-            } else {
-              Preview.open(item, paneItems);
-            }
+            Preview.open(item, paneItems);
           }
         });
 
@@ -1254,8 +1269,7 @@ const Explorer = (() => {
         let _pTouchStart = null;
         const _pOpen = () => {
           if (item.isDir) { paneNavigate(item.path); return; }
-          const ext = (item.ext || '').replace('.', '').toLowerCase();
-          if (['exe','msi','bat','cmd','com','ps1','sh','app'].includes(ext)) WS.send('fs:exec', { path: item.path });
+          if (isExecItem(item)) runAndStream(item);
           else Preview.open(item, paneItems);
         };
         row.addEventListener('touchstart', (e) => {

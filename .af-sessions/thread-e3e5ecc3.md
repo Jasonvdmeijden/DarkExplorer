@@ -1,0 +1,14 @@
+### Context & Current State
+* **Action Taken**: A `git pull` was successfully executed, fast-forwarding the repository to commit `b1ba4f1`.
+* **No Stash Required**: The user requested a `git stash` first, but it was skipped as there were no tracked local changes (only untracked `.af-sessions/` and `null`).
+* **Changes Pulled**:
+  * **Backend Updates**: Modifications to [server/db.js](file:///C:/dev/ai/AIFactory/session-workspace/3571c661-f705-4f9d-8391-b7943bb4cdf1/server/db.js), [server/files.js](file:///C:/dev/ai/AIFactory/session-workspace/3571c661-f705-4f9d-8391-b7943bb4cdf1/server/files.js), [server/index.js](file:///C:/dev/ai/AIFactory/session-workspace/3571c661-f705-4f9d-8391-b7943bb4cdf1/server/index.js), [server/indexer.js](file:///C:/dev/ai/AIFactory/session-workspace/3571c661-f705-4f9d-8391-b7943bb4cdf1/server/indexer.js), [server/search.js](file:///C:/dev/ai/AIFactory/session-workspace/3571c661-f705-4f9d-8391-b7943bb4cdf1/server/search.js), and [server/thumbnails.js](file:///C:/dev/ai/AIFactory/session-workspace/3571c661-f705-4f9d-8391-b7943bb4cdf1/server/thumbnails.js). These include schema additions, indexer/search updates, and new API/WebSocket routes.
+  * **Frontend Updates**: Introduction of new media handling files [media.js](file:///C:/dev/ai/AIFactory/session-workspace/3571c661-f705-4f9d-8391-b7943bb4cdf1/media.js) and [media.css](file:///C:/dev/ai/AIFactory/session-workspace/3571c661-f705-4f9d-8391-b7943bb4cdf1/media.css) supporting a "Netflix media mode".
+
+### Active Issue
+* **Error**: The user reported the following error when trying to use the Netflix media mode: `failed to scan folder: unknown message type: fs-media` (associated with the `fs:media-list` websocket message dispatcher).
+* **Root Cause**: The running Node server process (PID 28144, started at 12:14 AM) predates the pulled commits (which landed at 16:18). It is running an outdated version of [server/index.js](file:///C:/dev/ai/AIFactory/session-workspace/3571c661-f705-4f9d-8391-b7943bb4cdf1/server/index.js) that does not handle the new message type (e.g., `fs:media-list` / `fs-media`), causing the WebSocket dispatcher to hit its `default` fall-through branch.
+
+### Next Steps
+1. **Restart the Server**: Terminate the stale Node process (PID 28144) and restart the backend server so the updated code in [server/index.js](file:///C:/dev/ai/AIFactory/session-workspace/3571c661-f705-4f9d-8391-b7943bb4cdf1/server/index.js) is loaded, and the new frontend assets [media.js](file:///C:/dev/ai/AIFactory/session-workspace/3571c661-f705-4f9d-8391-b7943bb4cdf1/media.js) and [media.css](file:///C:/dev/ai/AIFactory/session-workspace/3571c661-f705-4f9d-8391-b7943bb4cdf1/media.css) are served fresh.
+2. **Verify Frontend**: Refresh the client browser/frontend to load the new media scripts and verify that the "Netflix media mode" functions correctly without WebSocket dispatch errors.

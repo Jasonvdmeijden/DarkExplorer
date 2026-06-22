@@ -23,6 +23,7 @@ const sysStats = require('./stats');
 const shares   = require('./shares');
 const security = require('./security');
 const robot    = require('./robot');
+const { createProxyMiddleware, fixRequestBody } = require('http-proxy-middleware');
 
 if (process.argv.includes('--gen-otp')) {
   const code = auth.generateOtp();
@@ -71,6 +72,18 @@ function requireAuth(req, res, next) {
 
 const streamRouter = require('./stream');
 app.use('/stream', requireAuth, streamRouter);
+
+// Reverse-proxies the Moonlight Web Stream engine (normally on its own port 8080) through
+// DarkExplorer's own port, so it's reachable through whatever tunnel/VPN/NAT path already
+// gets clients to DarkExplorer itself, without needing a second port forwarded separately.
+const moonlightProxy = createProxyMiddleware({
+  target: 'http://127.0.0.1:8080',
+  changeOrigin: true,
+  ws: true,
+  pathFilter: '/moonlight-proxy',
+  on: { proxyReq: fixRequestBody }
+});
+app.use(moonlightProxy);
 
 app.use(express.static(path.join(__dirname, '..', 'public'), {
   setHeaders: (res, filePath) => {
@@ -479,7 +492,14 @@ app.get('/share/:token', async (req, res) => {
 
 // --- HTTP + WS server ---
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
+const wss = new WebSocket.Server({ noServer: true });
+server.on('upgrade', (req, socket, head) => {
+  if (req.url && req.url.startsWith('/moonlight-proxy')) {
+    moonlightProxy.upgrade(req, socket, head);
+  } else {
+    wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
+  }
+});
 
 function broadcast(msg, exceptWs) {
   wss.clients.forEach(c => {

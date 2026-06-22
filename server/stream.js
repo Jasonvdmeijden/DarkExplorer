@@ -7,7 +7,8 @@ const videoRouter = require('./stream-video');
 
 router.use('/', videoRouter);
 
-const { exec } = require('child_process');
+const { exec, execSync, spawnSync } = require('child_process');
+const sunshineSyncWin = require('./sunshine-sync-win');
 
 // Helper to safely check if a directory exists
 function dirExists(p) {
@@ -107,6 +108,59 @@ router.get('/icon', (req, res) => {
   });
 });
 
+const FALLBACK_ICON = 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=400';
+
+// Endpoint to dynamically extract and serve Windows icons (.exe / .lnk targets)
+router.get('/icon-win', (req, res) => {
+  const targetPath = req.query.path;
+  if (!targetPath) return res.status(400).send('Invalid path');
+
+  const cacheDir = path.join(__dirname, '..', 'data', 'appicons');
+  if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
+
+  const cacheKey = Buffer.from(targetPath).toString('base64').replace(/[/+=]/g, '_');
+  const cachedPng = path.join(cacheDir, `${cacheKey}.png`);
+
+  if (fs.existsSync(cachedPng)) return res.sendFile(cachedPng);
+
+  // Extract the shell icon (handles .exe, .lnk, UWP shortcuts) via SHGetFileInfo and save as PNG
+  const psScript = `
+Add-Type -AssemblyName System.Drawing
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public struct SHFILEINFO {
+  public IntPtr hIcon;
+  public int iIcon;
+  public uint dwAttributes;
+  [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)] public string szDisplayName;
+  [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 80)] public string szTypeName;
+}
+public class Shell32 {
+  [DllImport("shell32.dll", CharSet = CharSet.Auto)]
+  public static extern IntPtr SHGetFileInfo(string pszPath, uint dwFileAttributes, ref SHFILEINFO psfi, uint cbSizeFileInfo, uint uFlags);
+}
+"@
+try {
+  $info = New-Object SHFILEINFO
+  $flags = 0x100 -bor 0x000 -bor 0x10  # SHGFI_ICON | SHGFI_LARGEICON
+  [Shell32]::SHGetFileInfo("${targetPath.replace(/`/g, '``').replace(/"/g, '`"')}", 0, [ref]$info, [System.Runtime.InteropServices.Marshal]::SizeOf($info), $flags) | Out-Null
+  if ($info.hIcon -ne [IntPtr]::Zero) {
+    $icon = [System.Drawing.Icon]::FromHandle($info.hIcon)
+    $bmp = $icon.ToBitmap()
+    $bmp.Save("${cachedPng.replace(/\\/g, '\\\\')}", [System.Drawing.Imaging.ImageFormat]::Png)
+  }
+} catch {}
+`.trim();
+
+  const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', psScript], { timeout: 10000 });
+
+  if (result.error || !fs.existsSync(cachedPng)) {
+    return res.redirect(FALLBACK_ICON);
+  }
+  res.sendFile(cachedPng);
+});
+
 // Simple Steam Scanner (Mac specifically for now, but easily expandable to Windows)
 function scanSteamGames() {
   const steamGames = [];
@@ -141,36 +195,244 @@ function scanSteamGames() {
   return steamGames;
 }
 
+// Windows: scan Start Menu (.lnk) shortcuts for installed applications
+function scanWindowsApps() {
+  const apps = [];
+  const seen = new Set();
+  const searchPaths = [
+    path.join(process.env.APPDATA || '', 'Microsoft', 'Windows', 'Start Menu', 'Programs'),
+    path.join(process.env.ProgramData || 'C:\\ProgramData', 'Microsoft', 'Windows', 'Start Menu', 'Programs')
+  ];
+
+  function walk(dir) {
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch (e) { return; }
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(full);
+      } else if (entry.name.toLowerCase().endsWith('.lnk')) {
+        const name = entry.name.replace(/\.lnk$/i, '');
+        if (seen.has(name.toLowerCase())) continue;
+        // Skip noisy uninstaller/help shortcuts
+        if (/uninstall|read me|readme|help|license/i.test(name)) continue;
+        seen.add(name.toLowerCase());
+        apps.push({
+          name,
+          path: full,
+          image: `/stream/icon-win?path=${encodeURIComponent(full)}`
+        });
+      }
+    }
+  }
+
+  for (const sp of searchPaths) {
+    if (dirExists(sp)) walk(sp);
+  }
+  return apps;
+}
+
+function findSteamInstallPath() {
+  try {
+    const out = execSync('reg query "HKLM\\SOFTWARE\\WOW6432Node\\Valve\\Steam" /v InstallPath', { encoding: 'utf8' });
+    const m = out.match(/InstallPath\s+REG_SZ\s+(.+)/i);
+    if (m) return m[1].trim();
+  } catch (e) {}
+  return 'C:\\Program Files (x86)\\Steam';
+}
+
+function parseAppManifest(content) {
+  const nameMatch = content.match(/"name"\s+"([^"]+)"/i);
+  const appidMatch = content.match(/"appid"\s+"([^"]+)"/i);
+  if (!nameMatch || !appidMatch) return null;
+  return { name: nameMatch[1], appid: appidMatch[1] };
+}
+
+// Windows: scan all Steam library folders for installed games
+function scanWindowsSteamGames() {
+  const steamGames = [];
+  const steamPath = findSteamInstallPath();
+  const libraryFolders = [path.join(steamPath, 'steamapps')];
+
+  const libVdfPath = path.join(steamPath, 'steamapps', 'libraryfolders.vdf');
+  if (fs.existsSync(libVdfPath)) {
+    try {
+      const content = fs.readFileSync(libVdfPath, 'utf8');
+      const pathMatches = content.matchAll(/"path"\s+"([^"]+)"/gi);
+      for (const m of pathMatches) {
+        const lp = path.join(m[1].replace(/\\\\/g, '\\'), 'steamapps');
+        if (!libraryFolders.includes(lp)) libraryFolders.push(lp);
+      }
+    } catch (e) {}
+  }
+
+  for (const lib of libraryFolders) {
+    if (!dirExists(lib)) continue;
+    try {
+      const files = fs.readdirSync(lib);
+      for (const file of files) {
+        if (file.startsWith('appmanifest_') && file.endsWith('.acf')) {
+          try {
+            const content = fs.readFileSync(path.join(lib, file), 'utf8');
+            const parsed = parseAppManifest(content);
+            if (parsed) {
+              steamGames.push({
+                name: parsed.name,
+                appid: parsed.appid,
+                image: `https://steamcdn-a.akamaihd.net/steam/apps/${parsed.appid}/library_600x900.jpg`
+              });
+            }
+          } catch (e) {}
+        }
+      }
+    } catch (e) {}
+  }
+  return steamGames;
+}
+
+// Windows: known non-game UWP packages to exclude from the Xbox library (system apps,
+// Xbox infrastructure components, OEM utilities, codec/extension packages, etc.)
+const XBOX_SCAN_EXCLUDE = [
+  /^Microsoft\.MixedReality\.Portal$/i, /^Microsoft\.Xbox\.TCUI$/i, /^Microsoft\.XboxGameOverlay$/i,
+  /^Microsoft\.XboxApp$/i, /^Microsoft\.XboxSpeechToTextOverlay$/i, /^Microsoft\.XboxIdentityProvider$/i,
+  /^Microsoft\.XboxGamingOverlay$/i, /^Microsoft\.XboxInsider$/i, /^Microsoft\.GamingApp$/i,
+  /^Microsoft\.GamingServices$/i, /^Microsoft\.Winget\./i, /^Microsoft\.People$/i,
+  /^CanonicalGroupLimited\.Ubuntu$/i, /^Microsoft\.Bing/i, /^microsoft\.windowscommunicationsapps$/i,
+  /^Microsoft\.SkypeApp$/i, /^Microsoft\.Windows\.DevHome$/i, /^Microsoft\.Office\./i,
+  /^Microsoft\.RemoteDesktop$/i, /VideoExtension/i, /ImageExtension/i, /^Microsoft\.MPEG2/i,
+  /^Microsoft\.ApplicationCompatibilityEnhancements$/i, /^Microsoft\.Microsoft3DViewer$/i,
+  /^MicrosoftCorporationII\./i, /CrosshairExtension/i, /^Microsoft\.WebMediaExtensions$/i,
+  /^AppleInc\.AppleDevices$/i, /^Microsoft\.SecHealthUI$/i, /^MicrosoftWindows\.NarratorScript/i,
+  /^MicrosoftWindows\.NarratorExtension/i, /^Microsoft\.WindowsTerminal$/i, /^Clipchamp\./i,
+  /^Microsoft\.LanguageExperiencePack/i, /^MicrosoftWindows\.Speech/i, /^Microsoft\.WidgetsPlatformRuntime$/i,
+  /^DolbyLaboratories\./i, /^Microsoft\.ScreenSketch$/i, /^Microsoft\.GetHelp$/i,
+  /^Microsoft\.Ink\.Handwriting/i, /^Microsoft\.StorePurchaseApp$/i, /^MicrosoftWindows\.Client\.WebExperience$/i,
+  /^Microsoft\.WindowsAlarms$/i, /^Microsoft\.Paint$/i, /^Microsoft\.WindowsSoundRecorder$/i,
+  /^Microsoft\.ZuneVideo$/i, /^Microsoft\.ZuneMusic$/i, /^Microsoft\.YourPhone$/i,
+  /^Microsoft\.WindowsCamera$/i, /^Microsoft\.Windows\.Photos$/i, /^Microsoft\.StartExperiencesApp$/i,
+  /^Microsoft\.Todos$/i, /^Microsoft\.PowerAutomateDesktop$/i, /^Microsoft\.DesktopAppInstaller$/i,
+  /^Microsoft\.WindowsNotepad$/i, /^Microsoft\.WindowsFeedbackHub$/i, /^Microsoft\.WindowsStore$/i,
+  /^Microsoft\.MicrosoftOfficeHub$/i, /^Microsoft\.WindowsCalculator$/i, /^MicrosoftWindows\.CrossDevice$/i,
+  /WhatsAppDesktop/i, /^DTSInc\./i, /GameBarWidgets/i, /^AMDLink/i, /^AdvancedMicroDevicesInc/i,
+  /^NVIDIACorp\./i, /Cinebench/i
+];
+
+const XBOX_SCAN_SCRIPT = `
+Get-AppxPackage | Where-Object {
+  $_.SignatureKind -eq 'Store' -and -not $_.IsFramework -and -not $_.IsResourcePackage
+} | ForEach-Object {
+  try {
+    $manifest = Get-AppxPackageManifest -Package $_
+    $app = $manifest.Package.Applications.Application | Select-Object -First 1
+    [PSCustomObject]@{
+      name = $manifest.Package.Properties.DisplayName
+      packageName = $_.Name
+      familyName = $_.PackageFamilyName
+      appId = $app.Id
+      logo = $manifest.Package.Properties.Logo
+      installLocation = $_.InstallLocation
+    }
+  } catch {}
+} | ConvertTo-Json -Compress
+`.trim();
+
+// Windows: scan installed Xbox/Game Pass UWP games via the AppX package list
+function scanWindowsXboxGames() {
+  const games = [];
+  try {
+    const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', XBOX_SCAN_SCRIPT], {
+      timeout: 20000,
+      maxBuffer: 1024 * 1024 * 10
+    });
+    if (result.error || !result.stdout) return games;
+
+    let parsed = JSON.parse(result.stdout.toString().trim() || '[]');
+    if (!Array.isArray(parsed)) parsed = [parsed];
+
+    for (const pkg of parsed) {
+      if (!pkg || !pkg.packageName || !pkg.familyName || !pkg.appId) continue;
+      if (XBOX_SCAN_EXCLUDE.some(re => re.test(pkg.packageName))) continue;
+      if (!pkg.name || pkg.name.startsWith('ms-resource:')) pkg.name = pkg.packageName;
+
+      let logoPath = null;
+      if (pkg.logo && pkg.installLocation) {
+        const candidate = path.join(pkg.installLocation, pkg.logo.replace(/\//g, path.sep));
+        if (fs.existsSync(candidate)) logoPath = candidate;
+      }
+
+      games.push({
+        name: pkg.name,
+        familyName: pkg.familyName,
+        appId: pkg.appId,
+        image: logoPath ? `/stream/icon-xbox?path=${encodeURIComponent(logoPath)}` : undefined
+      });
+    }
+  } catch (e) {
+    console.warn('Failed to scan Xbox games', e.message);
+  }
+  return games;
+}
+
+// Endpoint to serve Xbox/UWP game logo images directly from their install location
+router.get('/icon-xbox', (req, res) => {
+  const imgPath = req.query.path;
+  if (!imgPath || !fs.existsSync(imgPath)) return res.redirect(FALLBACK_ICON);
+  res.sendFile(imgPath);
+});
+
 // The main scan endpoint
 router.get('/scan', (req, res) => {
   const platform = process.platform;
   let apps = [];
   let steam = [];
+  let xbox = [];
 
   if (platform === 'darwin') {
     apps = scanMacApps();
     steam = scanSteamGames();
   } else if (platform === 'win32') {
-    // Windows scanning logic will go here
+    apps = scanWindowsApps();
+    steam = scanWindowsSteamGames();
+    xbox = scanWindowsXboxGames();
   }
 
   // Limit apps so we don't overload the frontend UI initially
   // Sort alphabetically
   apps.sort((a,b) => a.name.localeCompare(b.name));
-  
+
   res.json({
     apps: apps,
-    steam: steam
+    steam: steam,
+    xbox: xbox
   });
+
+  // Best-effort: keep Apollo/Sunshine's apps.json in sync so individual launches
+  // can be resolved by name through the Moonlight Web Stream proxy.
+  if (platform === 'win32') {
+    setImmediate(() => {
+      try {
+        const result = sunshineSyncWin.syncWindowsApps(apps, steam);
+        if (!result.ok) console.warn('[sunshine-sync-win]', result.reason);
+      } catch (e) {
+        console.warn('[sunshine-sync-win] sync failed:', e.message);
+      }
+    });
+  }
 });
 
 router.post('/launch', (req, res) => {
   const { spawn } = require('child_process');
   const fp = req.body.path;
   const appid = req.body.appid;
-  
+  const familyName = req.body.familyName;
+  const xboxAppId = req.body.xboxAppId;
+
   try {
-    if (appid) {
+    if (familyName && xboxAppId) {
+      // Launch an installed Xbox/Game Pass UWP game via its AppsFolder shell path
+      const p = spawn('explorer.exe', [`shell:AppsFolder\\${familyName}!${xboxAppId}`], { detached: true, stdio: 'ignore' });
+      p.unref();
+    } else if (appid) {
       // Launch Steam game
       const cmd = process.platform === 'darwin' ? 'open' : 'cmd';
       const args = process.platform === 'darwin' ? [`steam://rungameid/${appid}`] : ['/c', 'start', `steam://rungameid/${appid}`];
