@@ -73,6 +73,9 @@ function requireAuth(req, res, next) {
 const streamRouter = require('./stream');
 app.use('/stream', requireAuth, streamRouter);
 
+const webPreviewRouter = require('./web-preview');
+app.use('/web-preview', requireAuth, webPreviewRouter);
+
 // Reverse-proxies the Moonlight Web Stream engine (normally on its own port 8080) through
 // DarkExplorer's own port, so it's reachable through whatever tunnel/VPN/NAT path already
 // gets clients to DarkExplorer itself, without needing a second port forwarded separately.
@@ -600,7 +603,7 @@ async function handle(type, payload, reply, ws, device) {
     }
 
     case 'fs:exec': {
-      const { spawn } = require('child_process');
+      const { spawn, exec } = require('child_process');
       const fp = payload.path;
       let cmd, args, opts;
       if (process.platform === 'win32') {
@@ -611,7 +614,27 @@ async function handle(type, payload, reply, ws, device) {
       } else {
         cmd = 'xdg-open'; args = [fp]; opts = { detached: true, stdio: 'ignore' };
       }
-      try { const p = spawn(cmd, args, opts); p.unref(); reply({ ok: true }); }
+      try { 
+        const p = spawn(cmd, args, opts); 
+        p.unref(); 
+        
+        // Attempt to force focus after a short delay
+        setTimeout(() => {
+          let baseName = path.basename(fp, path.extname(fp));
+          if (!baseName) return;
+          baseName = baseName.replace(/"/g, '');
+          
+          if (process.platform === 'win32') {
+            exec(`powershell -Command "$wshell = New-Object -ComObject wscript.shell; $wshell.AppActivate('${baseName}')"`);
+          } else if (process.platform === 'linux') {
+            exec(`wmctrl -a "${baseName}"`);
+          } else if (process.platform === 'darwin') {
+            exec(`osascript -e 'tell application "${baseName}" to activate'`);
+          }
+        }, 3000);
+        
+        reply({ ok: true }); 
+      }
       catch (e) { reply({ ok: false, error: e.message }); }
       break;
     }

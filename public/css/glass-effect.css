@@ -54,8 +54,8 @@ body.glass-effect dialog#props-dialog,
 body.glass-effect dialog#preview-modal,
 body.glass-effect #search-panel {
   background: var(--bg-surface) !important;
-  backdrop-filter: blur(6px) saturate(200%) contrast(110%);
-  -webkit-backdrop-filter: blur(6px) saturate(200%) contrast(110%);
+  backdrop-filter: blur(26px) saturate(180%) contrast(105%);
+  -webkit-backdrop-filter: blur(26px) saturate(180%) contrast(105%);
   border-radius: 20px;
   border: 1px solid var(--glass-border) !important;
   box-shadow:
@@ -226,17 +226,14 @@ body.glass-effect .splitter.dragging {
   body.glass-effect #toolbar, 
   body.glass-effect .pane { border-radius: 0 !important; border: none !important; }
   
-  /* Fix the sliding drawer on mobile so it renders cleanly over the blurred background */
-  body.glass-effect #panel-left { 
-    border-radius: 0 20px 20px 0 !important; 
-    border-left: none !important;
+  /* Full-screen drawer on mobile so it renders cleanly over the blurred background */
+  body.glass-effect #panel-left {
+    border-radius: 0 !important;
+    border: none !important;
     background: var(--bg-surface) !important;
     backdrop-filter: blur(25px) saturate(180%) !important;
     -webkit-backdrop-filter: blur(25px) saturate(180%) !important;
-    box-shadow: 
-      10px 0 30px rgba(0, 0, 0, 0.5),
-      inset 1px 0 0 rgba(255, 255, 255, 0.2),
-      inset -1px 0 0 rgba(255, 255, 255, 0.05) !important;
+    box-shadow: none !important;
   }
   
   /* Add a blur to the mobile backdrop when drawer is open */
@@ -251,7 +248,6 @@ body.glass-effect .splitter.dragging {
 body.glass-effect .icon-btn,
 body.glass-effect .ptab,
 body.glass-effect .tab,
-body.glass-effect .ui-slider,
 body.glass-effect .theme-picker-row,
 body.glass-effect .theme-mode-btn,
 body.glass-effect .term-btn,
@@ -287,7 +283,6 @@ body.glass-effect .pv-tab.active,
 body.glass-effect .props-tab.active,
 body.glass-effect .theme-mode-btn.active,
 body.glass-effect .xlsx-tab.active,
-body.glass-effect input:checked + .ui-slider,
 body.glass-effect .theme-picker-row:hover,
 body.glass-effect .theme-picker-row.active,
 body.glass-effect .term-btn:active,
@@ -321,7 +316,6 @@ body.glass-effect .ctx-item:hover {
 html[data-mode="light"] body.glass-effect .icon-btn,
 html[data-mode="light"] body.glass-effect .ptab,
 html[data-mode="light"] body.glass-effect .tab,
-html[data-mode="light"] body.glass-effect .ui-slider,
 html[data-mode="light"] body.glass-effect .theme-picker-row,
 html[data-mode="light"] body.glass-effect .theme-mode-btn,
 html[data-mode="light"] body.glass-effect .term-btn,
@@ -353,7 +347,6 @@ html[data-mode="light"] body.glass-effect .pv-tab.active,
 html[data-mode="light"] body.glass-effect .props-tab.active,
 html[data-mode="light"] body.glass-effect .theme-mode-btn.active,
 html[data-mode="light"] body.glass-effect .xlsx-tab.active,
-html[data-mode="light"] body.glass-effect input:checked + .ui-slider,
 html[data-mode="light"] body.glass-effect .theme-picker-row:hover,
 html[data-mode="light"] body.glass-effect .theme-picker-row.active,
 html[data-mode="light"] body.glass-effect .term-btn:active,
@@ -367,7 +360,32 @@ html[data-mode="light"] body.glass-effect .git-icon-btn:active {
     inset 2px 2px 6px rgba(0, 0, 0, 0.15) !important;
 }
 
-/* Ensure the slider retains its rounded shape */
+/* Checked toggle — lit up with the active theme's accent colour instead of
+   the neutral neumorphic sunken look used for other pressed/active states,
+   so it's still obvious at a glance which switches are on. */
+body.glass-effect input:checked + .ui-slider {
+  background: var(--accent) !important;
+  border: 1px solid var(--accent) !important;
+  box-shadow:
+    0 0 10px color-mix(in srgb, var(--accent) 55%, transparent),
+    inset 0 1px 2px rgba(255, 255, 255, 0.35) !important;
+}
+
+/* The toggle track is geometry-critical (the knob's translateX is tuned to
+   its exact box size) — unlike the buttons above it must NOT get their
+   generic margin/padding, or the knob overflows the switch's bounds. */
 body.glass-effect .ui-slider {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
   border-radius: 16px !important;
+  box-shadow:
+    inset -1px -1px 3px rgba(255, 255, 255, 0.1),
+    inset 1px 1px 3px rgba(0, 0, 0, 0.25) !important;
+}
+html[data-mode="light"] body.glass-effect .ui-slider {
+  background: rgba(255, 255, 255, 0.35) !important;
+  border: 1px solid rgba(255, 255, 255, 0.6) !important;
+  box-shadow:
+    inset -1px -1px 3px rgba(255, 255, 255, 0.6),
+    inset 1px 1px 3px rgba(0, 0, 0, 0.1) !important;
 }

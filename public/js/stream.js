@@ -8,34 +8,14 @@ const StreamView = (function() {
     appContainer.appendChild(container);
 
     container.innerHTML = `
-      <div class="stream-header" style="padding: 20px 4%; display: flex; justify-content: flex-end; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 30px;">
-        <div style="display: flex; gap: 15px;">
-          <button class="stream-play-btn" id="stream-desktop-btn" style="background: var(--accent); color: white; padding: 10px 20px; font-size: 1rem;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
-            Desktop
-          </button>
-          <button class="stream-play-btn" id="stream-xbox-btn" style="background: #107C10; color: white; padding: 10px 20px; font-size: 1rem;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M4.102 21.033C5.951 22.546 8.32 23.5 12 23.5s6.049-.954 7.898-2.467C17.474 19.36 14.943 16 12 16s-5.474 3.36-7.898 5.033zm15.514-1.07c1.521-1.605 2.384-3.654 2.384-5.963 0-4.557-3.46-9.197-6.293-9.953-.396-.107-.794.124-.794.124s2.27 1.74 2.27 6.13c0 4.39-3.046 8.39-5.183 10.69 2.943.36 5.832-.13 7.616-1.028zM4.384 19.963c1.784.898 4.673 1.388 7.616 1.028-2.137-2.3-5.183-6.3-5.183-10.69 0-4.39 2.27-6.13 2.27-6.13s-.398-.231-.794-.124c-2.833.756-6.293 5.396-6.293 9.953 0 2.309.863 4.358 2.384 5.963zM12 .5c-1.6 0-2.93.5-3.78 1.07.566.31 1.32.93 2.04 1.99.5-.18 1.13-.31 1.74-.31s1.24.13 1.74.31c.72-1.06 1.474-1.68 2.04-1.99C14.93 1 13.6.5 12 .5z"/></svg>
-            Xbox
-          </button>
-          <button class="stream-play-btn" id="stream-steambp-btn" style="background: #1b2838; color: white; border: 1px solid rgba(255,255,255,0.2); padding: 10px 20px; font-size: 1rem;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.973 2 2.85 5.835 2.255 10.802l5.531 2.287a3.041 3.041 0 0 1 1.722-.528c.06 0 .117.005.176.008l2.46-3.563v-.05c0-2.04 1.654-3.7 3.69-3.7 2.034 0 3.69 1.66 3.69 3.7 0 2.04-1.656 3.7-3.69 3.7h-.085l-3.5 2.5c0 .043.003.085.003.13a2.55 2.55 0 0 1-2.546 2.55 2.553 2.553 0 0 1-2.5-2.04l-3.95-1.633C4.13 19.4 7.74 22 12 22c5.523 0 10-4.477 10-10S17.523 2 12 2zM7.5 17.5l-1.29-.53a1.93 1.93 0 0 0 1.84 1.36 1.94 1.94 0 0 0 1.94-1.94c0-.04 0-.08-.005-.12l-2.485 1.23zm8.04-6.7a2.47 2.47 0 0 0 2.46-2.47 2.47 2.47 0 0 0-2.46-2.47 2.47 2.47 0 0 0-2.47 2.47 2.47 2.47 0 0 0 2.47 2.47z"/></svg>
-            Steam Big Picture
-          </button>
-          <button class="stream-play-btn" id="stream-settings-btn" style="background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2); backdrop-filter: blur(10px); padding: 10px 20px; font-size: 1rem;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-            Settings
-          </button>
-        </div>
+      <div class="stream-row" id="stream-folder-row" style="display:none;">
+        <h2 class="stream-row-title">Current Folder</h2>
+        <div class="stream-folder-list" id="stream-folder-list"></div>
       </div>
-      <div class="stream-row" id="stream-fav-row" style="display:none;">
-        <h2 class="stream-row-title">Favorites</h2>
-        <div class="stream-carousel" id="stream-fav-carousel"></div>
-      </div>
-      <div class="stream-row" id="stream-favapps-row">
-        <h2 class="stream-row-title">Favourite Applications</h2>
-        <div class="stream-carousel" id="stream-favapps-carousel">
-          <div style="padding: 20px; color: #888;">Loading...</div>
+      <div class="stream-row" id="stream-apps-row">
+        <h2 class="stream-row-title">Apollo Apps</h2>
+        <div class="stream-carousel" id="stream-apps-carousel">
+          <div style="padding: 20px; color: #888;">Scanning applications...</div>
         </div>
       </div>
       <div class="stream-row" id="stream-steam-row">
@@ -50,275 +30,442 @@ const StreamView = (function() {
           <div style="padding: 20px; color: #888;">Scanning Xbox library...</div>
         </div>
       </div>
-
-      <!-- Settings Modal -->
-      <div id="stream-settings-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); backdrop-filter: blur(5px); z-index: 2000; align-items: center; justify-content: center;">
-        <div style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 12px; width: 500px; max-width: 90%; max-height: 85vh; overflow-y: auto; padding: 30px; box-shadow: 0 20px 40px rgba(0,0,0,0.5);">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
-            <h2 style="margin: 0; font-size: 1.5rem; color: var(--text-primary);">Stream Settings</h2>
-            <button id="stream-settings-close" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.5rem;">&times;</button>
-          </div>
-          <div style="display: flex; flex-direction: column; gap: 20px;">
-            <div>
-              <label style="display: block; color: var(--text-secondary); margin-bottom: 8px; font-weight: bold;">Resolution</label>
-              <select id="setting-resolution" style="width: 100%; padding: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 6px; outline: none;">
-                <option value="720">720p (HD)</option>
-                <option value="1080">1080p (FHD)</option>
-                <option value="1440">1440p (QHD)</option>
-                <option value="2160">2160p (4K)</option>
-              </select>
-            </div>
-            <div>
-              <label style="display: block; color: var(--text-secondary); margin-bottom: 8px; font-weight: bold;">Frame Rate</label>
-              <select id="setting-fps" style="width: 100%; padding: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 6px; outline: none;">
-                <option value="30">30 FPS</option>
-                <option value="60">60 FPS</option>
-                <option value="120">120 FPS</option>
-              </select>
-            </div>
-            <div>
-              <label style="display: block; color: var(--text-secondary); margin-bottom: 8px; font-weight: bold;">Video Bitrate (Mbps)</label>
-              <input type="range" id="setting-bitrate" min="5" max="150" value="30" style="width: 100%; accent-color: var(--accent);">
-              <div style="text-align: right; color: var(--accent); font-weight: bold; margin-top: 5px;"><span id="setting-bitrate-val">30</span> Mbps</div>
-            </div>
-            <div>
-              <label style="display: block; color: var(--text-secondary); margin-bottom: 8px; font-weight: bold;">Audio Configuration</label>
-              <select id="setting-audio" style="width: 100%; padding: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 6px; outline: none;">
-                <option value="stereo">Stereo (2.0)</option>
-                <option value="surround51">Surround (5.1)</option>
-                <option value="surround71">Surround (7.1)</option>
-              </select>
-            </div>
-            <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.02); padding: 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
-              <div>
-                <label for="setting-vsync" style="color: var(--text-primary); font-weight: bold; display: block;">Enable V-Sync</label>
-                <span style="font-size: 0.85rem; color: var(--text-muted);">Prevents screen tearing during high-motion scenes</span>
-              </div>
-              <input type="checkbox" id="setting-vsync" checked style="width: 20px; height: 20px; accent-color: var(--accent);">
-            </div>
-            <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.02); padding: 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
-              <div>
-                <label for="setting-hdr" style="color: var(--text-primary); font-weight: bold; display: block;">Enable HDR</label>
-                <span style="font-size: 0.85rem; color: var(--text-muted);">Requires an HDR compatible display</span>
-              </div>
-              <input type="checkbox" id="setting-hdr" style="width: 20px; height: 20px; accent-color: var(--accent);">
-            </div>
-            <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.02); padding: 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
-              <div>
-                <label for="setting-network" style="color: var(--text-primary); font-weight: bold; display: block;">Optimize Network Drops</label>
-                <span style="font-size: 0.85rem; color: var(--text-muted);">Drops frames to reduce latency on bad connections</span>
-              </div>
-              <input type="checkbox" id="setting-network" style="width: 20px; height: 20px; accent-color: var(--accent);">
-            </div>
-            <hr style="border: 0; height: 1px; background: rgba(255,255,255,0.1); margin: 10px 0;">
-            <div>
-              <label style="display: block; color: var(--text-secondary); margin-bottom: 8px; font-weight: bold;">WebRTC Engine Setup</label>
-              <span style="font-size: 0.85rem; color: var(--text-muted); display: block; margin-bottom: 15px;">Configure the internal Moonlight engine and pair it with the server. You only need to do this once.</span>
-              <button id="stream-settings-setup-btn" style="width: 100%; padding: 12px; background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; font-weight: bold; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 10px;">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
-                Open Engine Setup
-              </button>
-            </div>
-          </div>
-          <button id="stream-settings-save" style="width: 100%; padding: 12px; background: var(--accent); color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 1.1rem; cursor: pointer; margin-top: 25px;">Save Settings</button>
-        </div>
+      <div class="stream-row" id="stream-apollo-row" style="display:none;">
+        <h2 class="stream-row-title">PC Applications</h2>
+        <div class="stream-folder-list" id="stream-apollo-list"></div>
       </div>
-    `;
-
-    // Attach Settings Handlers
-    const settingsModal = document.getElementById('stream-settings-modal');
-    document.getElementById('stream-settings-btn').onclick = () => {
-      // Load saved settings
-      document.getElementById('setting-resolution').value = localStorage.getItem('de_stream_res') || '1080';
-      document.getElementById('setting-fps').value = localStorage.getItem('de_stream_fps') || '60';
-      document.getElementById('setting-bitrate').value = localStorage.getItem('de_stream_bitrate') || '30';
-      document.getElementById('setting-audio').value = localStorage.getItem('de_stream_audio') || 'stereo';
-      document.getElementById('setting-bitrate-val').textContent = document.getElementById('setting-bitrate').value;
-      document.getElementById('setting-vsync').checked = (localStorage.getItem('de_stream_vsync') !== 'false');
-      document.getElementById('setting-hdr').checked = (localStorage.getItem('de_stream_hdr') === 'true');
-      document.getElementById('setting-network').checked = (localStorage.getItem('de_stream_network') === 'true');
-      settingsModal.style.display = 'flex';
-    };
-    document.getElementById('stream-settings-close').onclick = () => {
-      settingsModal.style.display = 'none';
-    };
-    
-    document.getElementById('stream-desktop-btn').onclick = () => {
-      launchApp({
-        name: "Remote Desktop",
-        image: "https://images.unsplash.com/photo-1618424181497-157f25b6ce50?auto=format&fit=crop&q=80&w=400",
-        path: null,
-        appid: null
-      });
-    };
-
-    document.getElementById('stream-xbox-btn').onclick = () => {
-      launchApp({
-        name: "Xbox",
-        image: "https://images.unsplash.com/photo-1621259182978-fbf93132d53d?auto=format&fit=crop&q=80&w=400",
-        path: null,
-        appid: null
-      });
-    };
-
-    document.getElementById('stream-steambp-btn').onclick = () => {
-      launchApp({
-        name: "Steam Big Picture",
-        image: "https://images.unsplash.com/photo-1486401899868-0e435ed85128?auto=format&fit=crop&q=80&w=400",
-        path: null,
-        appid: null
-      });
-    };
-
-    document.getElementById('setting-bitrate').oninput = (e) => {
-      document.getElementById('setting-bitrate-val').textContent = e.target.value;
-    };
-    document.getElementById('stream-settings-save').onclick = () => {
-      localStorage.setItem('de_stream_res', document.getElementById('setting-resolution').value);
-      localStorage.setItem('de_stream_fps', document.getElementById('setting-fps').value);
-      localStorage.setItem('de_stream_bitrate', document.getElementById('setting-bitrate').value);
-      localStorage.setItem('de_stream_audio', document.getElementById('setting-audio').value);
-      localStorage.setItem('de_stream_vsync', document.getElementById('setting-vsync').checked);
-      localStorage.setItem('de_stream_hdr', document.getElementById('setting-hdr').checked);
-      localStorage.setItem('de_stream_network', document.getElementById('setting-network').checked);
-      settingsModal.style.display = 'none';
-    };
-
-    document.getElementById('stream-settings-setup-btn').onclick = () => {
-      settingsModal.style.display = 'none';
-      
-      const setupOverlay = document.createElement('div');
-      setupOverlay.style = "position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 3000; background: black;";
-      setupOverlay.innerHTML = `
-        <div style="position: absolute; top: 20px; right: 20px; z-index: 3001;">
-          <button id="setup-close-btn" style="background: rgba(255,0,0,0.8); color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer;">Close Setup</button>
-        </div>
-        <iframe src="/moonlight-proxy/" style="width: 100%; height: 100%; border: none;"></iframe>
-      `;
-      document.body.appendChild(setupOverlay);
-      
-      document.getElementById('setup-close-btn').onclick = () => {
-        setupOverlay.remove();
-      };
-    };
-
-    fetchApps();
+      <div id="stream-dynamic-groups"></div>`;
+    if (cachedSystemApps.length > 0 || cachedApolloApps.length > 0) {
+      renderAllCarousels();
+    } else {
+      fetchApps();
+    }
+    fetchFolderApps();
   }
 
+  let cachedSystemApps = [];
+  let cachedApolloApps = [];
   let cachedSteam = [];
   let cachedXbox = [];
+  let cachedFolderApps = [];
+  let activeFilter = '';
+  let activeSort = 'none';
+
+  function setFilter(text) {
+    activeFilter = (text || '').toLowerCase();
+    renderAllCarousels();
+  }
+
+  function setSort(mode) {
+    activeSort = mode || 'none';
+    renderAllCarousels();
+  }
+
+  // Apps/games runnable from whatever folder is currently selected in the file
+  // explorer's tree, so App Mode can launch something without needing it to be
+  // in your Favourites or scanned as a Steam/Xbox title first.
+  const FOLDER_EXEC_EXTS = ['exe', 'msi', 'bat', 'cmd', 'com', 'ps1', 'sh', 'app'];
+  async function fetchFolderApps() {
+    const row = document.getElementById('stream-folder-row');
+    if (!row) return;
+    const path = (typeof Explorer !== 'undefined' && Explorer.getCurrentPath) ? Explorer.getCurrentPath() : null;
+    if (!path) { row.style.display = 'none'; return; }
+    try {
+      const list = await WS.send('fs:list', { path });
+      const apps = (Array.isArray(list) ? list : [])
+        .filter(item => !item.isDir && FOLDER_EXEC_EXTS.includes((item.ext || '').replace('.', '').toLowerCase()))
+        .map(item => {
+          const ext = (item.ext || '').replace('.', '').toLowerCase();
+          const iconEndpoint = ext === 'app' ? '/stream/icon' : '/stream/icon-win';
+          return { name: item.name.replace(/\.[^.]+$/, ''), path: item.path, image: `${iconEndpoint}?path=${encodeURIComponent(item.path)}` };
+        });
+      cachedFolderApps = apps;
+      const row = document.getElementById('stream-folder-row');
+      if (row) renderList('stream-folder-row', 'stream-folder-list', apps, false);
+    } catch (e) {
+      row.style.display = 'none';
+    }
+  }
+  // Registered once at load — re-fetches whenever the explorer navigates, but
+  // only does anything if App Mode is the view currently on screen.
+  if (typeof Explorer !== 'undefined' && Explorer.addNavListener) {
+    Explorer.addNavListener(() => { if (container) fetchFolderApps(); });
+  }
+
+  // Is this browser running on the same physical machine as the DarkExplorer
+  // server? If so, launching an app should just launch it locally instead of
+  // pointlessly starting a remote-desktop RTC session to watch it.
+  // A manual override (Settings → App Mode / RTC) always wins, since network-based
+  // detection can be fooled by tunnels/proxies that relay everyone through loopback.
+  let isLocalClient = null;
+  function checkIsLocal() {
+    const override = localStorage.getItem('de_local_override') || 'auto';
+    if (override === 'local') return Promise.resolve(true);
+    if (override === 'remote') return Promise.resolve(false);
+    if (isLocalClient !== null) return Promise.resolve(isLocalClient);
+    
+    const host = window.location.hostname;
+    const isLocalHostName = (host === 'localhost' || host === '127.0.0.1' || host === '::1');
+
+    return fetch('/stream/is-local')
+      .then(res => res.json())
+      .then(d => { 
+        // If server thinks we are local, but we are connecting via a public domain
+        // (not localhost and not a LAN IP), we are likely coming through a tunnel
+        // that masks our IP as loopback. We are remote.
+        if (d.isLocal && !isLocalHostName && !host.startsWith('192.168.') && !host.startsWith('10.') && !host.startsWith('172.')) {
+          isLocalClient = false;
+        } else {
+          isLocalClient = !!d.isLocal; 
+        }
+        return isLocalClient; 
+      })
+      .catch(() => { isLocalClient = false; return false; });
+  }
+  checkIsLocal();
+
+  let isFetchingApps = false;
+  let hasFetchedApps = false;
 
   async function fetchApps() {
+    if (isFetchingApps || hasFetchedApps) return;
+    isFetchingApps = true;
     try {
       const token = localStorage.getItem('de_token') || '';
       const res = await fetch('/stream/scan', { headers: { 'Authorization': 'Bearer ' + token } });
       if (!res.ok) throw new Error('Failed to scan apps');
       const data = await res.json();
 
+      cachedSystemApps = [
+        { name: "Remote Desktop", image: "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?auto=format&fit=crop&q=80&w=400", path: null, appid: null },
+        { name: "Xbox", image: "https://images.unsplash.com/photo-1621259182978-fbf93132d53d?auto=format&fit=crop&q=80&w=400", path: null, appid: null },
+        { name: "Steam Big Picture", image: "https://upload.wikimedia.org/wikipedia/commons/8/83/Steam_icon_logo.svg", path: null, appid: null }
+      ];
+      cachedApolloApps = data.apps || [];
       cachedSteam = data.steam || [];
       cachedXbox = data.xbox || [];
+      hasFetchedApps = true;
       renderAllCarousels();
     } catch (e) {
       console.error('Stream view fetch error:', e);
+    } finally {
+      isFetchingApps = false;
     }
   }
 
-  // -- Favourite Applications: curated via the file explorer's right-click menu,
-  // persisted server-side so the list stays in sync across devices.
-  function getFavoriteApps() {
-    return State.get('favoriteApps', []);
+  function setupCollapsible(rowId, listId, items, startCollapsed, renderItems) {
+    const row = document.getElementById(rowId);
+    if (!row) return;
+    row.style.display = items.length ? 'block' : 'none';
+    if (!items.length) return;
+
+    const titleEl = row.querySelector('.stream-row-title');
+    const container = document.getElementById(listId);
+    if (!titleEl || !container) return;
+
+    if (!titleEl.dataset.initialized) {
+      titleEl.style.cursor = 'pointer';
+      titleEl.style.userSelect = 'none';
+      const arrow = document.createElement('span');
+      arrow.className = 'section-arrow';
+      arrow.style.display = 'inline-block';
+      arrow.style.width = '24px';
+      titleEl.insertBefore(arrow, titleEl.firstChild);
+      titleEl.dataset.initialized = 'true';
+      titleEl.dataset.collapsed = startCollapsed ? 'true' : 'false';
+      titleEl.dataset.rendered = 'false';
+
+      titleEl.onclick = () => {
+        const isNowCollapsed = titleEl.dataset.collapsed === 'false';
+        titleEl.dataset.collapsed = isNowCollapsed ? 'true' : 'false';
+        titleEl.querySelector('.section-arrow').textContent = isNowCollapsed ? '▸ ' : '▾ ';
+        container.style.display = isNowCollapsed ? 'none' : '';
+        if (!isNowCollapsed && titleEl.dataset.rendered === 'false') {
+          renderItems(container);
+          titleEl.dataset.rendered = 'true';
+        }
+      };
+    }
+
+    const collapsed = titleEl.dataset.collapsed === 'true';
+    titleEl.querySelector('.section-arrow').textContent = collapsed ? '▸ ' : '▾ ';
+    container.style.display = collapsed ? 'none' : '';
+
+    titleEl.dataset.rendered = 'false';
+    container.innerHTML = '';
+    if (!collapsed) {
+      renderItems(container);
+      titleEl.dataset.rendered = 'true';
+    }
   }
-  function isFavoriteApp(filePath) {
-    return getFavoriteApps().some(a => a.path === filePath);
+
+  function sortItems(items) {
+    if (activeSort === 'none') return items;
+    // We mainly have 'name' for apps. Other sorts like date/size might not exist on these objects, fallback to name.
+    return items.slice().sort((a,b) => a.name.localeCompare(b.name));
   }
-  function toggleFavoriteApp(item) {
-    const favs = getFavoriteApps();
-    const idx = favs.findIndex(a => a.path === item.path);
-    if (idx >= 0) favs.splice(idx, 1);
-    else favs.push({ name: item.name, path: item.path, image: item.image });
-    State.set('favoriteApps', favs);
-    renderAllCarousels();
+
+  function getGroupValue(item) {
+    if (activeSort === 'name') return (item.name[0] || '?').toUpperCase();
+    if (activeSort === 'app' || activeSort === 'ext') {
+      if (item.appid) return 'Steam Game';
+      if (item.image && item.image.includes('unsplash')) return 'Xbox Game'; // Best guess for xbox
+      return 'Application';
+    }
+    // Fallback
+    return 'Apps';
   }
-  State.onChange('favoriteApps', renderAllCarousels);
 
   function renderAllCarousels() {
-    let favs = JSON.parse(localStorage.getItem('de_stream_favs') || '[]');
-    const favRow = document.getElementById('stream-fav-row');
-    if (favRow) favRow.style.display = favs.length > 0 ? 'block' : 'none';
+    const isGrouping = activeSort !== 'none' && activeSort !== '';
+    const dynContainer = document.getElementById('stream-dynamic-groups');
+    if (dynContainer) dynContainer.innerHTML = '';
+    
+    if (isGrouping) {
+      // Hide all standard rows
+      ['stream-apps-row', 'stream-steam-row', 'stream-xbox-row', 'stream-folder-row', 'stream-apollo-row'].forEach(id => {
+        const row = document.getElementById(id);
+        if (row) row.style.display = 'none';
+      });
 
-    renderCarousel('stream-fav-carousel', favs, 'favorite');
-    renderCarousel('stream-favapps-carousel', getFavoriteApps(), 'app', { removable: true,
-      emptyMessage: 'No favourite apps yet — right-click a runnable file in the file explorer and choose "Add to Favourite Apps".' });
-    renderCarousel('stream-steam-carousel', cachedSteam, 'steam');
-    renderCarousel('stream-xbox-carousel', cachedXbox, 'xbox');
-  }
+      // Combine all apps
+      let allApps = [].concat(cachedSystemApps, cachedSteam, cachedXbox, cachedApolloApps);
+      if (cachedFolderApps) allApps = allApps.concat(cachedFolderApps);
 
-  function renderCarousel(id, items, platform, opts) {
-    opts = opts || {};
-    const carousel = document.getElementById(id);
-    if (!carousel) return;
-    if (items.length === 0) {
-      carousel.innerHTML = `<div style="padding:20px;color:#888;">${opts.emptyMessage || 'No games found for this platform.'}</div>`;
-      return;
-    }
+      allApps = filterItems(allApps);
+      allApps = sortItems(allApps);
 
-    carousel.innerHTML = '';
-    items.forEach(item => {
-      const card = document.createElement('div');
-      card.className = 'stream-card';
+      const groups = {};
+      allApps.forEach(item => {
+        const val = getGroupValue(item);
+        if (!groups[val]) groups[val] = [];
+        groups[val].push(item);
+      });
 
-      const img = document.createElement('img');
-      img.className = 'stream-card-img';
-      img.src = item.image || 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=400';
-      img.onerror = () => { img.src = 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=400'; };
-
-      const meta = document.createElement('div');
-      meta.className = 'stream-card-meta';
-
-      const title = document.createElement('div');
-      title.className = 'stream-card-title';
-      title.textContent = item.name;
-
-      const plat = document.createElement('div');
-      plat.className = 'stream-card-platform';
-      plat.textContent = platform.toUpperCase();
-
-      const favBtn = document.createElement('div');
-      favBtn.className = 'stream-card-fav';
-      if (opts.removable) {
-        favBtn.classList.add('active');
-        favBtn.innerHTML = '✕';
-        favBtn.title = 'Remove from favourites';
-        favBtn.onclick = (ev) => { ev.stopPropagation(); toggleFavoriteApp(item); };
-      } else {
-        let favs = JSON.parse(localStorage.getItem('de_stream_favs') || '[]');
-        if (favs.some(f => f.name === item.name)) {
-          favBtn.classList.add('active');
-        }
-        favBtn.innerHTML = '★';
-        favBtn.onclick = (ev) => {
-          ev.stopPropagation();
-          let currentFavs = JSON.parse(localStorage.getItem('de_stream_favs') || '[]');
-          const idx = currentFavs.findIndex(f => f.name === item.name);
-          if (idx >= 0) currentFavs.splice(idx, 1);
-          else currentFavs.push(item);
-          localStorage.setItem('de_stream_favs', JSON.stringify(currentFavs));
-          renderAllCarousels();
-        };
+      if (dynContainer) {
+        Object.keys(groups).sort().forEach((key, idx) => {
+           const rowId = 'dyn-row-' + idx;
+           const listId = 'dyn-list-' + idx;
+           
+           const row = document.createElement('div');
+           row.className = 'stream-row';
+           row.id = rowId;
+           row.innerHTML = `<h2 class="stream-row-title">${key}</h2><div class="stream-folder-list" id="${listId}"></div>`;
+           dynContainer.appendChild(row);
+           
+           renderList(rowId, listId, groups[key], false); // false = force expanded
+        });
       }
 
-      meta.appendChild(title);
-      meta.appendChild(plat);
-      card.appendChild(img);
-      card.appendChild(favBtn);
-      card.appendChild(meta);
+    } else {
+      // Normal view (filtering within normal view if activeFilter is set)
+      ['stream-apps-row', 'stream-steam-row', 'stream-xbox-row', 'stream-apollo-row'].forEach(id => {
+        const row = document.getElementById(id);
+        if (row) row.style.display = 'block';
+      });
 
-      card.onclick = () => launchApp(item);
-      carousel.appendChild(card);
+      const isSearching = !!activeFilter;
+
+      const apolloRowTitle = document.querySelector('#stream-apollo-row .stream-row-title');
+      if (apolloRowTitle) {
+         const textNode = Array.from(apolloRowTitle.childNodes).find(n => n.nodeType === 3);
+         if (textNode) textNode.textContent = ' PC Applications';
+      }
+
+      renderCarousel('stream-apps-carousel', cachedSystemApps, 'pc', {}, false);
+      renderCarousel('stream-steam-carousel', cachedSteam, 'steam', {}, false);
+      renderCarousel('stream-xbox-carousel', cachedXbox, 'xbox', {}, false);
+      renderList('stream-apollo-row', 'stream-apollo-list', cachedApolloApps, !isSearching); // true = start collapsed, false = expanded if searching!
+      
+      if (cachedFolderApps && cachedFolderApps.length) {
+        const row = document.getElementById('stream-folder-row');
+        if (row) {
+          row.style.display = 'block';
+          renderList('stream-folder-row', 'stream-folder-list', cachedFolderApps, false);
+        }
+      }
+    }
+    
+    if (typeof Bookmarks !== 'undefined') Bookmarks.refreshApps();
+  }
+
+  function filterItems(items) {
+    if (!activeFilter) return items;
+    return items.filter(i => i.name.toLowerCase().includes(activeFilter));
+  }
+
+  function renderList(rowId, listId, items, startCollapsed = false) {
+    items = filterItems(items);
+    setupCollapsible(rowId, listId, items, startCollapsed, (container) => {
+      items.forEach(item => {
+        const el = document.createElement('div');
+        el.className = 'stream-folder-item';
+        el.innerHTML = `
+          <img src="${item.image || 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=400'}" class="stream-folder-item-img" onerror="this.src='https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=400'">
+          <span class="stream-folder-item-name">${item.name}</span>
+        `;
+        el.onclick = () => launchApp(item);
+        container.appendChild(el);
+      });
     });
   }
 
-  function launchApp(item) {
+  function renderCarousel(id, items, platform, opts, startCollapsed = false) {
+    opts = opts || {};
+    items = filterItems(items);
+    const rowId = id.replace('-carousel', '-row');
+    setupCollapsible(rowId, id, items, startCollapsed, (carousel) => {
+      if (items.length === 0) {
+        carousel.innerHTML = `<div style="padding:20px;color:#888;">${opts.emptyMessage || 'No games found for this platform.'}</div>`;
+        return;
+      }
+      items.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'stream-card';
+
+        const img = document.createElement('img');
+        img.className = 'stream-card-img';
+        img.src = item.image || 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=400';
+        img.onerror = () => { img.src = 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=400'; };
+
+        const meta = document.createElement('div');
+        meta.className = 'stream-card-meta';
+
+        const title = document.createElement('div');
+        title.className = 'stream-card-title';
+        title.textContent = item.name;
+
+        const plat = document.createElement('div');
+        plat.className = 'stream-card-platform';
+        plat.textContent = platform;
+
+        meta.appendChild(title);
+        meta.appendChild(plat);
+
+        card.appendChild(img);
+        card.appendChild(meta);
+
+        card.onclick = () => launchApp(item);
+        carousel.appendChild(card);
+      });
+    });
+  }
+
+  function renderFolderList(id, items) {
+    const container = document.getElementById(id);
+    if (!container) return;
+    
+    // Change class from grid to list container
+    container.className = 'stream-folder-list';
+    container.innerHTML = '';
+    
+    items.forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'stream-folder-item';
+      
+      const img = document.createElement('img');
+      img.className = 'stream-folder-item-img';
+      img.src = item.image || '/assets/default-app.png'; // Assuming fallback or icon fetch returns valid src
+      img.onerror = () => { img.src = 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=40'; };
+
+      const name = document.createElement('span');
+      name.className = 'stream-folder-item-name';
+      name.textContent = item.name;
+
+      row.appendChild(img);
+      row.appendChild(name);
+      
+      row.onclick = () => launchApp(item);
+      container.appendChild(row);
+    });
+  }
+
+  function launchApp(item, skipModal = false) {
+    // If skipModal is an Event (like a click event), ignore it
+    if (skipModal && typeof skipModal === 'object') {
+      skipModal = false;
+    }
+    
+    const isOverride = localStorage.getItem('de_rtc_override') === 'true';
+
+    if (!skipModal && !isOverride) {
+      checkIsLocal().then(isLocal => {
+        if (isLocal) {
+          // Local: just launch the app quietly (it will show the brief overlay)
+          actuallyLaunchApp(item, false);
+        } else {
+          // Remote: show modal
+          if (typeof Explorer !== 'undefined' && Explorer.showRtcLaunchModal) {
+            Explorer.showRtcLaunchModal(item, () => actuallyLaunchApp(item, true));
+          } else {
+            actuallyLaunchApp(item, true);
+          }
+        }
+      });
+      return;
+    }
+    
+    actuallyLaunchApp(item, true);
+  }
+
+  // Confirm dialog shown before closing an active stream session — two
+  // independent toggles (both default on) so the user can choose to leave
+  // the app running on the host, or leave the viewer connected, if they want.
+  function showCloseConfirm(onConfirm) {
+    const modal = document.createElement('div');
+    modal.className = 'app-settings-modal open';
+    modal.style.zIndex = '3000';
+    modal.innerHTML = `
+      <div class="app-settings-box" style="width: 400px; max-width: 90vw; height: auto;">
+        <div class="app-settings-header">
+          <h2>Close App &amp; Stream</h2>
+          <button class="app-settings-close" title="Close">&times;</button>
+        </div>
+        <div class="app-settings-body">
+          <div class="settings-toggle-row">
+            <div>
+              <label for="close-app-toggle">Close App</label>
+              <span>Terminate the app on the host PC</span>
+            </div>
+            <label class="ui-switch">
+              <input type="checkbox" id="close-app-toggle" checked>
+              <span class="ui-slider"></span>
+            </label>
+          </div>
+          <div class="settings-toggle-row">
+            <div>
+              <label for="close-stream-toggle">Close Stream Connection</label>
+              <span>Disconnect this viewer from the host</span>
+            </div>
+            <label class="ui-switch">
+              <input type="checkbox" id="close-stream-toggle" checked>
+              <span class="ui-slider"></span>
+            </label>
+          </div>
+          <div style="display:flex;justify-content:flex-end;gap:0.8rem;margin-top:1.2rem;">
+            <button class="icon-btn close-confirm-cancel" style="padding:0.5rem 1rem;border-radius:6px;border:1px solid var(--border);width:auto;">Cancel</button>
+            <button class="icon-btn close-confirm-ok" style="padding:0.5rem 1rem;border-radius:6px;background:var(--accent);color:white;border:none;width:auto;font-weight:bold;">Confirm</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    const close = () => modal.remove();
+    modal.querySelector('.app-settings-close').onclick = close;
+    modal.querySelector('.close-confirm-cancel').onclick = close;
+    modal.querySelector('.close-confirm-ok').onclick = () => {
+      const closeApp = modal.querySelector('#close-app-toggle').checked;
+      const closeStream = modal.querySelector('#close-stream-toggle').checked;
+      close();
+      onConfirm({ closeApp, closeStream });
+    };
+  }
+
+  function actuallyLaunchApp(item, forceRtc = false) {
+    if (document.querySelector('.stream-overlay')) {
+      return; // Prevent duplicate overlays if user double clicks an app
+    }
     const overlay = document.createElement('div');
     overlay.className = 'stream-overlay';
     overlay.style.flexDirection = 'column';
@@ -338,9 +485,14 @@ const StreamView = (function() {
       <div id="stream-video-container" style="display:none; width:100%; height:100%; position: absolute; top:0; left:0; z-index: 5;">
          <!-- WebRTC Iframe injected here -->
       </div>
-      <div id="stream-controls" style="display:none; position:absolute; top:20px; right:20px; z-index:1001; display:flex; align-items:center; gap: 15px;">
-        <span style="color: rgba(255,255,255,0.7); font-size: 0.9rem; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.8); background: rgba(0,0,0,0.4); padding: 5px 10px; border-radius: 6px;">Press Shift+ESC to instantly exit stream</span>
-        <button id="stream-exit-btn" style="background:rgba(255,0,0,0.8); color:white; border:1px solid rgba(255,255,255,0.3); padding:10px 20px; border-radius:8px; cursor:pointer; backdrop-filter: blur(10px); font-weight: bold; transition: all 0.2s; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">Close Game</button>
+      <div id="stream-controls" style="display:none; position:absolute; top:20px; right:20px; z-index:1001;">
+        <button id="stream-ingame-menu-trigger" class="stream-ingame-trigger" title="Menu">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1.3" fill="currentColor" stroke="none"></circle><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"></circle><circle cx="12" cy="19" r="1.3" fill="currentColor" stroke="none"></circle></svg>
+        </button>
+        <div id="stream-ingame-menu-panel" class="stream-ingame-panel">
+          <span style="color: rgba(255,255,255,0.7); font-size: 0.85rem; font-weight: bold;">Press Shift+ESC to instantly exit stream</span>
+          <button id="stream-exit-btn" style="background:rgba(255,0,0,0.8); color:white; border:1px solid rgba(255,255,255,0.3); padding:10px 20px; border-radius:8px; cursor:pointer; font-weight: bold; width: 100%;">Close App</button>
+        </div>
       </div>
     `;
     document.body.appendChild(overlay);
@@ -359,13 +511,23 @@ const StreamView = (function() {
         .then(({ hostId, apps }) => {
           // The proxy identifies apps by numeric app_id (assigned by Sunshine/Apollo's app
           // list), not by name, so we have to resolve the desired app's name to its id here.
-          const wantedName = (item.name && item.name !== "Remote Desktop") ? item.name : "Desktop";
-          const match = apps.find(a => a.title.toLowerCase() === wantedName.toLowerCase())
-            || apps.find(a => a.title.toLowerCase() === "desktop");
+          let match = null;
+          const target = (item.name || "").toLowerCase();
+          
+          if (target.includes("steam")) {
+            match = apps.find(a => a.title.toLowerCase().includes("steam"));
+          } else if (target.includes("xbox")) {
+            match = apps.find(a => a.title.toLowerCase().includes("xbox"));
+          }
+          
+          if (!match) {
+            // Fallback to Desktop stream for all other apps and games
+            match = apps.find(a => a.title.toLowerCase().includes("desktop"));
+          }
 
           if (!match) {
             document.getElementById('stream-loading-ui').innerHTML =
-              `<div style="font-size:1.1rem; color:#ff6b6b; max-width:400px; text-align:center;">"${wantedName}" isn't registered on the host yet. Add it in Engine Setup, or use Desktop.</div>
+              `<div style="font-size:1.1rem; color:#ff6b6b; max-width:400px; text-align:center;">"Desktop" isn't registered on the host yet. Add it in Engine Setup.</div>
                <button class="stream-play-btn" style="margin-top: 20px;" onclick="this.closest('.stream-overlay').remove()">Close</button>`;
             return;
           }
@@ -374,9 +536,17 @@ const StreamView = (function() {
           const videoContainer = document.getElementById('stream-video-container');
           const exitBtn = document.getElementById('stream-exit-btn');
           const controls = document.getElementById('stream-controls');
+          const ingameTrigger = document.getElementById('stream-ingame-menu-trigger');
+          const ingamePanel = document.getElementById('stream-ingame-menu-panel');
 
           videoContainer.style.display = 'block';
           controls.style.display = 'block';
+          ingameTrigger.onclick = (e) => { e.stopPropagation(); ingamePanel.classList.toggle('open'); };
+          overlay.addEventListener('click', (e) => {
+            if (ingamePanel.classList.contains('open') && !ingamePanel.contains(e.target) && e.target !== ingameTrigger) {
+              ingamePanel.classList.remove('open');
+            }
+          });
 
           const proxyUrl = "/moonlight-proxy/stream.html?hostId=" + hostId + "&appId=" + match.app_id;
           const iframe = document.createElement('iframe');
@@ -391,9 +561,16 @@ const StreamView = (function() {
           iframe.onload = () => iframe.focus();
           overlay.onclick = () => iframe.focus();
           exitBtn.onclick = () => {
-            if (document.fullscreenElement) document.exitFullscreen();
-            videoContainer.innerHTML = '';
-            overlay.remove();
+            showCloseConfirm(({ closeApp, closeStream }) => {
+              if (closeApp) {
+                fetch('/stream/kill', { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } }).catch(() => {});
+              }
+              if (closeStream) {
+                if (document.fullscreenElement) document.exitFullscreen();
+                videoContainer.innerHTML = '';
+                overlay.remove();
+              }
+            });
           };
 
           const messageListener = (event) => {
@@ -408,28 +585,45 @@ const StreamView = (function() {
         });
     };
 
-    if (item.path || item.appid || (item.familyName && item.appId)) {
+    if (item.path || item.appid || (item.familyName && item.appId) || item.name === 'Remote Desktop' || item.name === 'Steam Big Picture' || item.name === 'Xbox') {
       fetch('/stream/launch', {
         method: 'POST',
         headers: {
           'Authorization': 'Bearer ' + token,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ path: item.path, appid: item.appid, familyName: item.familyName, xboxAppId: item.appId })
+        body: JSON.stringify({ path: item.path, appid: item.appid, familyName: item.familyName, xboxAppId: item.appId, name: item.name })
       }).then(res => res.json()).then(data => {
-        if (data.ok) {
-          setTimeout(startWebRTCStream, 1500);
-        } else {
+        if (!data.ok) {
           alert('Failed to launch application on host.');
           overlay.remove();
+          return;
+        }
+        if (!forceRtc) {
+          // Already at the host — the app just opened and grabbed focus there. No need for a remote session.
+          document.getElementById('stream-loading-ui').innerHTML =
+            `<div style="font-size:1.2rem; font-weight:bold; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">Launched ${item.name}</div>
+             <div style="font-size:1rem; color:#ccc; margin-top:10px; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">Running on this PC</div>`;
+          setTimeout(() => overlay.remove(), 1200);
+        } else {
+          setTimeout(startWebRTCStream, 1500);
         }
       }).catch(e => {
         console.error(e);
-        alert('Network error launching application.');
-        overlay.remove();
+        document.getElementById('stream-loading-ui').innerHTML =
+            `<div style="font-size:1.2rem; font-weight:bold; color:#ff6b6b; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">Network error</div>
+             <div style="font-size:1rem; color:#ccc; margin-top:10px; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">Could not reach host</div>`;
+        setTimeout(() => overlay.remove(), 2500);
       });
     } else {
-      setTimeout(startWebRTCStream, 500);
+      if (!forceRtc) {
+        document.getElementById('stream-loading-ui').innerHTML =
+            `<div style="font-size:1.2rem; font-weight:bold; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">Launched ${item.name}</div>
+             <div style="font-size:1rem; color:#ccc; margin-top:10px; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">Running on this PC</div>`;
+        setTimeout(() => overlay.remove(), 1200);
+      } else {
+        setTimeout(startWebRTCStream, 500);
+      }
     }
   }
 
@@ -440,5 +634,16 @@ const StreamView = (function() {
     }
   }
 
-  return { render, hide, launchApp, toggleFavoriteApp, isFavoriteApp };
+  // Pre-fetch apps in the background at startup so they are ready when App Mode is opened
+  fetchApps().catch(console.error);
+
+  return {
+    render, hide, launchApp, setFilter, setSort,
+    isLocal: checkIsLocal,
+    fetchApps,
+    getSystemApps: () => cachedSystemApps,
+    getApolloApps: () => cachedApolloApps,
+    getSteamGames: () => cachedSteam,
+    getXboxGames: () => cachedXbox,
+  };
 })();

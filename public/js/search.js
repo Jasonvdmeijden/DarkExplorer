@@ -79,8 +79,10 @@ const Search = (() => {
       if (mode === 'filename') {
         const res = await WS.send('search:filename', { query: term, limit: 200 });
         const filtered = applyPathFilters(res.results);
-        renderFilenameResults(filtered);
-        status.textContent = `${filtered.length} result${filtered.length !== 1 ? 's' : ''}`;
+        const apps = matchApps(term);
+        renderFilenameResults(filtered, apps);
+        const total = filtered.length + apps.length;
+        status.textContent = `${total} result${total !== 1 ? 's' : ''}`;
       } else {
         const include = getFilterList('search-include');
         const exclude = getFilterList('search-exclude');
@@ -120,29 +122,93 @@ const Search = (() => {
     catch { return s.includes(pattern.toLowerCase()); }
   }
 
-  function renderFilenameResults(items) {
+  // PC apps/games (Apollo apps, Steam, Xbox, system shortcuts) so "filename"
+  // search can surface things you'd launch, not just files on disk.
+  function getAllApps() {
+    if (typeof StreamView === 'undefined') return [];
+    return [
+      StreamView.getApolloApps  ? StreamView.getApolloApps()  : [],
+      StreamView.getSteamGames ? StreamView.getSteamGames() : [],
+      StreamView.getXboxGames  ? StreamView.getXboxGames()  : [],
+      StreamView.getSystemApps ? StreamView.getSystemApps() : [],
+    ].flat();
+  }
+
+  function matchApps(term) {
+    const t = term.toLowerCase();
+    return getAllApps().filter(a => (a.name || '').toLowerCase().includes(t));
+  }
+
+  function makeGroupHeader(label) {
+    const header = document.createElement('div');
+    header.className = 'group-header';
+    header.textContent = label;
+    return header;
+  }
+
+  function renderFilenameResults(items, apps = []) {
     const results = document.getElementById('search-results');
     results.innerHTML = '';
-    items.forEach(item => {
-      const el = document.createElement('div');
-      el.style.cssText = 'padding:.3rem .75rem;cursor:pointer;font-size:.82rem;display:flex;align-items:center;gap:.5rem';
-      el.innerHTML = `<span style="color:var(--text-muted)">${fileIcon(item)}</span>
-        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(item.name)}</span>
-        <span style="color:var(--text-muted);font-size:.72rem;flex-shrink:0">${shortPath(item.path)}</span>`;
-      el.addEventListener('mouseenter', () => el.style.background = 'var(--bg-hover)');
-      el.addEventListener('mouseleave', () => el.style.background = '');
-      el.addEventListener('click', () => {
-        hide();
-        const dest = item.isDir ? item.path : parentPath(item.path);
-        Explorer.navigate(dest);
+
+    if (apps.length) {
+      results.appendChild(makeGroupHeader(`Apps (${apps.length})`));
+      apps.forEach(app => results.appendChild(makeAppResultRow(app)));
+    }
+
+    if (items.length) {
+      results.appendChild(makeGroupHeader(`Files (${items.length})`));
+      items.forEach(item => {
+        const el = document.createElement('div');
+        el.style.cssText = 'padding:.3rem .75rem;cursor:pointer;font-size:.82rem;display:flex;align-items:center;gap:.5rem';
+        el.innerHTML = `<span style="color:var(--text-muted)">${fileIcon(item)}</span>
+          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(item.name)}</span>
+          <span style="color:var(--text-muted);font-size:.72rem;flex-shrink:0">${shortPath(item.path)}</span>`;
+        el.addEventListener('mouseenter', () => el.style.background = 'var(--bg-hover)');
+        el.addEventListener('mouseleave', () => el.style.background = '');
+        el.addEventListener('click', () => {
+          hide();
+          const dest = item.isDir ? item.path : parentPath(item.path);
+          Explorer.navigate(dest);
+        });
+        el.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          Explorer.showContextMenu(e.clientX, e.clientY, item);
+        });
+        results.appendChild(el);
       });
-      el.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        Explorer.showContextMenu(e.clientX, e.clientY, item);
-      });
-      results.appendChild(el);
+    }
+  }
+
+  function makeAppResultRow(app) {
+    const el = document.createElement('div');
+    el.style.cssText = 'padding:.3rem .75rem;cursor:pointer;font-size:.82rem;display:flex;align-items:center;gap:.5rem';
+
+    const iconSpan = document.createElement('span');
+    iconSpan.style.color = 'var(--text-muted)';
+    if (app.image) {
+      const img = document.createElement('img');
+      img.src = app.image;
+      img.style.cssText = 'width:1em;height:1em;border-radius:3px;object-fit:cover;vertical-align:-.15em';
+      img.addEventListener('error', () => { img.replaceWith(document.createTextNode('🎮')); }, { once: true });
+      iconSpan.appendChild(img);
+    } else {
+      iconSpan.textContent = '🎮';
+    }
+
+    const nameSpan = document.createElement('span');
+    nameSpan.style.cssText = 'flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+    nameSpan.textContent = app.name;
+
+    el.appendChild(iconSpan);
+    el.appendChild(nameSpan);
+    el.addEventListener('mouseenter', () => el.style.background = 'var(--bg-hover)');
+    el.addEventListener('mouseleave', () => el.style.background = '');
+    el.addEventListener('click', () => {
+      hide();
+      if (typeof StreamView !== 'undefined') StreamView.launchApp(app);
     });
+    return el;
   }
 
   function renderContentResults(items) {

@@ -20,18 +20,80 @@ const Explorer = (() => {
   const EXEC_EXTS = ['exe','msi','bat','cmd','com','ps1','sh','app'];
   const isExecItem = (item) => !item.isDir && EXEC_EXTS.includes((item.ext || '').replace('.', '').toLowerCase());
 
-  // Launches a runnable file on the server, then switches to the Stream view and
-  // connects to the Desktop session so the user immediately sees it running.
-  function runAndStream(item) {
-    WS.send('fs:exec', { path: item.path });
-    setView('stream');
-    if (typeof StreamView !== 'undefined' && StreamView.launchApp) {
-      StreamView.launchApp({
-        name: 'Remote Desktop',
-        image: 'https://images.unsplash.com/photo-1618424181497-157f25b6ce50?auto=format&fit=crop&q=80&w=400',
-        path: null,
-        appid: null
+  // Launches a runnable file on the server. If we're browsing from a different
+  // device than the host, switch to the Stream view and connect to the Desktop
+  // session so the app is immediately visible. If we're already at the host,
+  // just launch it — it'll open and focus itself on the screen we're looking at.
+  function showRtcLaunchModal(item, launchFn) {
+    fetch('/stream/webrtc-config')
+      .then(res => res.json())
+      .then(config => {
+        const isSetup = !!config.hostId;
+        const modal = document.createElement('div');
+        modal.className = 'app-settings-modal open';
+        modal.innerHTML = `
+          <div class="app-settings-box" style="width: 440px; max-width: 90vw; height: auto;">
+            <div class="app-settings-header">
+              <h2>Remote App Launch</h2>
+              <button class="app-settings-close" title="Close">×</button>
+            </div>
+            <div class="app-settings-body">
+              <p style="color: var(--text-primary); font-size: 0.95rem; line-height: 1.5; margin-bottom: 0.5rem;">
+                You are accessing this session from a remote device. This will launch the app on the host computer and stream it to your device via WebRTC.
+              </p>
+              ${!isSetup ? `<p style="color: #ff6b6b; font-size: 0.85rem; background: rgba(239,68,68,0.1); padding: 0.8rem; border-radius: var(--radius-sm);"><b>RTC Not Configured:</b> You need to set up WebRTC Engine before you can stream this app.</p>` : ''}
+              <div style="margin-top: 1.5rem; display: flex; gap: 0.8rem; justify-content: flex-end;">
+                <button class="icon-btn rtc-close-btn" style="padding: 0.5rem 1rem; border: 1px solid var(--border); border-radius: var(--radius-sm);">Cancel</button>
+                ${isSetup ? 
+                  `<button class="icon-btn rtc-open-btn" style="padding: 0.5rem 1rem; background: var(--accent); color: #fff; border-radius: var(--radius-sm);">Open App</button>` : 
+                  `<button class="icon-btn rtc-setup-btn" style="padding: 0.5rem 1rem; background: var(--accent); color: #fff; border-radius: var(--radius-sm);">Setup RTC</button>`
+                }
+              </div>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(modal);
+
+        const close = () => modal.remove();
+        modal.querySelector('.app-settings-close').onclick = close;
+        modal.querySelector('.rtc-close-btn').onclick = close;
+        
+        if (isSetup) {
+          modal.querySelector('.rtc-open-btn').onclick = () => {
+            close();
+            launchFn();
+            setView('stream');
+            StreamView.launchApp({
+              name: item.name || item.path.split(/[\\/]/).pop().replace(/\.[^.]+$/, ''),
+              image: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=400',
+              path: null,
+              appid: null
+            }, true);
+          };
+        } else {
+          modal.querySelector('.rtc-setup-btn').onclick = () => {
+            close();
+            if (typeof AppSettings !== 'undefined') AppSettings.open('rtc');
+          };
+        }
+      })
+      .catch(() => {
+        launchFn(); // Fallback if API fails
       });
+  }
+
+  function runAndStream(item) {
+    const launch = () => WS.send('fs:exec', { path: item.path });
+    if (typeof StreamView !== 'undefined' && StreamView.isLocal) {
+      StreamView.isLocal().then((isLocal) => {
+        if (isLocal) {
+          launch();
+          return;
+        }
+        showRtcLaunchModal(item, launch);
+      });
+    } else {
+      launch();
     }
   }
 
@@ -280,13 +342,47 @@ const Explorer = (() => {
     State.set('view', v);
     document.querySelectorAll('[data-view]').forEach(b =>
       b.classList.toggle('active', b.dataset.view === v));
+    syncViewModeDropdown();
+    if (typeof Favourites !== 'undefined') Favourites.render();
     renderView();
   }
 
-  function setGroup(g) {
-    groupKey = g;
-    localStorage.setItem('de_group', g);
-    renderView();
+  // Mobile: the individual view-mode buttons collapse into a single dropdown.
+  // The trigger keeps its own fixed "eye" icon (so it doesn't end up looking
+  // like the left-panel hamburger when Details view, which is also a hamburger
+  // glyph, happens to be active) — only the menu's active highlight changes.
+  function syncViewModeDropdown() {
+    document.querySelectorAll('.view-mode-menu-item').forEach(b =>
+      b.classList.toggle('active', b.dataset.view === view));
+  }
+
+  (function setupViewModeDropdown() {
+    const trigger = document.getElementById('btn-view-dropdown-trigger');
+    const menu = document.getElementById('view-mode-menu');
+    if (!trigger || !menu) return;
+    document.querySelectorAll('.view-mode-group [data-view]').forEach(btn => {
+      const item = document.createElement('button');
+      item.className = 'view-mode-menu-item';
+      item.dataset.view = btn.dataset.view;
+      const icon = document.createElement('span');
+      icon.innerHTML = btn.innerHTML;
+      const label = document.createElement('span');
+      label.textContent = btn.title;
+      item.appendChild(icon);
+      item.appendChild(label);
+      item.addEventListener('click', () => { setView(btn.dataset.view); menu.classList.remove('open'); });
+      menu.appendChild(item);
+    });
+    trigger.addEventListener('click', (e) => { e.stopPropagation(); menu.classList.toggle('open'); });
+    document.addEventListener('mousedown', (e) => {
+      if (menu.classList.contains('open') && !menu.contains(e.target) && e.target !== trigger) menu.classList.remove('open');
+    });
+    syncViewModeDropdown();
+  })();
+
+  // setGroup is defined above, but we have a duplicate here? Let's fix this duplicate later, just replace it.
+  function setGroupDuplicate(g) {
+    // handled above now
   }
 
   // Restore view/sort from state when it first loads
@@ -297,6 +393,8 @@ const Explorer = (() => {
     if (ss) { sortKey = ss.key; sortAsc = ss.asc; }
     const sm = State.get('mosaicSize', null);
     if (sm) { mosaicCols = sm; localStorage.setItem('de_mosaic_cols', sm); }
+    document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+    syncViewModeDropdown();
   });
 
   // Live-sync from other devices
@@ -304,12 +402,18 @@ const Explorer = (() => {
     if (!v || v === view) return;
     view = v; localStorage.setItem('de_view', v);
     document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === v));
+    syncViewModeDropdown();
     if (items.length) renderView();
   });
   State.onChange('sort', (s) => {
     if (!s) return;
     sortKey = s.key; sortAsc = s.asc;
     if (items.length) { items = sortItems(items); renderView(); }
+  });
+  State.onChange('mosaicSize', (n) => {
+    if (!n || n === mosaicCols) return;
+    mosaicCols = n; localStorage.setItem('de_mosaic_cols', n);
+    if (view === 'mosaic' && items.length) renderView();
   });
 
   function renderView() {
@@ -333,11 +437,11 @@ const Explorer = (() => {
     host.className = 'file-pane view-media';
     pane1.appendChild(host);
     if (!currentPath) {
-      host.innerHTML = '<div style="padding:1.5rem;color:var(--text-muted)">Navigate to a folder to use Netflix Media view.</div>';
+      host.innerHTML = '<div style="padding:1.5rem;color:var(--text-muted)">Navigate to a folder to use Media Mode.</div>';
       return;
     }
     if (typeof NetflixMedia === 'undefined') {
-      host.innerHTML = '<div style="padding:1.5rem;color:var(--text-muted)">Netflix Media script failed to load — check console.</div>';
+      host.innerHTML = '<div style="padding:1.5rem;color:var(--text-muted)">Media Mode script failed to load — check console.</div>';
       return;
     }
     NetflixMedia.render(host, currentPath);
@@ -353,6 +457,8 @@ const Explorer = (() => {
       return;
     }
     StreamView.render(host, currentPath);
+    if (StreamView.setFilter) StreamView.setFilter(filterText);
+    if (StreamView.setSort) StreamView.setSort(typeof groupKey !== 'undefined' ? groupKey : 'none');
   }
 
   // Disk-usage view — full-pane sunburst rooted at currentPath
@@ -659,31 +765,24 @@ const Explorer = (() => {
   }
 
   // ── Mosaic view ──────────────────────────────────────────
+  // Thumbnails-per-row is configured from the Settings modal (Gallery tab) now,
+  // not an inline control — setMosaicCols() is the live-update hook it calls.
   function renderMosaic() {
     pane1.innerHTML = '';
-
-    const sliderWrap = document.createElement('div');
-    sliderWrap.className = 'mosaic-slider-wrap';
-    sliderWrap.innerHTML = `<span style="color:var(--text-muted);font-size:.75rem">Per row</span>
-      <input type="range" min="1" max="8" value="${mosaicCols}" style="flex:1;accent-color:var(--accent)">
-      <span style="color:var(--text-muted);font-size:.75rem">${mosaicCols}</span>`;
-    const slider = sliderWrap.querySelector('input');
-    const label  = sliderWrap.querySelector('span:last-child');
-    slider.addEventListener('input', () => {
-      mosaicCols = parseInt(slider.value);
-      label.textContent = mosaicCols;
-      localStorage.setItem('de_mosaic_cols', mosaicCols);
-      State.set('mosaicSize', mosaicCols);
-      layoutMosaic(mosaicContainer);
-    });
 
     const mosaicContainer = document.createElement('div');
     mosaicContainer.className = 'file-pane view-mosaic';
 
-    pane1.appendChild(sliderWrap);
     pane1.appendChild(mosaicContainer);
 
     layoutMosaic(mosaicContainer);
+  }
+
+  function setMosaicCols(n) {
+    mosaicCols = Math.max(1, Math.min(8, parseInt(n, 10) || mosaicCols));
+    localStorage.setItem('de_mosaic_cols', mosaicCols);
+    State.set('mosaicSize', mosaicCols);
+    if (view === 'mosaic' && items.length) renderView();
   }
 
   const GALLERY_IMG_EXTS = new Set([
@@ -1038,11 +1137,6 @@ const Explorer = (() => {
       !multi && { label: '⊞ Open in split panel',                  action: () => openInSplit(item.isDir ? item.path : parentOf(item.path)) },
       !multi && !item.isDir && { label: 'Preview',                 action: () => Preview.open(item, items) },
       isExec                 && { label: '▶ Run',                  action: () => runAndStream(item) },
-      isExec                 && { label: (typeof StreamView !== 'undefined' && StreamView.isFavoriteApp(item.path)) ? '★ Remove from Favourite Apps' : '☆ Add to Favourite Apps',
-                                   action: () => {
-                                     const iconEndpoint = ext === 'app' ? '/stream/icon' : '/stream/icon-win';
-                                     StreamView.toggleFavoriteApp({ name: item.name.replace(/\.[^.]+$/, ''), path: item.path, image: `${iconEndpoint}?path=${encodeURIComponent(item.path)}` });
-                                   } },
       isZip                  && { label: '📂 Extract here',        action: () => extractZipHere(item.path) },
       isZip                  && { label: '📂 Extract to...',       action: () => extractZipTo(item.path) },
       'sep',
@@ -1130,7 +1224,21 @@ const Explorer = (() => {
 
   function setFilter(text) {
     filterText = text;
-    renderView();
+    if (view === 'stream' && typeof StreamView !== 'undefined' && StreamView.setFilter) {
+      StreamView.setFilter(text);
+    } else {
+      renderView();
+    }
+  }
+
+  function setGroup(g) {
+    groupKey = g;
+    localStorage.setItem('de_group', g);
+    if (view === 'stream' && typeof StreamView !== 'undefined' && StreamView.setSort) {
+      StreamView.setSort(g);
+    } else {
+      renderView();
+    }
   }
 
   function setColorFilter(color) {
@@ -1407,16 +1515,19 @@ const Explorer = (() => {
         existing.remove();
         return;
       }
-      showSortMenu(e.clientX, e.clientY);
+      showSortMenu(btnSort);
     });
   }
 
-  function showSortMenu(x, y) {
+  // anchor: the button the menu drops down from — positioned below it (not
+  // at the raw click point), so the popup never lands on top of the button.
+  function showSortMenu(anchor) {
+    const anchorRect = anchor.getBoundingClientRect();
     const menu = document.createElement('ul');
     menu.className = 'filter-menu'; // Use filter-menu class for shared glass styling
     menu.id = 'sort-menu'; // Unique ID for toggling
     menu.setAttribute('role', 'menu');
-    menu.style.cssText = `position:fixed; left:-9999px; top:${y}px; z-index:1000; padding:.5rem 0; margin:0; list-style:none; min-width:180px; border-radius:var(--radius-md); box-shadow:var(--shadow-lg); background:var(--bg-surface); border:1px solid var(--border);`;
+    menu.style.cssText = `position:fixed; left:-9999px; top:${anchorRect.bottom + 6}px; z-index:1000; padding:.5rem 0; margin:0; list-style:none; min-width:180px; border-radius:var(--radius-md); box-shadow:var(--shadow-lg); background:var(--bg-surface); border:1px solid var(--border);`;
     
     const isG = (key) => groupKey === key ? '✓' : '';
 
@@ -1454,20 +1565,21 @@ const Explorer = (() => {
 
     document.body.appendChild(menu);
 
-    // Reposition safely within bounds
+    // Right-align under the button, clamped so it never runs off-screen
     const rect = menu.getBoundingClientRect();
-    let safeX = x;
-    if (x + rect.width > window.innerWidth) {
-      safeX = Math.max(0, window.innerWidth - rect.width - 10);
+    let safeX = anchorRect.right - rect.width;
+    if (safeX < 4) safeX = 4;
+    if (safeX + rect.width > window.innerWidth) {
+      safeX = Math.max(4, window.innerWidth - rect.width - 10);
     }
     menu.style.left = safeX + 'px';
     menu.classList.add('visible');
 
-    const closeHandler = (e) => { 
-      if (!menu.contains(e.target) && !e.target.closest('#btn-sort')) { 
-        menu.remove(); 
-        document.removeEventListener('mousedown', closeHandler); 
-      } 
+    const closeHandler = (e) => {
+      if (!menu.contains(e.target) && !e.target.closest('#btn-sort')) {
+        menu.remove();
+        document.removeEventListener('mousedown', closeHandler);
+      }
     };
     setTimeout(() => document.addEventListener('mousedown', closeHandler), 10);
   }
@@ -1481,29 +1593,34 @@ const Explorer = (() => {
         existing.remove();
         return;
       }
-      showFilterMenu(e.clientX, e.clientY);
+      showFilterMenu(btnFilter);
     });
   }
 
-  function showFilterMenu(x, y) {
+  // anchor: the button the menu drops down from — positioned below it (not
+  // at the raw click point), so the popup never lands on top of the button.
+  function showFilterMenu(anchor) {
+    const anchorRect = anchor.getBoundingClientRect();
     const colors = ['#ff5f56', '#ffbd2e', '#27c93f', '#42a5f5', '#a29bfe', '#abb2bf'];
     const menu = document.createElement('div');
     menu.className = 'filter-menu';
     menu.id = 'filter-popup'; // Unique ID for toggling
     // Position initially off-screen to measure, then move
-    menu.style.cssText = `position:fixed; left:-9999px; top:${y}px; background:var(--bg-surface); border:1px solid var(--border); border-radius:var(--radius-md); box-shadow:var(--shadow-lg); z-index:1000; padding:.75rem; min-width:240px; display:flex; flex-direction:column; gap:.8rem;`;
-    
+    menu.style.cssText = `position:fixed; left:-9999px; top:${anchorRect.bottom + 6}px; background:var(--bg-surface); border:1px solid var(--border); border-radius:var(--radius-md); box-shadow:var(--shadow-lg); z-index:1000; padding:.75rem; min-width:240px; display:flex; flex-direction:column; gap:.8rem;`;
+
     let html = `
       <div style="font-size:.7rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em">Filters</div>
-      
-      <div>
-        <input type="text" id="filter-input" placeholder="Filter by name..." value="${filterText}" 
-          style="width:100%; background:var(--bg-base); border:1px solid var(--border); color:var(--text-primary); padding:.35rem; border-radius:4px; outline:none; font-size:.85rem">
+
+      <div class="input-clear-wrap">
+        <input type="text" id="filter-input" placeholder="Filter by name..." value="${filterText}"
+          style="width:100%; background:var(--bg-base); border:1px solid var(--border); color:var(--text-primary); padding:.35rem 1.6rem .35rem .35rem; border-radius:4px; outline:none; font-size:.85rem">
+        <button class="input-clear-btn" id="filter-input-clear" title="Clear" style="display:${filterText ? '' : 'none'}">&times;</button>
       </div>
-      
-      <div>
-        <input type="text" id="filter-type" placeholder="Filter by kind (e.g. pdf, jpg)" value="${typeFilter}" 
-          style="width:100%; background:var(--bg-base); border:1px solid var(--border); color:var(--text-primary); padding:.35rem; border-radius:4px; outline:none; font-size:.85rem">
+
+      <div class="input-clear-wrap">
+        <input type="text" id="filter-type" placeholder="Filter by kind (e.g. pdf, jpg)" value="${typeFilter}"
+          style="width:100%; background:var(--bg-base); border:1px solid var(--border); color:var(--text-primary); padding:.35rem 1.6rem .35rem .35rem; border-radius:4px; outline:none; font-size:.85rem">
+        <button class="input-clear-btn" id="filter-type-clear" title="Clear" style="display:${typeFilter ? '' : 'none'}">&times;</button>
       </div>
 
       <div>
@@ -1518,21 +1635,41 @@ const Explorer = (() => {
     menu.innerHTML = html;
     document.body.appendChild(menu);
 
-    // Reposition safely within bounds
+    // Right-align under the button, clamped so it never runs off-screen
     const rect = menu.getBoundingClientRect();
-    let safeX = x;
-    if (x + rect.width > window.innerWidth) {
-      safeX = Math.max(0, window.innerWidth - rect.width - 10);
+    let safeX = anchorRect.right - rect.width;
+    if (safeX < 4) safeX = 4;
+    if (safeX + rect.width > window.innerWidth) {
+      safeX = Math.max(4, window.innerWidth - rect.width - 10);
     }
     menu.style.left = safeX + 'px';
 
     const inputName = menu.querySelector('#filter-input');
-    inputName.addEventListener('input', (e) => setFilter(e.target.value));
-    
+    const inputNameClear = menu.querySelector('#filter-input-clear');
+    inputName.addEventListener('input', (e) => {
+      setFilter(e.target.value);
+      inputNameClear.style.display = e.target.value ? '' : 'none';
+    });
+    inputNameClear.addEventListener('click', () => {
+      inputName.value = '';
+      setFilter('');
+      inputNameClear.style.display = 'none';
+      inputName.focus();
+    });
+
     const inputType = menu.querySelector('#filter-type');
+    const inputTypeClear = menu.querySelector('#filter-type-clear');
     inputType.addEventListener('input', (e) => {
       typeFilter = e.target.value.trim();
+      inputTypeClear.style.display = e.target.value ? '' : 'none';
       renderView();
+    });
+    inputTypeClear.addEventListener('click', () => {
+      inputType.value = '';
+      typeFilter = '';
+      inputTypeClear.style.display = 'none';
+      renderView();
+      inputType.focus();
     });
 
     menu.querySelectorAll('.color-dot').forEach(dot => {
@@ -1624,5 +1761,5 @@ const Explorer = (() => {
     _go(history[idx]);
   });
 
-  return { navigate, refresh, renderInPane, navigateFocused, openInSplit, setFocusToPrimary, showContextMenu, selectOnly, addNavListener, getCurrentPath, setFilter, setColorFilter };
+  return { navigate, refresh, renderInPane, navigateFocused, openInSplit, setFocusToPrimary, showContextMenu, selectOnly, addNavListener, getCurrentPath, setFilter, setColorFilter, setMosaicCols, showRtcLaunchModal };
 })();

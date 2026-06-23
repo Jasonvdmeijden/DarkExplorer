@@ -25,6 +25,19 @@ const Stats = (() => {
     cpuEl.textContent = cpu + '%';
     cpuEl.style.color = heatColor(cpu);
 
+    const gpu = data.gpu;
+    const gpuTip = document.getElementById('stat-gpu-tip');
+    const gpuEl  = document.getElementById('stat-gpu-val');
+    if (gpu && gpuTip && gpuEl) {
+      if (gpu.available) {
+        gpuTip.style.display = '';
+        gpuEl.textContent = gpu.pct + '%';
+        gpuEl.style.color = heatColor(gpu.pct);
+      } else {
+        gpuTip.style.display = 'none';
+      }
+    }
+
     const mem = data.mem;
     if (mem) {
       memEl.textContent = mem.pct + '%';

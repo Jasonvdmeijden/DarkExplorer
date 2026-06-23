@@ -1090,15 +1090,22 @@ const Preview = (() => {
     content.style.position = 'relative';
 
     const url = currentFile.url;
+    const token = localStorage.getItem('de_token') || '';
+
+    // Most sites block being framed from a different origin (X-Frame-Options /
+    // CSP frame-ancestors) — that's enforced by the browser and can't be worked
+    // around client-side. Instead, route through our own server-side proxy
+    // (/web-preview/fetch) which re-fetches the page and re-serves it from our
+    // origin with the blocking headers stripped, so the iframe loads same-origin.
+    const proxiedUrl = `/web-preview/fetch?url=${encodeURIComponent(url)}&token=${encodeURIComponent(token)}`;
 
     const iframe = document.createElement('iframe');
-    iframe.src = url;
+    iframe.src = proxiedUrl;
     iframe.style.cssText = 'width:100%;height:100%;border:none;display:block';
     content.appendChild(iframe);
 
-    // Banner appears if the site blocks framing (X-Frame-Options / CSP frame-ancestors)
-    // We can't detect cross-origin block reliably from JS, so we show it after a delay
-    // unless the iframe clearly succeeded (same-origin contentDocument readable).
+    // Banner appears only if the proxy itself genuinely failed to load (the
+    // iframe is now same-origin, so contentDocument is always readable).
     const banner = document.createElement('div');
     banner.style.cssText = `
       position:absolute; top:8px; right:8px; z-index:5;

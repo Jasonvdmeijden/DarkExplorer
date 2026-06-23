@@ -96,12 +96,12 @@ const Theme = (() => {
     const accent  = get('--accent',      '#7c6ef5');
     const accent2 = get('--accent-2',    accent);
 
-    // Tonal surfaces — derived from --bg-base, translucent enough that the
-    // blurred wallpaper clearly shows through, while the 60px frosted-card
-    // blur keeps text legible against --text-primary.
-    root.style.setProperty('--glass-base',     _rgba(base, .20, base));
-    root.style.setProperty('--glass-panel',    _rgba(base, .30, base));
-    root.style.setProperty('--glass-surface',  _rgba(base, .42, base));
+    // Tonal surfaces — derived from --bg-base. Opaque enough that panel
+    // content stays legible over the blurred wallpaper, while the heavy
+    // backdrop-filter blur on each panel still gives a frosted look.
+    root.style.setProperty('--glass-base',     _rgba(base, .55, base));
+    root.style.setProperty('--glass-panel',    _rgba(base, .68, base));
+    root.style.setProperty('--glass-surface',  _rgba(base, .82, base));
 
     // Accent-tinted highlight states
     root.style.setProperty('--glass-hover',    _rgba(accent, .14, accent));
@@ -141,120 +141,80 @@ const Theme = (() => {
   function isGlassMode()    { return glassMode; }
   function list()           { return THEMES.slice(); }
 
-  // ── Picker popover ────────────────────────────────────────────
-  let _popover = null;
-  function _buildPopover() {
-    _popover = document.createElement('div');
-    _popover.id = 'theme-picker-popover';
-    document.body.appendChild(_popover);
-
-    document.addEventListener('click', (e) => {
-      if (!_popover || _popover.style.display === 'none') return;
-      if (e.target.closest('#theme-picker-popover')) return;
-      if (e.target.closest('#btn-theme-picker'))     return;
-      _popover.style.display = 'none';
-    });
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && _popover && _popover.style.display !== 'none') {
-        _popover.style.display = 'none';
-      }
-    });
-  }
-
-  function showPicker(anchor) {
-    if (!_popover) _buildPopover();
-    _popover.innerHTML = '';
-
-    const header = document.createElement('div');
-    header.className = 'theme-picker-header';
-    header.innerHTML = `
-      <span class="theme-picker-title" style="flex:1">Theme</span>
-      <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
-        <div style="display:flex; align-items:center; gap:8px;">
-          <span style="font-size:11px; color:var(--text-muted);">Dark</span>
-          <label class="ui-switch">
-            <input type="checkbox" id="theme-dark-toggle" ${currentMode === 'dark' ? 'checked' : ''}>
-            <span class="ui-slider"></span>
-          </label>
-        </div>
-        <div style="display:flex; align-items:center; gap:8px;">
-          <span style="font-size:11px; color:var(--text-muted);">Glass</span>
-          <label class="ui-switch">
-            <input type="checkbox" id="theme-glass-toggle" ${glassMode ? 'checked' : ''}>
-            <span class="ui-slider"></span>
-          </label>
-        </div>
-        <div style="display:flex; align-items:center; gap:8px; ${glassMode ? '' : 'opacity:.4;'}">
-          <span style="font-size:11px; color:var(--text-muted);">Animate</span>
-          <label class="ui-switch">
-            <input type="checkbox" id="theme-animate-toggle" ${animateMode ? 'checked' : ''} ${glassMode ? '' : 'disabled'}>
-            <span class="ui-slider"></span>
-          </label>
+  // ── Theme Tab for Settings Modal ────────────────────────────────
+  function renderThemeTab(host) {
+    let html = `
+      <div class="settings-field">
+        <label>Color Mode</label>
+        <span class="settings-hint" style="display:block;margin-top:2px;">Switch between Dark and Light mode, or enable Glass effect.</span>
+        <div style="display:flex; flex-direction:column; gap:6px; margin-top: 10px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <label class="ui-switch">
+              <input type="checkbox" id="theme-dark-toggle" ${currentMode === 'dark' ? 'checked' : ''}>
+              <span class="ui-slider"></span>
+            </label>
+            <span style="font-size:14px; color:var(--text-primary);">Dark Mode</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <label class="ui-switch">
+              <input type="checkbox" id="theme-glass-toggle" ${glassMode ? 'checked' : ''}>
+              <span class="ui-slider"></span>
+            </label>
+            <span style="font-size:14px; color:var(--text-primary);">Glass Effect</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; ${glassMode ? '' : 'opacity:.4;'}">
+            <label class="ui-switch">
+              <input type="checkbox" id="theme-animate-toggle" ${animateMode ? 'checked' : ''} ${glassMode ? '' : 'disabled'}>
+              <span class="ui-slider"></span>
+            </label>
+            <span style="font-size:14px; color:var(--text-primary);">Animate Background</span>
+          </div>
         </div>
       </div>
+      <hr class="settings-divider">
+      <div class="settings-field">
+        <label>Theme</label>
+        <div class="theme-picker-list" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; margin-top: 10px; max-height: none;">
     `;
 
-    header.querySelector('#theme-dark-toggle').addEventListener('change', () => {
-      toggle();
-      showPicker(anchor);
-    });
-    header.querySelector('#theme-glass-toggle').addEventListener('change', () => {
-      toggleGlass();
-      showPicker(anchor);
-    });
-    header.querySelector('#theme-animate-toggle').addEventListener('change', () => {
-      toggleAnimate();
-      showPicker(anchor);
-    });
-
-    _popover.appendChild(header);
-
-    const list = document.createElement('div');
-    list.className = 'theme-picker-list';
     THEMES.forEach(t => {
-      const row = document.createElement('button');
-      row.className = 'theme-picker-row';
-      if (t.id === currentId) row.classList.add('active');
-      // Show the swatch matching the CURRENT mode prominently, the other muted
+      const isActive = t.id === currentId;
       const primary   = t[currentMode] || t.dark;
       const secondary = t[currentMode === 'dark' ? 'light' : 'dark'];
-      row.innerHTML = `
-        <span class="theme-picker-swatches">
-          ${_swatch(primary)}${_swatch(secondary, true)}
-        </span>
-        <span class="theme-picker-name">${t.name}</span>
-        ${t.id === currentId ? '<span class="theme-picker-check">✓</span>' : ''}`;
-      row.addEventListener('click', () => {
-        apply(t.id, currentMode);
-        _popover.style.display = 'none';
-      });
-      list.appendChild(row);
+      
+      html += `
+        <button class="settings-action-btn theme-picker-row ${isActive ? 'active' : ''}" data-theme="${t.id}" style="margin-top:0; justify-content:flex-start;">
+          <span class="theme-picker-swatches">
+            ${_swatch(primary)}${_swatch(secondary, true)}
+          </span>
+          <span class="theme-picker-name" style="flex:1; text-align:left;">${t.name}</span>
+          ${isActive ? '<span class="theme-picker-check">✓</span>' : ''}
+        </button>
+      `;
     });
-    _popover.appendChild(list);
 
-    // Position below the anchor button (right-anchored by default)
-    const r = anchor.getBoundingClientRect();
-    _popover.style.position = 'fixed';
-    _popover.style.left  = 'auto';
-    _popover.style.top   = (r.bottom + 6) + 'px';
-    _popover.style.right = Math.max(8, window.innerWidth - r.right) + 'px';
-    _popover.style.display = 'block';
+    html += `</div></div>`;
+    host.innerHTML = html;
 
-    // Measure the rendered box and flip/clamp into the viewport — on narrow
-    // phones the anchor can sit close enough to the left edge that right-
-    // anchoring pushes the popover off-screen (same pattern as showContextMenu).
-    const pr = _popover.getBoundingClientRect();
-    if (pr.left < 8) {
-      _popover.style.right = 'auto';
-      _popover.style.left  = '8px';
-    }
-    const pr2 = _popover.getBoundingClientRect();
-    if (pr2.right > window.innerWidth - 8) {
-      _popover.style.left = Math.max(8, window.innerWidth - 8 - pr2.width) + 'px';
-    }
-    if (pr2.bottom > window.innerHeight - 8) {
-      _popover.style.top = Math.max(8, r.top - pr2.height - 6) + 'px';
-    }
+    host.querySelector('#theme-dark-toggle').addEventListener('change', () => {
+      toggle();
+      renderThemeTab(host);
+    });
+    host.querySelector('#theme-glass-toggle').addEventListener('change', () => {
+      toggleGlass();
+      renderThemeTab(host);
+    });
+    host.querySelector('#theme-animate-toggle').addEventListener('change', () => {
+      toggleAnimate();
+      renderThemeTab(host);
+    });
+
+    host.querySelectorAll('button[data-theme]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        apply(btn.dataset.theme, currentMode);
+        renderThemeTab(host);
+      });
+    });
   }
 
   // Tiny preview swatch — a 14×14 box coloured to roughly match the theme's bg+accent.
@@ -296,13 +256,5 @@ const Theme = (() => {
   // Initial apply
   apply(currentId, currentMode);
 
-  // Wire UI buttons (deferred to DOM ready in case theme.js loads early)
-  function _wire() {
-    const pBtn = document.getElementById('btn-theme-picker');
-    if (pBtn) pBtn.addEventListener('click', (e) => { e.stopPropagation(); showPicker(pBtn); });
-  }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _wire);
-  else _wire();
-
-  return { apply, toggle, getCurrent, getCurrentMode, list, showPicker, THEMES };
+  return { apply, toggle, getCurrent, getCurrentMode, list, renderThemeTab, THEMES };
 })();

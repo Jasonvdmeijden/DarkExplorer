@@ -123,7 +123,15 @@ const Panels = (() => {
     splitPaths.forEach(p => addPane(p));
   }
 
-  document.getElementById('btn-toggle-tree').addEventListener('click', toggleLeft);
+  const btnToggleTree = document.getElementById('btn-toggle-tree');
+  if (btnToggleTree) btnToggleTree.addEventListener('click', toggleLeft);
+
+  const btnPanelLeftClose = document.getElementById('btn-panel-left-close');
+  if (btnPanelLeftClose) btnPanelLeftClose.addEventListener('click', () => {
+    panelLeft.classList.remove('mobile-open');
+    backdrop.classList.remove('visible');
+    leftVisible = false;
+  });
   
   document.getElementById('btn-split').addEventListener('click', () => {
     if (extraPanes.length < 2) addPane();
@@ -166,7 +174,7 @@ const Panels = (() => {
           }
           
           if (panelId === 'git') Git.activate();
-          if (panelId === 'favourites') Favourites.render();
+          if (panelId === 'bookmarks' && typeof Favourites !== 'undefined') Favourites.render();
         }
       });
 

@@ -177,9 +177,49 @@ async function networkStats() {
   return { mbps: 0, pct: 0 };
 }
 
+// ── GPU usage ────────────────────────────────────────────────────
+// nvidia-smi covers the common case (this app's primary use case is a
+// gaming PC used as a Sunshine/Apollo streaming host, almost always Nvidia).
+// Falls back to the Windows "GPU Engine" perf counter (works for any vendor's
+// driver on Windows 10+, same data Task Manager's GPU graph is built from).
+let _gpuAvailable = true;
+async function gpuStatsNvidia() {
+  const { stdout } = await execAsync(
+    'nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader,nounits',
+    { timeout: 3000, windowsHide: true }
+  );
+  const pct = parseInt(stdout.trim().split('\n')[0]) || 0;
+  return { pct, available: true };
+}
+
+async function gpuStatsWinCounter() {
+  const { stdout } = await execAsync(
+    'powershell -NoProfile -Command "(Get-Counter \'\\GPU Engine(*)\\Utilization Percentage\').CounterSamples ' +
+    '| Measure-Object -Property CookedValue -Maximum | Select-Object -ExpandProperty Maximum"',
+    { timeout: 4000, windowsHide: true }
+  );
+  const pct = Math.min(100, Math.round(parseFloat(stdout.trim()) || 0));
+  return { pct, available: true };
+}
+
+async function gpuStats() {
+  if (!_gpuAvailable) return { pct: 0, available: false };
+  try {
+    return await gpuStatsNvidia();
+  } catch {
+    if (process.platform !== 'win32') { _gpuAvailable = false; return { pct: 0, available: false }; }
+    try {
+      return await gpuStatsWinCounter();
+    } catch {
+      _gpuAvailable = false;
+      return { pct: 0, available: false };
+    }
+  }
+}
+
 async function getStats() {
-  const [disk, net] = await Promise.all([diskStats(), networkStats()]);
-  return { cpu: cpuPct(), mem: memStats(), disk, net };
+  const [disk, net, gpu] = await Promise.all([diskStats(), networkStats(), gpuStats()]);
+  return { cpu: cpuPct(), mem: memStats(), disk, net, gpu };
 }
 
 module.exports = { getStats };

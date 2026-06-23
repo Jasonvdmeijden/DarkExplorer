@@ -7,13 +7,53 @@ const videoRouter = require('./stream-video');
 
 router.use('/', videoRouter);
 
-const { exec, execSync, spawnSync } = require('child_process');
+const { exec, execSync, spawn, spawnSync } = require('child_process');
 const sunshineSyncWin = require('./sunshine-sync-win');
+
+// Tracks whatever was most recently launched via /launch, so /kill knows what
+// to terminate without the client having to resend identifying details (it
+// only has what StreamView's `item` carried at launch time, which isn't
+// always enough to find the right process on its own — e.g. a Steam appid).
+let lastLaunched = null;
 
 // Helper to safely check if a directory exists
 function dirExists(p) {
   try { return fs.statSync(p).isDirectory(); } catch { return false; }
 }
+
+// Is this request coming from the same physical machine the server runs on?
+// Used so launching an app doesn't kick off a pointless RTC session when
+// you're already sitting at the host.
+function getLocalIps() {
+  const ips = new Set(['127.0.0.1', '::1']);
+  const ifaces = os.networkInterfaces();
+  for (const name in ifaces) {
+    for (const iface of ifaces[name]) ips.add(iface.address);
+  }
+  return ips;
+}
+
+// req.socket.remoteAddress is useless when traffic arrives via a local tunnel
+// (Cloudflare WARP/cloudflared, etc.) — the tunnel daemon relays everything to
+// the app over loopback, so EVERY client (including a phone on the far side of
+// the tunnel) shows up as 127.0.0.1. Prefer the headers a reverse proxy sets to
+// carry the real origin IP, and only fall back to the socket address when none
+// of them are present (i.e. a direct, unproxied connection).
+function getClientIp(req) {
+  const cf = req.headers['cf-connecting-ip'];
+  if (cf) return cf.trim();
+  const xff = req.headers['x-forwarded-for'];
+  if (xff) return xff.split(',')[0].trim();
+  const xreal = req.headers['x-real-ip'];
+  if (xreal) return xreal.trim();
+  let ip = req.socket.remoteAddress || '';
+  if (ip.startsWith('::ffff:')) ip = ip.slice(7);
+  return ip;
+}
+
+router.get('/is-local', (req, res) => {
+  res.json({ isLocal: getLocalIps().has(getClientIp(req)) });
+});
 
 router.get('/webrtc-config', (req, res) => {
   try {
@@ -180,12 +220,15 @@ function scanSteamGames() {
         if (nameMatch && appidMatch) {
           const name = nameMatch[1];
           const appid = appidMatch[1];
-          steamGames.push({
-            name: name,
-            appid: appid,
-            // Steam's official CDN for game box art using appid!
-            image: `https://steamcdn-a.akamaihd.net/steam/apps/${appid}/library_600x900.jpg`
-          });
+          const nameLower = name.toLowerCase();
+          if (!nameLower.includes('wallpaper engine') && !nameLower.includes('steamworks common')) {
+            steamGames.push({
+              name: name,
+              appid: appid,
+              // Steam's official CDN for game box art using appid!
+              image: `https://steamcdn-a.akamaihd.net/steam/apps/${appid}/library_600x900.jpg`
+            });
+          }
         }
       }
     }
@@ -245,7 +288,12 @@ function parseAppManifest(content) {
   const nameMatch = content.match(/"name"\s+"([^"]+)"/i);
   const appidMatch = content.match(/"appid"\s+"([^"]+)"/i);
   if (!nameMatch || !appidMatch) return null;
-  return { name: nameMatch[1], appid: appidMatch[1] };
+  
+  const name = nameMatch[1];
+  const nameLower = name.toLowerCase();
+  if (nameLower.includes('wallpaper engine') || nameLower.includes('steamworks common')) return null;
+  
+  return { name: name, appid: appidMatch[1] };
 }
 
 // Windows: scan all Steam library folders for installed games
@@ -420,12 +468,35 @@ router.get('/scan', (req, res) => {
   }
 });
 
+function forceFocus(appName, fp) {
+  const { exec } = require('child_process');
+  setTimeout(() => {
+    let baseName = appName;
+    if (!baseName && fp) {
+      baseName = require('path').basename(fp, require('path').extname(fp));
+    }
+    if (!baseName) return;
+    
+    baseName = baseName.replace(/"/g, '');
+
+    if (process.platform === 'win32') {
+      exec(`powershell -Command "$wshell = New-Object -ComObject wscript.shell; $wshell.AppActivate('${baseName}')"`);
+    } else if (process.platform === 'linux') {
+      exec(`wmctrl -a "${baseName}"`);
+    } else if (process.platform === 'darwin') {
+      exec(`osascript -e 'tell application "${baseName}" to activate'`);
+    }
+  }, 3000);
+}
+
 router.post('/launch', (req, res) => {
-  const { spawn } = require('child_process');
   const fp = req.body.path;
   const appid = req.body.appid;
   const familyName = req.body.familyName;
   const xboxAppId = req.body.xboxAppId;
+  const appName = req.body.name; // Use passed app name to help with focusing
+
+  lastLaunched = { fp, appid, familyName, xboxAppId, appName };
 
   try {
     if (familyName && xboxAppId) {
@@ -444,10 +515,64 @@ router.post('/launch', (req, res) => {
       const args = process.platform === 'darwin' ? [fp] : ['/c', 'start', '', fp];
       const p = spawn(cmd, args, { detached: true, stdio: 'ignore' });
       p.unref();
+    } else if (appName === 'Steam Big Picture') {
+      const cmd = process.platform === 'darwin' ? 'open' : 'cmd';
+      const args = process.platform === 'darwin' ? ['steam://open/bigpicture'] : ['/c', 'start', 'steam://open/bigpicture'];
+      const p = spawn(cmd, args, { detached: true, stdio: 'ignore' });
+      p.unref();
+    } else if (appName === 'Xbox') {
+      const cmd = process.platform === 'darwin' ? 'open' : 'cmd';
+      const args = process.platform === 'darwin' ? ['xbox:'] : ['/c', 'start', 'xbox:'];
+      const p = spawn(cmd, args, { detached: true, stdio: 'ignore' });
+      p.unref();
+    } else if (appName === 'Remote Desktop') {
+      // Typically desktop is already there, but we can try to minimize things or just do nothing
+      // We will just do nothing and return ok.
     }
+    
+    // Ensure window comes to foreground
+    forceFocus(appName, fp);
+    
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// Terminates whatever app /launch most recently started, so closing a stream
+// session can actually stop the game/app on the host instead of leaving it
+// running in the background.
+router.post('/kill', (req, res) => {
+  const target = lastLaunched;
+  if (!target) return res.json({ ok: true, skipped: true });
+  lastLaunched = null;
+
+  try {
+    if (target.familyName) {
+      // Xbox/Game Pass UWP app — find its process by install path (under
+      // WindowsApps\<PackageFamilyName>...) and stop it.
+      if (process.platform === 'win32') {
+        const ps = `Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -like "*WindowsApps\\${target.familyName}*" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }`;
+        spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { timeout: 8000, windowsHide: true });
+      }
+    } else if (target.appid) {
+      // Steam game — Steam supports a URI to terminate a running title by appid
+      const cmd = process.platform === 'darwin' ? 'open' : 'cmd';
+      const args = process.platform === 'darwin'
+        ? [`steam://terminateapp/${target.appid}`]
+        : ['/c', 'start', '', `steam://terminateapp/${target.appid}`];
+      spawn(cmd, args, { detached: true, stdio: 'ignore' }).unref();
+    } else if (target.fp) {
+      const base = path.basename(target.fp);
+      if (process.platform === 'win32') {
+        spawnSync('taskkill', ['/F', '/IM', base], { timeout: 5000, windowsHide: true });
+      } else {
+        spawnSync('pkill', ['-f', base], { timeout: 5000 });
+      }
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    res.json({ ok: false, error: e.message });
   }
 });
 
