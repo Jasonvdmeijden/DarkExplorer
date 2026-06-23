@@ -362,17 +362,31 @@ const Term = (() => {
     State.set('activeTerm', { open: true, sid });
   }
 
-  function close() {
+  function destroy() {
     if (sid) { WS.send('terminal:destroy', { sid }).catch(() => {}); sessions.delete(sid); sid = null; }
     _localClose();
     State.set('activeTerm', { open: false, sid: null });
   }
 
-  document.getElementById('btn-term-close').addEventListener('click', close);
+  function hide() {
+    Panels.hideBottom();
+  }
+
+  document.getElementById('btn-term-close').addEventListener('click', hide);
   document.getElementById('btn-toggle-terminal').addEventListener('click', () => {
     const panelBottom = document.getElementById('panel-bottom');
-    if (sid || panelBottom.style.display !== 'none') close();
-    else open();
+    if (panelBottom.style.display !== 'none') {
+      hide();
+    } else {
+      if (sid) {
+        Panels.showBottom();
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          if (term) { _safeFit(); term.focus(); }
+        }));
+      } else {
+        open();
+      }
+    }
   });
   document.getElementById('btn-term-shell').addEventListener('click', async () => {
     const isWin = navigator.platform.toLowerCase().includes('win');
@@ -397,5 +411,5 @@ const Term = (() => {
     btn.addEventListener('click', _sendEscape);
   });
 
-  return { open, openHere, switchShell, close, syncToPath };
+  return { open, openHere, switchShell, hide, destroy, syncToPath };
 })();

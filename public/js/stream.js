@@ -408,30 +408,35 @@ const StreamView = (function() {
     actuallyLaunchApp(item, true);
   }
 
-  // Confirm dialog shown before closing an active stream session — two
-  // independent toggles (both default on) so the user can choose to leave
-  // the app running on the host, or leave the viewer connected, if they want.
-  function showCloseConfirm(onConfirm) {
+  function showCloseConfirm(isPcApp, onConfirm) {
     const modal = document.createElement('div');
     modal.className = 'app-settings-modal open';
     modal.style.zIndex = '3000';
+    
+    let closeAppHtml = '';
+    if (isPcApp) {
+      closeAppHtml = `
+        <div class="settings-toggle-row">
+          <div>
+            <label for="close-app-toggle">Close App</label>
+            <span>Terminate the app on the host PC</span>
+          </div>
+          <label class="ui-switch">
+            <input type="checkbox" id="close-app-toggle" checked>
+            <span class="ui-slider"></span>
+          </label>
+        </div>
+      `;
+    }
+
     modal.innerHTML = `
       <div class="app-settings-box" style="width: 400px; max-width: 90vw; height: auto;">
         <div class="app-settings-header">
-          <h2>Close App &amp; Stream</h2>
+          <h2>Close Stream</h2>
           <button class="app-settings-close" title="Close">&times;</button>
         </div>
         <div class="app-settings-body">
-          <div class="settings-toggle-row">
-            <div>
-              <label for="close-app-toggle">Close App</label>
-              <span>Terminate the app on the host PC</span>
-            </div>
-            <label class="ui-switch">
-              <input type="checkbox" id="close-app-toggle" checked>
-              <span class="ui-slider"></span>
-            </label>
-          </div>
+          ${closeAppHtml}
           <div class="settings-toggle-row">
             <div>
               <label for="close-stream-toggle">Close Stream Connection</label>
@@ -442,22 +447,28 @@ const StreamView = (function() {
               <span class="ui-slider"></span>
             </label>
           </div>
-          <div style="display:flex;justify-content:flex-end;gap:0.8rem;margin-top:1.2rem;">
-            <button class="icon-btn close-confirm-cancel" style="padding:0.5rem 1rem;border-radius:6px;border:1px solid var(--border);width:auto;">Cancel</button>
-            <button class="icon-btn close-confirm-ok" style="padding:0.5rem 1rem;border-radius:6px;background:var(--accent);color:white;border:none;width:auto;font-weight:bold;">Confirm</button>
-          </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:0.8rem;margin-top:1.2rem;">
+          <button id="btn-cancel-close" class="icon-btn" style="padding:0.5rem 1rem;border-radius:6px;border:1px solid var(--border);width:auto;cursor:pointer;">Cancel</button>
+          <button id="btn-confirm-close" class="icon-btn" style="padding:0.5rem 1rem;border-radius:6px;background:var(--accent);color:white;border:none;width:auto;font-weight:bold;cursor:pointer;">Confirm</button>
         </div>
       </div>
     `;
+
     document.body.appendChild(modal);
 
-    const close = () => modal.remove();
-    modal.querySelector('.app-settings-close').onclick = close;
-    modal.querySelector('.close-confirm-cancel').onclick = close;
-    modal.querySelector('.close-confirm-ok').onclick = () => {
-      const closeApp = modal.querySelector('#close-app-toggle').checked;
+    const removeModal = () => {
+      modal.classList.remove('open');
+      setTimeout(() => modal.remove(), 250);
+    };
+
+    modal.querySelector('.app-settings-close').onclick = removeModal;
+    modal.querySelector('#btn-cancel-close').onclick = removeModal;
+    modal.querySelector('#btn-confirm-close').onclick = () => {
+      const closeAppEl = modal.querySelector('#close-app-toggle');
+      const closeApp = closeAppEl ? closeAppEl.checked : false;
       const closeStream = modal.querySelector('#close-stream-toggle').checked;
-      close();
+      removeModal();
       onConfirm({ closeApp, closeStream });
     };
   }
@@ -505,19 +516,29 @@ const StreamView = (function() {
         .then(config => {
           const hostId = config.hostId || 1;
           return fetch(`/moonlight-proxy/api/apps?host_id=${hostId}`, { credentials: 'same-origin' })
-            .then(res => res.ok ? res.json() : { apps: [] })
-            .then(data => ({ hostId, apps: data.apps || [] }));
+            .then(res => res.ok ? res.json().then(d => ({ ok: true, data: d })) : res.text().then(t => ({ ok: false, status: res.status, text: t })))
+            .then(result => {
+              if (!result.ok) {
+                console.error("Proxy fetch failed:", result.status, result.text);
+                return { hostId, apps: [], fetchError: result };
+              }
+              return { hostId, apps: result.data.apps || [] };
+            });
         })
-        .then(({ hostId, apps }) => {
+        .then(({ hostId, apps, fetchError }) => {
           // The proxy identifies apps by numeric app_id (assigned by Sunshine/Apollo's app
           // list), not by name, so we have to resolve the desired app's name to its id here.
-          let match = null;
-          const target = (item.name || "").toLowerCase();
+          let match = item.app_id ? apps.find(a => a.app_id === item.app_id) : null;
           
-          if (target.includes("steam")) {
-            match = apps.find(a => a.title.toLowerCase().includes("steam"));
-          } else if (target.includes("xbox")) {
-            match = apps.find(a => a.title.toLowerCase().includes("xbox"));
+          if (!match && item) {
+            const targetName = (item.name || "").toLowerCase();
+            if (targetName.includes("steam")) {
+              match = apps.find(a => a.title.toLowerCase().includes("steam"));
+            } else if (targetName.includes("xbox")) {
+              match = apps.find(a => a.title.toLowerCase().includes("xbox"));
+            } else if (targetName.includes("cbox")) {
+              match = apps.find(a => a.title.toLowerCase().includes("cbox"));
+            }
           }
           
           if (!match) {
@@ -525,10 +546,25 @@ const StreamView = (function() {
             match = apps.find(a => a.title.toLowerCase().includes("desktop"));
           }
 
+          if (!match && apps.length > 0) {
+            // If "Desktop" isn't explicitly named, fallback to the first available app 
+            // so we can at least get a video stream going.
+            match = apps[0];
+          }
+
           if (!match) {
-            document.getElementById('stream-loading-ui').innerHTML =
-              `<div style="font-size:1.1rem; color:#ff6b6b; max-width:400px; text-align:center;">"Desktop" isn't registered on the host yet. Add it in Engine Setup.</div>
-               <button class="stream-play-btn" style="margin-top: 20px;" onclick="this.closest('.stream-overlay').remove()">Close</button>`;
+            let errorHtml = `<div style="font-size:1.1rem; color:#ff6b6b; max-width:400px; text-align:center;">No apps registered on the host yet. Add "Desktop" in Engine Setup.</div>`;
+            if (fetchError) {
+              if (fetchError.status === 401 || fetchError.status === 403) {
+                errorHtml = `<div style="font-size:1.1rem; color:#ffb142; max-width:400px; text-align:center; margin-bottom: 15px;">Please log in to the Moonlight Stream Proxy to authorize access.</div>
+                             <a href="/moonlight-proxy/" target="_blank" class="stream-play-btn" style="text-decoration:none; display:inline-block; margin-bottom: 15px;">Open Proxy Login</a>`;
+              } else {
+                errorHtml = `<div style="font-size:1.1rem; color:#ff6b6b; max-width:400px; text-align:center;">Failed to get apps from proxy (HTTP ${fetchError.status})</div>
+                             <div style="font-size:0.8rem; color:#ccc; max-width:400px; text-align:center; margin-top:10px;">${fetchError.text.substring(0, 100)}</div>`;
+              }
+            }
+            
+            document.getElementById('stream-loading-ui').innerHTML = errorHtml + `<br><button class="stream-play-btn" style="margin-top: 20px;" onclick="this.closest('.stream-overlay').remove()">Close</button>`;
             return;
           }
 
@@ -561,8 +597,9 @@ const StreamView = (function() {
           iframe.onload = () => iframe.focus();
           overlay.onclick = () => iframe.focus();
           exitBtn.onclick = () => {
-            showCloseConfirm(({ closeApp, closeStream }) => {
-              if (closeApp) {
+            const isPcApp = !!(item.path || item.appid || (item.familyName && item.appId));
+            showCloseConfirm(isPcApp, ({ closeApp, closeStream }) => {
+              if (closeApp && isPcApp) {
                 fetch('/stream/kill', { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } }).catch(() => {});
               }
               if (closeStream) {

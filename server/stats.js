@@ -183,6 +183,9 @@ async function networkStats() {
 // Falls back to the Windows "GPU Engine" perf counter (works for any vendor's
 // driver on Windows 10+, same data Task Manager's GPU graph is built from).
 let _gpuAvailable = true;
+let _lastGpuPct = 0;
+let _gpuIsFetching = false;
+
 async function gpuStatsNvidia() {
   const { stdout } = await execAsync(
     'nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader,nounits',
@@ -196,7 +199,7 @@ async function gpuStatsWinCounter() {
   const { stdout } = await execAsync(
     'powershell -NoProfile -Command "(Get-Counter \'\\GPU Engine(*)\\Utilization Percentage\').CounterSamples ' +
     '| Measure-Object -Property CookedValue -Maximum | Select-Object -ExpandProperty Maximum"',
-    { timeout: 4000, windowsHide: true }
+    { timeout: 8000, windowsHide: true }
   );
   const pct = Math.min(100, Math.round(parseFloat(stdout.trim()) || 0));
   return { pct, available: true };
@@ -204,17 +207,31 @@ async function gpuStatsWinCounter() {
 
 async function gpuStats() {
   if (!_gpuAvailable) return { pct: 0, available: false };
-  try {
-    return await gpuStatsNvidia();
-  } catch {
-    if (process.platform !== 'win32') { _gpuAvailable = false; return { pct: 0, available: false }; }
+  if (_gpuIsFetching) return { pct: _lastGpuPct, available: true };
+  
+  _gpuIsFetching = true;
+  
+  (async () => {
     try {
-      return await gpuStatsWinCounter();
+      const res = await gpuStatsNvidia();
+      _lastGpuPct = res.pct;
     } catch {
-      _gpuAvailable = false;
-      return { pct: 0, available: false };
+      if (process.platform !== 'win32') { 
+        _gpuAvailable = false; 
+        return; 
+      }
+      try {
+        const res = await gpuStatsWinCounter();
+        _lastGpuPct = res.pct;
+      } catch {
+        _lastGpuPct = 0;
+      }
+    } finally {
+      _gpuIsFetching = false;
     }
-  }
+  })();
+  
+  return { pct: _lastGpuPct, available: true };
 }
 
 async function getStats() {
