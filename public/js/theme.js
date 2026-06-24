@@ -99,9 +99,9 @@ const Theme = (() => {
     // Tonal surfaces — derived from --bg-base. Opaque enough that panel
     // content stays legible over the blurred wallpaper, while the heavy
     // backdrop-filter blur on each panel still gives a frosted look.
-    root.style.setProperty('--glass-base',     _rgba(base, .55, base));
-    root.style.setProperty('--glass-panel',    _rgba(base, .68, base));
-    root.style.setProperty('--glass-surface',  _rgba(base, .82, base));
+    root.style.setProperty('--glass-base',     _rgba(base, .25, base));
+    root.style.setProperty('--glass-panel',    _rgba(base, .35, base));
+    root.style.setProperty('--glass-surface',  _rgba(base, .45, base));
 
     // Accent-tinted highlight states
     root.style.setProperty('--glass-hover',    _rgba(accent, .14, accent));
