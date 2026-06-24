@@ -288,12 +288,43 @@ function parseAppManifest(content) {
   const nameMatch = content.match(/"name"\s+"([^"]+)"/i);
   const appidMatch = content.match(/"appid"\s+"([^"]+)"/i);
   if (!nameMatch || !appidMatch) return null;
-  
+
   const name = nameMatch[1];
   const nameLower = name.toLowerCase();
   if (nameLower.includes('wallpaper engine') || nameLower.includes('steamworks common')) return null;
-  
+
   return { name: name, appid: appidMatch[1] };
+}
+
+// Finds the install directory (steamapps/common/<installdir>) for a given
+// appid, by locating its appmanifest_<appid>.acf across all Steam library
+// folders. Used to kill a running game by process path, since there's no
+// real steam:// URI for terminating a title by appid.
+function findSteamGameInstallDir(appid) {
+  const steamPath = findSteamInstallPath();
+  const libraryFolders = [path.join(steamPath, 'steamapps')];
+
+  const libVdfPath = path.join(steamPath, 'steamapps', 'libraryfolders.vdf');
+  if (fs.existsSync(libVdfPath)) {
+    try {
+      const content = fs.readFileSync(libVdfPath, 'utf8');
+      for (const m of content.matchAll(/"path"\s+"([^"]+)"/gi)) {
+        const lp = path.join(m[1].replace(/\\\\/g, '\\'), 'steamapps');
+        if (!libraryFolders.includes(lp)) libraryFolders.push(lp);
+      }
+    } catch (e) {}
+  }
+
+  for (const lib of libraryFolders) {
+    const manifestPath = path.join(lib, `appmanifest_${appid}.acf`);
+    if (!fs.existsSync(manifestPath)) continue;
+    try {
+      const content = fs.readFileSync(manifestPath, 'utf8');
+      const m = content.match(/"installdir"\s+"([^"]+)"/i);
+      if (m) return path.join(lib, 'common', m[1]);
+    } catch (e) {}
+  }
+  return null;
 }
 
 // Windows: scan all Steam library folders for installed games
@@ -558,24 +589,65 @@ router.post('/kill', (req, res) => {
 
   try {
     if (target.familyName) {
-      // Xbox/Game Pass UWP app — find its process by install path (under
-      // WindowsApps\<PackageFamilyName>...) and stop it.
+      // Xbox/Game Pass UWP app. PackageFamilyName (e.g. "Foo_8wekyb3d8bbwe")
+      // is NOT a substring of the actual WindowsApps install folder (e.g.
+      // "Foo_1.2.0.0_x64__8wekyb3d8bbwe" — version/arch are wedged in between
+      // the name and publisher id), so a path-pattern match never hits.
+      // Resolve the package's real InstallLocation first, then kill any
+      // process whose exe lives under it.
       if (process.platform === 'win32') {
-        const ps = `Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -like "*WindowsApps\\${target.familyName}*" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }`;
+        const fam = target.familyName.replace(/`/g, '``').replace(/"/g, '`"');
+        const ps = `
+$pkg = Get-AppxPackage | Where-Object { $_.PackageFamilyName -eq "${fam}" } | Select-Object -First 1
+if ($pkg -and $pkg.InstallLocation) {
+  $loc = $pkg.InstallLocation
+  try { Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($loc, [System.StringComparison]::OrdinalIgnoreCase) } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force } } catch {}
+}
+`.trim();
         spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { timeout: 8000, windowsHide: true });
       }
     } else if (target.appid) {
-      // Steam game — Steam supports a URI to terminate a running title by appid
-      const cmd = process.platform === 'darwin' ? 'open' : 'cmd';
-      const args = process.platform === 'darwin'
-        ? [`steam://terminateapp/${target.appid}`]
-        : ['/c', 'start', '', `steam://terminateapp/${target.appid}`];
-      spawn(cmd, args, { detached: true, stdio: 'ignore' }).unref();
-    } else if (target.fp) {
-      const base = path.basename(target.fp);
+      // Steam game — there's no real steam:// URI for terminating a title by
+      // appid, so resolve its actual install directory from the local Steam
+      // library manifest and kill any process running out of it.
       if (process.platform === 'win32') {
-        spawnSync('taskkill', ['/F', '/IM', base], { timeout: 5000, windowsHide: true });
+        const installDir = findSteamGameInstallDir(target.appid);
+        if (installDir) {
+          const escaped = installDir.replace(/`/g, '``').replace(/"/g, '`"');
+          const ps = `
+$loc = "${escaped}"
+try { Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($loc, [System.StringComparison]::OrdinalIgnoreCase) } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force } } catch {}
+`.trim();
+          spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { timeout: 8000, windowsHide: true });
+        }
+      } else if (process.platform === 'darwin') {
+        spawn('open', [`steam://terminateapp/${target.appid}`], { detached: true, stdio: 'ignore' }).unref();
+      }
+    } else if (target.fp) {
+      if (process.platform === 'win32') {
+        // target.fp is often a Start Menu .lnk shortcut, not the real exe —
+        // taskkill needs the actual running image name, so resolve the
+        // shortcut's target first. Belt-and-suspenders: kill by resolved
+        // Path match (exact) and by image name (in case Path isn't readable
+        // for that process, e.g. elevated/protected processes).
+        const escaped = target.fp.replace(/`/g, '``').replace(/"/g, '`"');
+        const ps = `
+$lnk = "${escaped}"
+$resolved = $lnk
+if ($lnk -like "*.lnk") {
+  try {
+    $sh = New-Object -ComObject WScript.Shell
+    $sc = $sh.CreateShortcut($lnk)
+    if ($sc.TargetPath) { $resolved = $sc.TargetPath }
+  } catch {}
+}
+$name = [System.IO.Path]::GetFileName($resolved)
+try { Get-Process | Where-Object { $_.Path -and ([System.IO.Path]::GetFileName($_.Path) -ieq $name) } | Stop-Process -Force } catch {}
+try { taskkill /F /IM "$name" } catch {}
+`.trim();
+        spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { timeout: 8000, windowsHide: true });
       } else {
+        const base = path.basename(target.fp);
         spawnSync('pkill', ['-f', base], { timeout: 5000 });
       }
     }
