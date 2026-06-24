@@ -485,7 +485,7 @@ router.get('/scan', (req, res) => {
     xbox: xbox
   });
 
-  // Best-effort: keep Blackhole/Sunshine's apps.json in sync so individual launches
+  // Best-effort: keep Apollo/Sunshine's apps.json in sync so individual launches
   // can be resolved by name through the Moonlight Web Stream proxy.
   if (platform === 'win32') {
     setImmediate(() => {

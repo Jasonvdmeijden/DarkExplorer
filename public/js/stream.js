@@ -13,7 +13,7 @@ const StreamView = (function() {
         <div class="stream-folder-list" id="stream-folder-list"></div>
       </div>
       <div class="stream-row" id="stream-apps-row">
-        <h2 class="stream-row-title">Blackhole Apps</h2>
+        <h2 class="stream-row-title">Apollo Apps</h2>
         <div class="stream-carousel" id="stream-apps-carousel">
           <div style="padding: 20px; color: #888;">Scanning applications...</div>
         </div>
@@ -30,12 +30,12 @@ const StreamView = (function() {
           <div style="padding: 20px; color: #888;">Scanning Xbox library...</div>
         </div>
       </div>
-      <div class="stream-row" id="stream-blackhole-row" style="display:none;">
-        <h2 class="stream-row-title">Blackhole Apps</h2>
-        <div class="stream-carousel" id="stream-blackhole-carousel"></div>
+      <div class="stream-row" id="stream-apollo-row" style="display:none;">
+        <h2 class="stream-row-title">Apollo Apps</h2>
+        <div class="stream-carousel" id="stream-apollo-carousel"></div>
       </div>
       <div id="stream-dynamic-groups"></div>`;
-    if (cachedSystemApps.length > 0 || cachedBlackholeApps.length > 0) {
+    if (cachedSystemApps.length > 0 || cachedApolloApps.length > 0) {
       renderAllCarousels();
     } else {
       fetchApps();
@@ -44,7 +44,7 @@ const StreamView = (function() {
   }
 
   let cachedSystemApps = [];
-  let cachedBlackholeApps = [];
+  let cachedApolloApps = [];
   let cachedSteam = [];
   let cachedXbox = [];
   let cachedFolderApps = [];
@@ -141,7 +141,7 @@ const StreamView = (function() {
         { name: "Xbox", image: "https://images.unsplash.com/photo-1621259182978-fbf93132d53d?auto=format&fit=crop&q=80&w=400", path: null, appid: null },
         { name: "Steam Big Picture", image: "https://upload.wikimedia.org/wikipedia/commons/8/83/Steam_icon_logo.svg", path: null, appid: null }
       ];
-      cachedBlackholeApps = data.apps || [];
+      cachedApolloApps = data.apps || [];
       cachedSteam = data.steam || [];
       cachedXbox = data.xbox || [];
       hasFetchedApps = true;
@@ -223,13 +223,13 @@ const StreamView = (function() {
     
     if (isGrouping) {
       // Hide all standard rows
-      ['stream-apps-row', 'stream-steam-row', 'stream-xbox-row', 'stream-folder-row', 'stream-blackhole-row'].forEach(id => {
+      ['stream-apps-row', 'stream-steam-row', 'stream-xbox-row', 'stream-folder-row', 'stream-apollo-row'].forEach(id => {
         const row = document.getElementById(id);
         if (row) row.style.display = 'none';
       });
 
       // Combine all apps
-      let allApps = [].concat(cachedSystemApps, cachedSteam, cachedXbox, cachedBlackholeApps);
+      let allApps = [].concat(cachedSystemApps, cachedSteam, cachedXbox, cachedApolloApps);
       if (cachedFolderApps) allApps = allApps.concat(cachedFolderApps);
 
       allApps = filterItems(allApps);
@@ -259,23 +259,23 @@ const StreamView = (function() {
 
     } else {
       // Normal view (filtering within normal view if activeFilter is set)
-      ['stream-apps-row', 'stream-steam-row', 'stream-xbox-row', 'stream-blackhole-row'].forEach(id => {
+      ['stream-apps-row', 'stream-steam-row', 'stream-xbox-row', 'stream-apollo-row'].forEach(id => {
         const row = document.getElementById(id);
         if (row) row.style.display = 'block';
       });
 
       const isSearching = !!activeFilter;
 
-      const blackholeRowTitle = document.querySelector('#stream-blackhole-row .stream-row-title');
-      if (blackholeRowTitle) {
-         const textNode = Array.from(blackholeRowTitle.childNodes).find(n => n.nodeType === 3);
+      const apolloRowTitle = document.querySelector('#stream-apollo-row .stream-row-title');
+      if (apolloRowTitle) {
+         const textNode = Array.from(apolloRowTitle.childNodes).find(n => n.nodeType === 3);
          if (textNode) textNode.textContent = ' PC Applications';
       }
 
       renderCarousel('stream-apps-carousel', cachedSystemApps, 'pc', {}, false);
       renderCarousel('stream-steam-carousel', cachedSteam, 'steam', {}, false);
       renderCarousel('stream-xbox-carousel', cachedXbox, 'xbox', {}, false);
-      renderCarousel('stream-blackhole-carousel', cachedBlackholeApps, 'pc', {}, !isSearching);
+      renderCarousel('stream-apollo-carousel', cachedApolloApps, 'pc', {}, !isSearching);
       
       if (cachedFolderApps && cachedFolderApps.length) {
         const row = document.getElementById('stream-folder-row');
@@ -826,7 +826,7 @@ const StreamView = (function() {
             });
         })
         .then(({ hostId, apps, fetchError }) => {
-          // The proxy identifies apps by numeric app_id (assigned by Sunshine/Blackhole's app
+          // The proxy identifies apps by numeric app_id (assigned by Sunshine/Apollo's app
           // list), not by name, so we have to resolve the desired app's name to its id here.
           let match = item.app_id ? apps.find(a => a.app_id === item.app_id) : null;
           
@@ -905,7 +905,7 @@ const StreamView = (function() {
               }
               if (closeStream) {
                 // Removing the iframe only drops the browser's end of the WebRTC
-                // connection — Blackhole/Sunshine still thinks a client is attached
+                // connection — Apollo/Sunshine still thinks a client is attached
                 // until it's told to cancel, so send the real Moonlight "cancel"
                 // call through the proxy to end the session host-side too.
                 fetch('/moonlight-proxy/api/host/cancel', {
@@ -996,7 +996,7 @@ const StreamView = (function() {
     isLocal: checkIsLocal,
     fetchApps,
     getSystemApps: () => cachedSystemApps,
-    getBlackholeApps: () => cachedBlackholeApps,
+    getApolloApps: () => cachedApolloApps,
     getSteamGames: () => cachedSteam,
     getXboxGames: () => cachedXbox,
   };

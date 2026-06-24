@@ -110,13 +110,13 @@ const Bookmarks = (() => {
     if (appsList) {
       appsList.innerHTML = '';
       const pcApps = (typeof StreamView !== 'undefined' && StreamView.getSystemApps) ? StreamView.getSystemApps() : [];
-      const blackholeApps = (typeof StreamView !== 'undefined' && StreamView.getBlackholeApps) ? StreamView.getBlackholeApps() : [];
+      const apolloApps = (typeof StreamView !== 'undefined' && StreamView.getApolloApps) ? StreamView.getApolloApps() : [];
       const steam = (typeof StreamView !== 'undefined') ? StreamView.getSteamGames() : [];
       const xbox = (typeof StreamView !== 'undefined') ? StreamView.getXboxGames() : [];
-      if (pcApps.length) appsList.appendChild(makeSubSection('Blackhole Apps', pcApps, pcApps.length, false));
+      if (pcApps.length) appsList.appendChild(makeSubSection('Apollo Apps', pcApps, pcApps.length, false));
       if (steam.length) appsList.appendChild(makeSubSection('Steam', steam, steam.length, false));
       if (xbox.length) appsList.appendChild(makeSubSection('Xbox', xbox, xbox.length, false));
-      if (blackholeApps.length) appsList.appendChild(makeSubSection('PC Applications', blackholeApps, blackholeApps.length, true));
+      if (apolloApps.length) appsList.appendChild(makeSubSection('PC Applications', apolloApps, apolloApps.length, true));
     }
     applyQuickFilter(quickSearchInput.value);
   }

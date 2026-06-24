@@ -179,7 +179,7 @@ async function networkStats() {
 
 // ── GPU usage ────────────────────────────────────────────────────
 // nvidia-smi covers the common case (this app's primary use case is a
-// gaming PC used as a Sunshine/Blackhole streaming host, almost always Nvidia).
+// gaming PC used as a Sunshine/Apollo streaming host, almost always Nvidia).
 // Falls back to the Windows "GPU Engine" perf counter (works for any vendor's
 // driver on Windows 10+, same data Task Manager's GPU graph is built from).
 let _gpuAvailable = true;

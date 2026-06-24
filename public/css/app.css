@@ -467,15 +467,10 @@ aside, #panel-left, #panel-right {
 .view-details .col-head {
   display: flex;
   position: sticky;
-  top: 4px; /* slight float */
-  margin-bottom: 6px;
-  background: color-mix(in srgb, var(--bg-panel) 85%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  top: 0;
+  background: var(--bg-panel);
   z-index: 10;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  border-bottom: 1px solid var(--border);
 }
 .view-details .col-h {
   display: flex;

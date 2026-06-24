@@ -122,12 +122,12 @@ const Search = (() => {
     catch { return s.includes(pattern.toLowerCase()); }
   }
 
-  // PC apps/games (Blackhole apps, Steam, Xbox, system shortcuts) so "filename"
+  // PC apps/games (Apollo apps, Steam, Xbox, system shortcuts) so "filename"
   // search can surface things you'd launch, not just files on disk.
   function getAllApps() {
     if (typeof StreamView === 'undefined') return [];
     return [
-      StreamView.getBlackholeApps  ? StreamView.getBlackholeApps()  : [],
+      StreamView.getApolloApps  ? StreamView.getApolloApps()  : [],
       StreamView.getSteamGames ? StreamView.getSteamGames() : [],
       StreamView.getXboxGames  ? StreamView.getXboxGames()  : [],
       StreamView.getSystemApps ? StreamView.getSystemApps() : [],
