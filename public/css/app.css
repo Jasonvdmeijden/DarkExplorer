@@ -2595,7 +2595,7 @@ body.immersive-mode #tabs-bar { display: none !important; }
 /* ── Modals ── */
 .app-settings-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.6); display: flex; align-items: center; justify-content: center; z-index: 2000; opacity: 0; pointer-events: none; transition: opacity 0.2s; backdrop-filter: blur(4px); }
 .app-settings-modal.open { opacity: 1; pointer-events: auto; }
-.app-settings-box { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); display: flex; flex-direction: column; max-width: 90vw; width: 450px; transform: scale(0.95); transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1); overflow: hidden; }
+.app-settings-box { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); display: flex; flex-direction: column; max-width: 90vw; width: 600px; max-height: 85vh; transform: scale(0.95); transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1); overflow: hidden; }
 .app-settings-modal.open .app-settings-box { transform: scale(1); }
 .app-settings-header { padding: 1rem 1.2rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: var(--bg-surface); }
 .app-settings-header h2 { margin: 0; font-size: 1.1rem; color: var(--text-primary); }

@@ -8,6 +8,7 @@ const AppSettings = (() => {
     { id: 'rtc',         label: 'App Mode / RTC' },
     { id: 'favourites',  label: 'Favourites' },
     { id: 'theme',       label: 'Theme' },
+    { id: 'devices',     label: 'Linked Devices' },
   ];
 
   let modal, tabsEl, bodyEl;
@@ -47,6 +48,7 @@ const AppSettings = (() => {
     if (tabId === 'rtc') renderRtcTab(bodyEl);
     else if (tabId === 'favourites') renderFavouritesTab(bodyEl);
     else if (tabId === 'theme' && typeof Theme !== 'undefined') Theme.renderThemeTab(bodyEl);
+    else if (tabId === 'devices') renderDevicesTab(bodyEl);
     else renderGalleryTab(bodyEl);
     localStorage.setItem('de_settings_last_tab', tabId);
   }
@@ -209,6 +211,193 @@ const AppSettings = (() => {
   }
 
   document.getElementById('btn-app-settings').addEventListener('click', () => open());
+
+  async function renderDevicesTab(container) {
+    container.innerHTML = `
+      <div class="settings-field">
+        <label>Pair New Device</label>
+        <span class="settings-hint">Scan this QR code with your phone or tablet to link it to DarkExplorer. This allows you to use your device as a remote Trackpad/Controller and access files over the local network or VPN.</span>
+        <div style="display: flex; flex-direction: column; align-items: center; margin-top: 1rem;">
+          <button id="btn-pair-device" class="settings-action-btn" style="width: 100%; max-width: 300px; justify-content: center; padding: 0.8rem; font-size: 1rem;">Generate QR Code</button>
+          <div id="qr-container" style="margin-top: 1.5rem; display: none; background: white; padding: 1.5rem; border-radius: 12px; align-items: center; flex-direction: column; box-shadow: 0 4px 15px rgba(0,0,0,0.2);"></div>
+        </div>
+      </div>
+      <hr class="settings-divider">
+      <div class="settings-field">
+        <label>Linked Devices</label>
+        <span class="settings-hint">Manage devices currently authenticated with your server.</span>
+        <div id="devices-list" style="margin-top: .5rem; display: flex; flex-direction: column; gap: .5rem;">
+          <span class="settings-hint">Loading...</span>
+        </div>
+      </div>
+    `;
+
+    const btnPair = container.querySelector('#btn-pair-device');
+    const qrContainer = container.querySelector('#qr-container');
+    const listContainer = container.querySelector('#devices-list');
+
+    btnPair.addEventListener('click', async () => {
+      btnPair.disabled = true;
+      btnPair.textContent = 'Generating...';
+      try {
+        const res = await fetch('/admin/gen-otp');
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        qrContainer.innerHTML = `<div style="text-align: center; margin-bottom: 1rem;">
+          <span style="font-size: .8rem; color: #666;">Manual Pairing Code:</span><br>
+          <strong style="font-size: 1.5rem; letter-spacing: 2px; color: #000; user-select: text;">${data.code}</strong>
+        </div>`;
+        qrContainer.style.display = 'flex';
+        const ip = (data.ips && data.ips.length > 0) ? data.ips[0] : window.location.hostname;
+        const port = window.location.port ? ':' + window.location.port : '';
+        const url = window.location.protocol + '//' + ip + port + '/?auth=' + data.code;
+        
+        const qrCanvas = document.createElement('div');
+        qrCanvas.style.display = 'flex';
+        qrCanvas.style.justifyContent = 'center';
+        qrContainer.appendChild(qrCanvas);
+        
+        new QRCode(qrCanvas, {
+          text: url,
+          width: 200,
+          height: 200,
+          colorDark : "#000000",
+          colorLight : "#ffffff",
+          correctLevel : QRCode.CorrectLevel.M
+        });
+        btnPair.textContent = 'Code Active (Expires in 1hr)';
+      } catch (err) {
+        btnPair.textContent = 'Error Generating Code';
+        btnPair.disabled = false;
+        console.error(err);
+      }
+    });
+
+    let devicePollInterval = null;
+
+    async function loadDevices() {
+      try {
+        const res = await fetch('/admin/devices');
+        if (!res.ok) throw new Error('Failed to load devices');
+        const devices = await res.json();
+        if (devices.length === 0) {
+          listContainer.innerHTML = '<span class="settings-hint">No external devices linked.</span>';
+          return;
+        }
+
+        const formatBytes = (bytes) => {
+          if (!bytes) return '0 B';
+          const k = 1024, sizes = ['B', 'KB', 'MB', 'GB', 'TB'], i = Math.floor(Math.log(bytes) / Math.log(k));
+          return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        };
+        
+        const now = Date.now();
+
+        listContainer.innerHTML = devices.map(d => {
+          const isLive = (now - d.last_seen) < 15000; // 15 seconds
+          const liveIcon = isLive ? `<div style="width:8px; height:8px; border-radius:50%; background:#4ade80; box-shadow:0 0 8px #4ade80; margin-left:8px;" title="Connected & Active"></div>` : `<div style="width:8px; height:8px; border-radius:50%; border:1px solid var(--text-muted); margin-left:8px; opacity: 0.5;" title="Offline"></div>`;
+          return `
+          <div style="display: flex; flex-direction: column; padding: .75rem; background: var(--bg-base); border: 1px solid var(--border); border-radius: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+              <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;">
+                ${liveIcon}
+                <span style="font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;" title="${d.label}">${d.label}</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+                <button class="settings-action-btn btn-rename" data-id="${d.id}" data-label="${d.label}" style="padding: .2rem .6rem; font-size: .75rem; border-color: rgba(255,255,255,0.2); display:flex; align-items:center; gap: 4px;" title="Rename Device">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                  Rename
+                </button>
+                <button class="settings-action-btn btn-relink" data-id="${d.id}" style="padding: .2rem .6rem; font-size: .75rem; border-color: rgba(255,255,255,0.2); display:flex; align-items:center; gap: 4px;" title="Re-link Network (IP changed)">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+                  Re-link IP
+                </button>
+                <button class="settings-action-btn btn-revoke" data-id="${d.id}" style="padding: .2rem .6rem; font-size: .75rem; color: #ff5f56; border-color: rgba(255, 95, 86, 0.3);">Revoke</button>
+              </div>
+            </div>
+            <div style="display: flex; gap: 1rem; margin-top: .5rem; font-size: .75rem; color: var(--text-muted);">
+              <span>Data Transferred: <strong style="color:var(--text-primary)">${formatBytes(d.traffic_bytes)}</strong></span>
+              <span>Last Seen: ${new Date(d.last_seen).toLocaleString()}</span>
+            </div>
+          </div>`;
+        }).join('');
+
+        listContainer.querySelectorAll('.btn-revoke').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            if (!confirm('Revoke access for this device?')) return;
+            await fetch(`/admin/devices/${btn.dataset.id}`, { method: 'DELETE' });
+            loadDevices();
+          });
+        });
+
+        listContainer.querySelectorAll('.btn-rename').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const newLabel = prompt('Enter a new name for this device:', btn.dataset.label);
+            if (newLabel && newLabel.trim() !== '') {
+              await fetch(`/admin/devices/${btn.dataset.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ label: newLabel.trim() })
+              });
+              loadDevices();
+            }
+          });
+        });
+
+        listContainer.querySelectorAll('.btn-relink').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            try {
+              const res = await fetch(`/admin/gen-otp?device_id=${btn.dataset.id}`);
+              const data = await res.json();
+              if (data.error) throw new Error(data.error);
+              
+              qrContainer.innerHTML = `<div style="text-align: center; margin-bottom: 1rem;">
+                <span style="font-size: .8rem; color: #666;">Manual Re-link Code:</span><br>
+                <strong style="font-size: 1.5rem; letter-spacing: 2px; color: #000; user-select: text;">${data.code}</strong>
+              </div>`;
+              qrContainer.style.display = 'flex';
+              const ip = (data.ips && data.ips.length > 0) ? data.ips[0] : window.location.hostname;
+              const port = window.location.port ? ':' + window.location.port : '';
+              const url = window.location.protocol + '//' + ip + port + '/?auth=' + data.code;
+              
+              const qrCanvas = document.createElement('div');
+              qrCanvas.style.display = 'flex';
+              qrCanvas.style.justifyContent = 'center';
+              qrContainer.appendChild(qrCanvas);
+              
+              new QRCode(qrCanvas, {
+                text: url, width: 200, height: 200, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.M
+              });
+              
+              // Scroll to QR code
+              qrContainer.scrollIntoView({ behavior: 'smooth' });
+            } catch (err) {
+              console.error(err);
+              alert('Failed to generate re-link code.');
+            }
+          });
+        });
+      } catch (e) {
+        listContainer.innerHTML = '<span class="settings-hint" style="color: #ff5f56">Failed to load devices (Only accessible from the host PC).</span>';
+      }
+    }
+
+    loadDevices();
+    
+    // Live update for throughput and status
+    devicePollInterval = setInterval(loadDevices, 5000);
+    
+    // Clear interval when modal closes
+    const obs = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (!document.getElementById('app-settings-modal').classList.contains('open')) {
+          clearInterval(devicePollInterval);
+          obs.disconnect();
+        }
+      });
+    });
+    obs.observe(document.getElementById('app-settings-modal'), { attributes: true, attributeFilter: ['class'] });
+  }
 
   return { open, close, getFavLimit };
 })();
