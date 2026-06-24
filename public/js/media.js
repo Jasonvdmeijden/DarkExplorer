@@ -36,11 +36,7 @@ const NetflixMedia = (() => {
     `;
 
     // Bind header actions
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    const remoteBtn = container.querySelector('#netflix-btn-remote');
-    if (!isMobile) remoteBtn.style.display = 'none';
-    
-    remoteBtn.addEventListener('click', toggleRemoteMode);
+    container.querySelector('#netflix-btn-remote').addEventListener('click', toggleRemoteMode);
     container.querySelector('#netflix-btn-refresh').addEventListener('click', () => render(container, pathVal));
     container.querySelector('#netflix-search').addEventListener('input', debounce(filterCatalog, 300));
 
@@ -221,7 +217,7 @@ const NetflixMedia = (() => {
         hoverTimer = setTimeout(() => {
           card.classList.add('hovered');
           preview.load();
-        }, 1000);
+        }, 400);
       };
       const endHover = () => {
         if (VideoPreview.isTouch()) return;
@@ -260,7 +256,7 @@ const NetflixMedia = (() => {
           showSeriesDetails(item);
         } else {
           // Play directly
-          launchVideo(item, itemsList.filter(i => !i.episodes), itemsList.indexOf(item), 'Movies');
+          playVideo(item, itemsList.filter(i => !i.episodes), itemsList.indexOf(item), 'Movies');
         }
       };
       card.addEventListener('click', (e) => {
@@ -395,7 +391,7 @@ const NetflixMedia = (() => {
           preview.unload();
           dialog.close();
           dialog.remove();
-          launchVideo(ep, list, idx, `${series.name} - Season ${seasonNum}`);
+          playVideo(ep, list, idx, `${series.name} - Season ${seasonNum}`);
         };
         item.addEventListener('click', (e) => {
           if (VideoPreview.isTouch() && !preview.loaded) {
@@ -431,18 +427,6 @@ const NetflixMedia = (() => {
 
   // ── CUSTOM VIDEO PLAYER ──
   let activePlayer = null; // holds video player DOM references
-
-  function launchVideo(item, playlist, activeIdx, playlistName) {
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    if (isMobile) {
-      if (confirm(`Play "${item.name}" on the Host Server?\n\n(Click Cancel to play it locally on this phone)`)) {
-        State.set('mediaLaunch', { item, playlist, activeIdx, playlistName, timestamp: Date.now() });
-        if (!isRemoteMode) toggleRemoteMode();
-        return;
-      }
-    }
-    playVideo(item, playlist, activeIdx, playlistName);
-  }
 
   function playVideo(item, playlist, activeIdx, playlistName) {
     if (document.getElementById('netflix-player')) {
@@ -735,7 +719,6 @@ const NetflixMedia = (() => {
 
     // Timeline timeupdates
     video.addEventListener('timeupdate', () => {
-      if (!document.body.contains(player)) return;
       if (video.duration) {
         const pct = (video.currentTime / video.duration) * 100;
         scrubber.value = pct;
@@ -950,7 +933,6 @@ const NetflixMedia = (() => {
       if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
       player.remove();
       activePlayer = null;
-      State.set('mediaStatus', null);
       buildCatalogUI(); // Rebuild to sync continue watching row
     };
     player.querySelector('#netflix-player-back').addEventListener('click', exitPlayer);
@@ -1115,66 +1097,69 @@ const NetflixMedia = (() => {
     }
     requestAnimationFrame(pollGamepad);
 
-    // Clear mediaStatus on load
-    State.set('mediaStatus', null);
-  }
-
-  // 2D Spatial Navigation
-  function navigateGrid(direction) {
-    if (focusableElements.length === 0) return;
-    const focused = hostEl.querySelector('.netflix-card.focused') || focusableElements[0];
-    if (!focused) return;
-
-    const rect = focused.getBoundingClientRect();
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
-
-    let bestMatch = null;
-    let minScore = Infinity;
-
-    focusableElements.forEach(el => {
-      if (el === focused) return;
-      const r = el.getBoundingClientRect();
-      const tx = r.left + r.width / 2;
-      const ty = r.top + r.height / 2;
-
-      let valid = false;
-      let score = 0;
-
-      // Penalize distance along the non-primary axis heavily
-      if (direction === 'ArrowRight' && tx > cx + 10) {
-        valid = true;
-        score = (tx - cx) + Math.abs(ty - cy) * 10;
-      } else if (direction === 'ArrowLeft' && tx < cx - 10) {
-        valid = true;
-        score = (cx - tx) + Math.abs(ty - cy) * 10;
-      } else if (direction === 'ArrowDown' && ty > cy + 10) {
-        valid = true;
-        score = (ty - cy) + Math.abs(tx - cx) * 5;
-      } else if (direction === 'ArrowUp' && ty < cy - 10) {
-        valid = true;
-        score = (cy - ty) + Math.abs(tx - cx) * 5;
-      }
-
-      if (valid && score < minScore) {
-        minScore = score;
-        bestMatch = el;
-      }
-    });
-
-    if (bestMatch) {
-      bestMatch.focus();
-      // Only scroll the specific container it's in to keep it visible
-      const container = bestMatch.closest('.netflix-carousel');
-      if (container) {
-        const cRect = container.getBoundingClientRect();
-        const elRect = bestMatch.getBoundingClientRect();
-        if (elRect.left < cRect.left || elRect.right > cRect.right) {
-          container.scrollBy({ left: elRect.left - cRect.left - cRect.width/2 + elRect.width/2, behavior: 'smooth' });
+    // Cross-device Remote listener (mediaStatus & mediaCommand)
+    State.onChange('mediaCommand', (cmdObj) => {
+      if (!cmdObj || cmdObj.timestamp <= lastCommandTimestamp) return;
+      lastCommandTimestamp = cmdObj.timestamp;
+      
+      // We are the playback client executing commands received from phone remote
+      if (activePlayer && activePlayer.video) {
+        const video = activePlayer.video;
+        switch (cmdObj.command) {
+          case 'play': video.play(); break;
+          case 'pause': video.pause(); break;
+          case 'rewind': video.currentTime = Math.max(0, video.currentTime - 10); break;
+          case 'forward': video.currentTime = Math.min(video.duration, video.currentTime + 10); break;
+          case 'seek': video.currentTime = (cmdObj.value / 100) * video.duration; break;
+          case 'volume': video.volume = cmdObj.value; break;
+          case 'next': playNextEpisodeDirect(); break;
+          case 'close': 
+            const closeBtn = document.getElementById('netflix-player-back');
+            if (closeBtn) closeBtn.click();
+            break;
         }
       }
-      bestMatch.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }
+
+  // Grid Keyboard / Gamepad Navigation Helper
+  function navigateGrid(direction) {
+    if (focusableElements.length === 0) return;
+    const focused = hostEl.querySelector('.netflix-card.focused');
+    if (!focused) {
+      focusableElements[0].focus();
+      return;
     }
+
+    let nextEl = null;
+    const cardsPerRow = getCardsPerRow();
+
+    switch (direction) {
+      case 'ArrowRight':
+        nextEl = focusableElements[activeFocusIndex + 1];
+        break;
+      case 'ArrowLeft':
+        nextEl = focusableElements[activeFocusIndex - 1];
+        break;
+      case 'ArrowDown':
+        nextEl = focusableElements[activeFocusIndex + cardsPerRow];
+        break;
+      case 'ArrowUp':
+        nextEl = focusableElements[activeFocusIndex - cardsPerRow];
+        break;
+    }
+
+    if (nextEl) {
+      nextEl.focus();
+      nextEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+
+  function getCardsPerRow() {
+    const width = window.innerWidth;
+    if (width > 1200) return 5;
+    if (width > 800) return 4;
+    return 2;
   }
 
   // Gamepad axis & button mappings
@@ -1278,8 +1263,7 @@ const NetflixMedia = (() => {
             <input type="range" id="remote-volume" min="0" max="1" step="0.1" value="1">
           </div>
 
-          <div style="text-align:center;margin-top:2rem;display:flex;gap:10px;justify-content:center;">
-            <button class="netflix-btn" id="remote-btn-open-trackpad" style="background:var(--accent);">🖱 Trackpad Mode</button>
+          <div style="text-align:center;margin-top:2rem">
             <button class="netflix-btn danger" id="remote-btn-close-tv">Exit Playback</button>
           </div>
         </div>
@@ -1308,11 +1292,6 @@ const NetflixMedia = (() => {
       body.querySelector('.control-prev').addEventListener('click', () => sendRemoteCmd('prev'));
       body.querySelector('.control-next').addEventListener('click', () => sendRemoteCmd('next'));
       body.querySelector('#remote-btn-close-tv').addEventListener('click', () => sendRemoteCmd('close'));
-      
-      const trackpadBtn = body.querySelector('#remote-btn-open-trackpad');
-      if (trackpadBtn && typeof ControllerMode !== 'undefined') {
-        trackpadBtn.addEventListener('click', () => ControllerMode.toggle());
-      }
 
       volume.addEventListener('input', () => {
         sendRemoteCmd('volume', parseFloat(volume.value));
@@ -1478,65 +1457,6 @@ const NetflixMedia = (() => {
     if (h > 0) return `~${h}h ${m}m`;
     if (m > 0) return `~${m} min`;
     return '< 1 min';
-  }
-
-  // ── GLOBAL REMOTE LISTENERS ──
-  if (typeof State !== 'undefined') {
-    let lastLaunchTimestamp = 0;
-    State.onChange('mediaLaunch', (launchData) => {
-      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-      if (isMobile) return; // Only host plays remote launches
-      if (!launchData || launchData.timestamp <= lastLaunchTimestamp) return;
-      lastLaunchTimestamp = launchData.timestamp;
-      
-      // Force switch to Media view if we aren't already there
-      const mediaBtn = document.getElementById('btn-view-media');
-      if (mediaBtn && !mediaBtn.classList.contains('active')) mediaBtn.click();
-      
-      playVideo(launchData.item, launchData.playlist, launchData.activeIdx, launchData.playlistName);
-    });
-
-    let lastCommandTimestamp = 0;
-    State.onChange('mediaCommand', (cmdObj) => {
-      if (!cmdObj || cmdObj.timestamp <= lastCommandTimestamp) return;
-      lastCommandTimestamp = cmdObj.timestamp;
-      
-      if (activePlayer && activePlayer.video) {
-        const video = activePlayer.video;
-        switch (cmdObj.command) {
-          case 'play': video.play(); break;
-          case 'pause': video.pause(); break;
-          case 'rewind': video.currentTime = Math.max(0, video.currentTime - 10); break;
-          case 'forward': video.currentTime = Math.min(video.duration, video.currentTime + 10); break;
-          case 'seek': video.currentTime = (cmdObj.value / 100) * video.duration; break;
-          case 'volume': video.volume = cmdObj.value; break;
-          case 'next': 
-            if (activePlayer.playlist && activePlayer.activeIdx < activePlayer.playlist.length - 1) {
-              playVideo(activePlayer.playlist[activePlayer.activeIdx + 1], activePlayer.playlist, activePlayer.activeIdx + 1, activePlayer.playlistName);
-            }
-            break;
-          case 'minimize': 
-            const fsBtn = document.getElementById('netflix-player-fullscreen');
-            if (fsBtn) fsBtn.click();
-            break;
-          case 'cast': 
-            console.log('[Media] Cast button triggered from mobile remote (Pending implementation)'); 
-            break;
-          case 'close': 
-            const exitBtn = document.getElementById('netflix-player-back');
-            if (exitBtn) exitBtn.click();
-            break;
-        }
-      }
-    });
-
-    // Reset zombie states on Host PC boot
-    State.onReady(() => {
-      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-      if (!isMobile) {
-        State.set('mediaStatus', null);
-      }
-    });
   }
 
   return { render };
