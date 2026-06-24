@@ -473,6 +473,280 @@ const StreamView = (function() {
     };
   }
 
+  // Builds the moonlight-web-stream query string from our own RTC settings
+  // tab (settings.js) so quality is configured there instead of via the
+  // proxy's own in-stream settings drawer.
+  function getRtcQueryParams() {
+    const res = localStorage.getItem('de_stream_res') || '1080';
+    const videoSize = res === '2160' ? '4k' : res + 'p';
+    const fps = localStorage.getItem('de_stream_fps') || '60';
+    const bitrateKbps = (parseInt(localStorage.getItem('de_stream_bitrate'), 10) || 30) * 1000;
+    const hdr = localStorage.getItem('de_stream_hdr') === 'true';
+    return new URLSearchParams({ videoSize, fps, bitrate: String(bitrateKbps), hdr: String(hdr) }).toString();
+  }
+
+  // The proxy's own in-stream settings drawer clutters the stream view with a
+  // floating arrow button — hide just the trigger, but leave the panel itself
+  // intact so it can still be opened via the four-finger-tap gesture below
+  // (quality lives in our own RTC settings tab now, but mouse/touch mode and
+  // its debug/stats toggles are still only available in that drawer).
+  function hideProxySidebarButton(doc) {
+    const style = doc.createElement('style');
+    style.textContent = '#sidebar-button { display: none !important; }';
+    doc.head.appendChild(style);
+    // Belt-and-suspenders in case the stylesheet doesn't win the cascade, and
+    // in case the proxy's own JS re-creates the button later.
+    const forceHide = () => {
+      const btn = doc.getElementById('sidebar-button');
+      if (btn) btn.style.setProperty('display', 'none', 'important');
+    };
+    forceHide();
+    new MutationObserver(forceHide).observe(doc.body || doc.documentElement, { childList: true, subtree: true });
+  }
+
+  function toggleProxySidebarPanel(doc) {
+    const root = doc.getElementById('sidebar-root');
+    if (root) root.classList.toggle('sidebar-show');
+  }
+
+  // ── Client-side on-screen keyboard ──────────────────────────────────────
+  // Mirrors the proxy's own ScreenKeyboard trick (a hidden, off-screen
+  // textarea whose focus state drives the mobile OS's native virtual
+  // keyboard, diffing its value against a sentinel string since mobile
+  // browsers don't fire reliable keydown/keyup for IME/autocomplete input) —
+  // but hosted in *our* document instead of the iframe's, so the keyboard is
+  // the client's, not the stream proxy's, while still feeding keystrokes into
+  // the same Moonlight input channel via the iframe's exposed Stream API.
+  const KB_SENTINEL = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+  let clientKbInput = null;
+  // The toolbar/iframe belonging to whichever stream is currently open — the
+  // hidden textarea itself is a page-level singleton (created once, reused
+  // across stream sessions), so these track "whichever session is live now"
+  // for it to read at event time.
+  let currentKbToolbar = null;
+  let currentKbIframe = null;
+
+  // Same toggle-and-hold modifier model as the terminal panel's mobile
+  // modifier bar (terminal.js) — Ctrl/Alt/Shift/Meta stay "held" across
+  // keypresses until tapped again, rather than auto-releasing after one key.
+  const _streamMods = { ctrl: false, alt: false, shift: false, meta: false };
+  function _toggleStreamMod(name, btn) {
+    _streamMods[name] = !_streamMods[name];
+    btn.classList.toggle('active', _streamMods[name]);
+  }
+  function _charToCode(ch) {
+    if (/^[a-z]$/i.test(ch)) return 'Key' + ch.toUpperCase();
+    if (/^[0-9]$/.test(ch)) return 'Digit' + ch;
+    return null;
+  }
+
+  function resetClientKbValue(el) {
+    el.value = KB_SENTINEL;
+    el.setSelectionRange(KB_SENTINEL.length, KB_SENTINEL.length);
+  }
+
+  function extractClientKbText(el) {
+    const value = el.value;
+    if (value === KB_SENTINEL) return '';
+    if (value.startsWith(KB_SENTINEL)) return value.slice(KB_SENTINEL.length);
+    if (value.endsWith(KB_SENTINEL)) return value.slice(0, -KB_SENTINEL.length);
+    if (value.includes(KB_SENTINEL)) return value.replace(KB_SENTINEL, '');
+    return value;
+  }
+
+  // mods, when passed, are applied to the synthetic event (ctrlKey/altKey/
+  // shiftKey/metaKey) so the toolbar's held modifiers reach the stream.
+  function sendClientKbKey(input, code, mods) {
+    const init = mods
+      ? { code, ctrlKey: !!mods.ctrl, altKey: !!mods.alt, shiftKey: !!mods.shift, metaKey: !!mods.meta }
+      : { code };
+    input.onKeyDown(new KeyboardEvent('keydown', init));
+    input.onKeyUp(new KeyboardEvent('keyup', init));
+  }
+
+  function sendClientKbText(input, text) {
+    text.split(/\r\n|\r|\n/).forEach((part, i, parts) => {
+      if (part) input.sendText(part);
+      if (i < parts.length - 1) sendClientKbKey(input, 'Enter');
+    });
+  }
+
+  function getCurrentStreamInput() {
+    const app = currentKbIframe && currentKbIframe.contentWindow && currentKbIframe.contentWindow.app;
+    const stream = app && app.getStream && app.getStream();
+    return stream && stream.getInput && stream.getInput();
+  }
+
+  // Shows/hides the modifier+arrow toolbar above the stream, and shrinks the
+  // video area by the toolbar's height so it's never covered by it.
+  function setKbToolbarVisible(visible) {
+    if (!currentKbToolbar) return;
+    currentKbToolbar.style.display = visible ? 'flex' : 'none';
+    const videoContainer = currentKbToolbar.parentElement && currentKbToolbar.parentElement.querySelector('#stream-video-container');
+    if (videoContainer) {
+      const h = visible ? currentKbToolbar.offsetHeight : 0;
+      videoContainer.style.top = h + 'px';
+      videoContainer.style.height = `calc(100% - ${h}px)`;
+    }
+  }
+
+  function ensureClientKbInput() {
+    if (clientKbInput) return clientKbInput;
+    const el = document.createElement('textarea');
+    el.setAttribute('autocomplete', 'off');
+    el.setAttribute('autocapitalize', 'off');
+    el.setAttribute('spellcheck', 'false');
+    el.style.cssText = 'position:fixed; top:0; left:0; width:1px; height:1px; opacity:0; border:none; padding:0; resize:none; pointer-events:none; z-index:-1;';
+    resetClientKbValue(el);
+
+    el.addEventListener('focus', () => setKbToolbarVisible(true));
+    el.addEventListener('blur', () => {
+      // Deferred: tapping a toolbar button blurs this textarea too, but that
+      // handler re-focuses it synchronously before this fires, so the
+      // toolbar should only actually hide once focus has truly moved away.
+      setTimeout(() => { if (document.activeElement !== el) setKbToolbarVisible(false); }, 0);
+    });
+
+    el.addEventListener('input', (e) => {
+      if (e.isComposing) return;
+      const input = getCurrentStreamInput();
+      if (!input) return;
+      if (e.inputType === 'insertLineBreak' || e.inputType === 'insertParagraph') {
+        sendClientKbKey(input, 'Enter');
+      } else if ((e.inputType === 'insertText' || e.inputType === 'insertFromPaste' || e.inputType === 'insertReplacementText') && e.data != null) {
+        const mods = _streamMods;
+        const code = (mods.ctrl || mods.alt || mods.meta) && e.data.length === 1 ? _charToCode(e.data) : null;
+        if (code) sendClientKbKey(input, code, mods);
+        else sendClientKbText(input, e.data);
+      } else if (e.inputType === 'deleteContentBackward' || e.inputType === 'deleteByCut') {
+        sendClientKbKey(input, 'Backspace');
+      } else if (e.inputType === 'deleteContentForward') {
+        sendClientKbKey(input, 'Delete');
+      } else {
+        const text = extractClientKbText(el);
+        if (text) sendClientKbText(input, text);
+      }
+      resetClientKbValue(el);
+    });
+
+    el.addEventListener('compositionend', () => {
+      const input = getCurrentStreamInput();
+      const text = extractClientKbText(el);
+      if (input && text) sendClientKbText(input, text);
+      resetClientKbValue(el);
+    });
+
+    document.body.appendChild(el);
+    clientKbInput = el;
+    return el;
+  }
+
+  // Wires the per-session modifier/arrow toolbar (mirrors terminal.js's
+  // #term-mods/#term-arrows) to the given stream session's input channel.
+  function wireKbToolbar(toolbar) {
+    currentKbToolbar = toolbar;
+    const refocus = () => { if (clientKbInput) clientKbInput.focus(); };
+
+    toolbar.querySelectorAll('.term-key[data-mod]').forEach((btn) => {
+      btn.addEventListener('click', () => { _toggleStreamMod(btn.dataset.mod, btn); refocus(); });
+    });
+    toolbar.querySelectorAll('.term-key[data-arrow]').forEach((btn) => {
+      const code = { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight' }[btn.dataset.arrow];
+      btn.addEventListener('click', () => {
+        const input = getCurrentStreamInput();
+        if (input) sendClientKbKey(input, code, _streamMods);
+        refocus();
+      });
+    });
+    toolbar.querySelectorAll('.term-key[data-key="esc"]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const input = getCurrentStreamInput();
+        if (input) sendClientKbKey(input, 'Escape', _streamMods);
+        refocus();
+      });
+    });
+  }
+
+  function toggleClientKeyboard(iframe) {
+    currentKbIframe = iframe;
+    const el = ensureClientKbInput();
+    if (document.activeElement === el) {
+      el.blur();
+    } else {
+      resetClientKbValue(el);
+      el.focus();
+    }
+  }
+
+  // Three simultaneous fingers toggles our own on-screen keyboard; four
+  // toggles the proxy's settings drawer (mouse/touch mode, stats, debug) —
+  // matches gestures official Moonlight mobile clients use, on iOS/Android
+  // Safari and Chrome alike. Tracked by touch identifier rather than raw
+  // touches.length so it survives fingers landing a few ms apart, which is
+  // the norm rather than the exception on real touchscreens.
+  function attachMultiFingerTapGestures(doc, iframe) {
+    const active = new Set();
+    let peak = 0;
+    doc.addEventListener('touchstart', (e) => {
+      for (const t of e.changedTouches) active.add(t.identifier);
+      peak = Math.max(peak, active.size);
+    }, { passive: true, capture: true });
+    const release = (e) => {
+      for (const t of e.changedTouches) active.delete(t.identifier);
+      if (active.size === 0) {
+        if (peak === 3) toggleClientKeyboard(iframe);
+        else if (peak === 4) toggleProxySidebarPanel(doc);
+        peak = 0;
+      }
+    };
+    doc.addEventListener('touchend', release, { passive: true, capture: true });
+    doc.addEventListener('touchcancel', release, { passive: true, capture: true });
+  }
+
+  // Keeps the stream overlay sized/positioned to exactly the visible area
+  // reported by the visualViewport API, instead of the full layout viewport.
+  // Without this, focusing our keyboard-trigger textarea opens the mobile
+  // on-screen keyboard and the overlay — anchored to the layout viewport,
+  // which most mobile browsers don't shrink — ends up partly hidden behind
+  // the keyboard (or the page scrolls to "reveal" the focused element,
+  // dragging the whole stream view up and off-screen with it). Pinning to
+  // visualViewport's own box, and stamping scroll position back to the
+  // origin on every change, keeps the video pinned to the top of whatever
+  // area is actually visible, with no visible page shift either way.
+  function pinOverlayToVisualViewport(overlay) {
+    const vv = window.visualViewport;
+    if (!vv) return () => {};
+    const update = () => {
+      overlay.style.position = 'fixed';
+      overlay.style.inset = 'auto';
+      overlay.style.left = vv.offsetLeft + 'px';
+      overlay.style.top = vv.offsetTop + 'px';
+      overlay.style.width = vv.width + 'px';
+      overlay.style.height = vv.height + 'px';
+      if (window.scrollX !== 0 || window.scrollY !== 0) window.scrollTo(0, 0);
+    };
+    update();
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    window.addEventListener('scroll', update, { passive: true });
+    return () => {
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
+      window.removeEventListener('scroll', update);
+    };
+  }
+
+  function enhanceStreamIframe(iframe) {
+    try {
+      const doc = iframe.contentDocument;
+      if (!doc) return;
+      hideProxySidebarButton(doc);
+      attachMultiFingerTapGestures(doc, iframe);
+    } catch (e) {
+      console.warn('Could not enhance stream iframe:', e);
+    }
+  }
+
   function actuallyLaunchApp(item, forceRtc = false) {
     if (document.querySelector('.stream-overlay')) {
       return; // Prevent duplicate overlays if user double clicks an app
@@ -483,7 +757,20 @@ const StreamView = (function() {
     overlay.style.background = `linear-gradient(to bottom, rgba(0,0,0,0.8), rgba(0,0,0,1)), url('${item.image}')`;
     overlay.style.backgroundSize = 'cover';
     overlay.style.backgroundPosition = 'center';
-    
+
+    // Pin the overlay to the visible (visualViewport) area rather than the
+    // full layout viewport, and route every later overlay.remove() call
+    // through the matching cleanup, however the stream session ends.
+    const unpinViewport = pinOverlayToVisualViewport(overlay);
+    const baseRemove = overlay.remove.bind(overlay);
+    overlay.remove = () => {
+      unpinViewport();
+      if (clientKbInput && document.activeElement === clientKbInput) clientKbInput.blur();
+      currentKbToolbar = null;
+      currentKbIframe = null;
+      baseRemove();
+    };
+
     // Instead of an img tag for MJPEG, we use the Moonlight WebRTC iframe!
     overlay.innerHTML = `
       <div id="stream-loading-ui" class="stream-loading" style="z-index: 10;">
@@ -492,6 +779,18 @@ const StreamView = (function() {
         <div style="font-size: 1.2rem; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">Connecting to Explorer RTC...</div>
         <div style="font-size: 1rem; color: #ccc; margin-top: 10px; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">Launching ${item.name}</div>
         <button class="stream-play-btn" style="margin-top: 30px; background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.4); backdrop-filter: blur(5px);" onclick="this.parentElement.parentElement.remove()">Cancel</button>
+      </div>
+      <div id="stream-kb-toolbar" style="display:none; position:absolute; top:0; left:0; right:0; z-index:1002; background:rgba(0,0,0,0.75); backdrop-filter:blur(8px); padding:8px 10px; align-items:center; gap:6px; flex-wrap:wrap;">
+        <button class="term-key" data-mod="meta"  title="Win / Cmd">⌘</button>
+        <button class="term-key" data-mod="ctrl"  title="Ctrl">Ctrl</button>
+        <button class="term-key" data-mod="alt"   title="Alt">Alt</button>
+        <button class="term-key" data-mod="shift" title="Shift">⇧</button>
+        <button class="term-key" data-key="esc"   title="Escape">Esc</button>
+        <span style="flex:1"></span>
+        <button class="term-key" data-arrow="up"    title="Up">↑</button>
+        <button class="term-key" data-arrow="down"  title="Down">↓</button>
+        <button class="term-key" data-arrow="left"  title="Left">←</button>
+        <button class="term-key" data-arrow="right" title="Right">→</button>
       </div>
       <div id="stream-video-container" style="display:none; width:100%; height:100%; position: absolute; top:0; left:0; z-index: 5;">
          <!-- WebRTC Iframe injected here -->
@@ -507,6 +806,7 @@ const StreamView = (function() {
       </div>
     `;
     document.body.appendChild(overlay);
+    wireKbToolbar(overlay.querySelector('#stream-kb-toolbar'));
 
     const token = localStorage.getItem('de_token') || '';
     
@@ -584,17 +884,18 @@ const StreamView = (function() {
             }
           });
 
-          const proxyUrl = "/moonlight-proxy/stream.html?hostId=" + hostId + "&appId=" + match.app_id;
+          const proxyUrl = "/moonlight-proxy/stream.html?hostId=" + hostId + "&appId=" + match.app_id + "&" + getRtcQueryParams();
           const iframe = document.createElement('iframe');
           iframe.src = proxyUrl;
           iframe.style = "width: 100%; height: 100%; border: none; outline: none; background: #000;";
           iframe.allow = "gamepad; microphone; autoplay; fullscreen; display-capture; clipboard-read; clipboard-write";
-          
+
           videoContainer.appendChild(iframe);
-          
+          currentKbIframe = iframe;
+
           // Ensure the iframe has focus so keyboard and gamepad inputs are passed down!
           iframe.focus();
-          iframe.onload = () => iframe.focus();
+          iframe.onload = () => { iframe.focus(); enhanceStreamIframe(iframe); };
           overlay.onclick = () => iframe.focus();
           exitBtn.onclick = () => {
             const isPcApp = !!(item.path || item.appid || (item.familyName && item.appId));
@@ -603,6 +904,16 @@ const StreamView = (function() {
                 fetch('/stream/kill', { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } }).catch(() => {});
               }
               if (closeStream) {
+                // Removing the iframe only drops the browser's end of the WebRTC
+                // connection — Apollo/Sunshine still thinks a client is attached
+                // until it's told to cancel, so send the real Moonlight "cancel"
+                // call through the proxy to end the session host-side too.
+                fetch('/moonlight-proxy/api/host/cancel', {
+                  method: 'POST',
+                  credentials: 'same-origin',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ host_id: Number(hostId) })
+                }).catch(() => {});
                 if (document.fullscreenElement) document.exitFullscreen();
                 videoContainer.innerHTML = '';
                 overlay.remove();
@@ -612,6 +923,12 @@ const StreamView = (function() {
 
           const messageListener = (event) => {
             if (event.data && event.data.type === 'DARKEXPLORER_CLOSE') {
+              fetch('/moonlight-proxy/api/host/cancel', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ host_id: Number(hostId) })
+              }).catch(() => {});
               if (document.fullscreenElement) document.exitFullscreen();
               videoContainer.innerHTML = '';
               overlay.remove();
