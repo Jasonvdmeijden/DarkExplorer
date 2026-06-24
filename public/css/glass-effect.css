@@ -160,8 +160,23 @@ body.glass-effect .netflix-modal-wrap {
               0 10px 30px rgba(0,0,0,0.5) !important;
 }
 
+body.glass-effect .view-details .col-head {
+  background: color-mix(in srgb, var(--bg-surface) 75%, transparent) !important;
+  backdrop-filter: blur(30px) saturate(180%) contrast(110%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%) contrast(110%);
+  border-radius: 12px !important;
+  border: 1px solid color-mix(in srgb, var(--border) 40%, transparent) !important;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.3) !important; /* No accent glow */
+}
+
 body.glass-effect .app-settings-modal {
   backdrop-filter: blur(8px) !important;
+  background: rgba(0, 0, 0, 0.15) !important;
+}
+
+body.glass-effect .app-settings-header,
+body.glass-effect .app-settings-tabs {
+  background: transparent !important;
 }
 
 /* Light mode — lighter shadow on the top-level panels only */

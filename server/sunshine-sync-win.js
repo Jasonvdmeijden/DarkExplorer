@@ -1,14 +1,14 @@
 // server/sunshine-sync-win.js
-// Syncs DarkExplorer-scanned Windows apps + Steam games into Apollo/Sunshine's apps.json
+// Syncs DarkExplorer-scanned Windows apps + Steam games into Blackhole/Sunshine's apps.json
 // so they can be launched by name through the Moonlight Web Stream proxy.
 const fs = require('fs');
 const path = require('path');
 const { execSync, spawnSync } = require('child_process');
 
 const CANDIDATE_DIRS = [
-  'C:\\Program Files\\Apollo\\config',
+  'C:\\Program Files\\Blackhole\\config',
   'C:\\Program Files\\Sunshine\\config',
-  'C:\\ProgramData\\Apollo\\config',
+  'C:\\ProgramData\\Blackhole\\config',
   'C:\\ProgramData\\Sunshine\\config'
 ];
 
@@ -57,7 +57,7 @@ try {
 // apps: [{ name, path }]  steamGames: [{ name, appid }]
 function syncWindowsApps(apps, steamGames) {
   const configDir = findConfigDir();
-  if (!configDir) return { ok: false, reason: 'Apollo/Sunshine config not found' };
+  if (!configDir) return { ok: false, reason: 'Blackhole/Sunshine config not found' };
 
   const appsJsonPath = path.join(configDir, 'apps.json');
   const coversDir = path.join(configDir, 'covers');
