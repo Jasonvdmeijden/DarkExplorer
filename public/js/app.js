@@ -1,5 +1,27 @@
 /* Boot — auth check, restore workspace state, init modules */
 (function () {
+  const urlParams = new URLSearchParams(window.location.search);
+  const authCode = urlParams.get('auth');
+
+  if (authCode) {
+    fetch('/enroll', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: authCode, label: navigator.userAgent })
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.token) {
+        localStorage.setItem('de_token', data.token);
+        window.location.href = '/'; // Reload cleanly without the query string
+      } else {
+        alert('Pairing failed: ' + data.error);
+        window.location.href = '/enroll';
+      }
+    });
+    return; // Wait for fetch
+  }
+
   if (!localStorage.getItem('de_token')) {
     location.href = '/enroll';
     return;
@@ -42,6 +64,13 @@
   Explorer.addNavListener((path) => Term.syncToPath(path));
 
   window.addEventListener('load', () => {
+    // Only show the App Mode stream button on strictly mobile remote clients
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    if (isMobile) {
+      const btnStream = document.getElementById('btn-view-stream');
+      if (btnStream) btnStream.style.display = 'inline-block';
+    }
+
     State.onReady(async () => {
       await Drives.init();
 
