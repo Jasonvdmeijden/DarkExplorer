@@ -31,8 +31,8 @@ const StreamView = (function() {
         </div>
       </div>
       <div class="stream-row" id="stream-apollo-row" style="display:none;">
-        <h2 class="stream-row-title">Apollo Apps</h2>
-        <div class="stream-carousel" id="stream-apollo-carousel"></div>
+        <h2 class="stream-row-title">PC Applications</h2>
+        <div class="stream-folder-list" id="stream-apollo-list"></div>
       </div>
       <div id="stream-dynamic-groups"></div>`;
     if (cachedSystemApps.length > 0 || cachedApolloApps.length > 0) {
@@ -275,7 +275,7 @@ const StreamView = (function() {
       renderCarousel('stream-apps-carousel', cachedSystemApps, 'pc', {}, false);
       renderCarousel('stream-steam-carousel', cachedSteam, 'steam', {}, false);
       renderCarousel('stream-xbox-carousel', cachedXbox, 'xbox', {}, false);
-      renderCarousel('stream-apollo-carousel', cachedApolloApps, 'pc', {}, !isSearching);
+      renderList('stream-apollo-row', 'stream-apollo-list', cachedApolloApps, !isSearching); // true = start collapsed, false = expanded if searching!
       
       if (cachedFolderApps && cachedFolderApps.length) {
         const row = document.getElementById('stream-folder-row');

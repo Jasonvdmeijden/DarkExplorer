@@ -49,6 +49,9 @@ body.glass-effect #panel-left,
 body.glass-effect #panel-right,
 body.glass-effect #panel-bottom,
 body.glass-effect #center,
+body.glass-effect .filter-menu,
+body.glass-effect dialog#props-dialog,
+body.glass-effect dialog#preview-modal,
 body.glass-effect #search-panel {
   background: var(--bg-surface) !important;
   backdrop-filter: blur(26px) saturate(180%) contrast(105%);
@@ -142,26 +145,13 @@ body.glass-effect .disk-header {
 
 /* Floating elements in glass mode: keep fixed position and use tighter radius */
 body.glass-effect #context-menu,
-body.glass-effect #theme-picker-popover,
-body.glass-effect .filter-menu,
-body.glass-effect .view-mode-menu,
-body.glass-effect .ctx-menu,
-body.glass-effect .stream-menu-panel,
-body.glass-effect .app-settings-box,
-body.glass-effect dialog#preview-modal,
-body.glass-effect dialog#props-dialog,
-body.glass-effect .netflix-modal-wrap {
-  background: color-mix(in srgb, var(--bg-surface) 75%, transparent) !important;
-  backdrop-filter: blur(30px) saturate(180%) contrast(110%);
-  -webkit-backdrop-filter: blur(30px) saturate(180%) contrast(110%);
-  border-radius: 16px !important;
-  border: 1px solid color-mix(in srgb, var(--border) 40%, transparent) !important;
-  box-shadow: 0 0 15px color-mix(in srgb, var(--accent) 30%, transparent),
-              0 10px 30px rgba(0,0,0,0.5) !important;
-}
-
-body.glass-effect .app-settings-modal {
-  backdrop-filter: blur(8px) !important;
+body.glass-effect #theme-picker-popover {
+  background: var(--bg-surface) !important;
+  backdrop-filter: blur(12px) saturate(180%) contrast(110%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%) contrast(110%);
+  border-radius: 12px;
+  border: 1px solid var(--glass-border) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4) !important;
 }
 
 /* Light mode — lighter shadow on the top-level panels only */
@@ -170,6 +160,9 @@ html[data-mode="light"] body.glass-effect #panel-left,
 html[data-mode="light"] body.glass-effect #panel-right,
 html[data-mode="light"] body.glass-effect #panel-bottom,
 html[data-mode="light"] body.glass-effect #center,
+html[data-mode="light"] body.glass-effect .filter-menu,
+html[data-mode="light"] body.glass-effect dialog#props-dialog,
+html[data-mode="light"] body.glass-effect dialog#preview-modal,
 html[data-mode="light"] body.glass-effect #search-panel {
   box-shadow:
     0 10px 30px -10px rgba(0, 0, 0, 0.15),

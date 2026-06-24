@@ -113,4 +113,5 @@ async function syncSunshineApps() {
     execSync('pkill sunshine || true');
   } catch (e) {}
 }
-module.exports = syncSunshineApps;
+
+syncSunshineApps().catch(console.error);

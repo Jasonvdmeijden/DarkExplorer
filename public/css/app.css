@@ -103,7 +103,7 @@ input:checked + .ui-slider:before {
   display: flex;
   align-items: center;
   gap: 0;
-  padding: 10px var(--layout-pad-h);
+  padding: 0 var(--layout-pad-h);
   height: auto;
   min-height: 44px;
   background: var(--bg-surface);
@@ -355,7 +355,7 @@ aside, #panel-left, #panel-right {
   display: flex;
   align-items: center;
   border-bottom: 1px solid var(--border);
-  padding: 10px;
+  padding: 0 10px;
   gap: 0;
   min-height: 40px;
   overflow-x: auto;
@@ -737,7 +737,7 @@ aside, #panel-left, #panel-right {
 #statusbar {
   display: flex;
   align-items: center;
-  padding: 10px var(--layout-pad-h);
+  padding: 0 var(--layout-pad-h);
   min-height: 40px;
   font-size: .72rem;
   color: var(--text-muted);
@@ -1958,7 +1958,7 @@ dialog#preview-modal::backdrop {
   font-size: .78rem;
   color: var(--text-secondary);
   font-family: var(--font-mono);
-  margin-top: 5px;
+  margin-top: .1rem;
 }
 .disk-list-meta { font-size: .7rem; color: var(--text-muted); margin-top: .1rem; }
 
@@ -2580,11 +2580,11 @@ body.immersive-mode #tabs-bar { display: none !important; }
    read its buttons to populate the dropdown menu, but it's never shown. */
 .view-mode-group { display: none; }
 .view-mode-dropdown { display: block; position: relative; }
-.view-mode-menu { position: absolute; right: 0; top: 100%; margin-top: 4px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow); z-index: 1000; display: none; flex-direction: column; min-width: 150px; padding: 10px; gap: 2px; }
+.view-mode-menu { position: absolute; right: 0; top: 100%; margin-top: 4px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow); z-index: 1000; display: none; flex-direction: column; min-width: 150px; }
 .view-mode-menu.open { display: flex; }
-.view-mode-menu-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.8rem; background: none; border: none; width: 100%; text-align: left; color: var(--text-primary); cursor: pointer; font-size: 0.82rem; border-radius: 8px; transition: all 0.2s; }
+.view-mode-menu-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.8rem; background: none; border: none; width: 100%; text-align: left; color: var(--text-primary); cursor: pointer; font-size: 0.82rem; }
 .view-mode-menu-item:hover { background: var(--bg-hover); }
-.view-mode-menu-item.active { background: var(--bg-selected); color: var(--accent); font-weight: 600; }
+.view-mode-menu-item.active { background: var(--bg-selected); color: var(--accent); }
 
 
 /* ── Modals ── */
@@ -2613,5 +2613,3 @@ body.immersive-mode #tabs-bar { display: none !important; }
 .settings-toggle-row span { font-size: .76rem; color: var(--text-muted); }
 .settings-action-btn { display: inline-flex; align-items: center; gap: .5rem; padding: 0.5rem 1rem; border-radius: var(--radius-sm); cursor: pointer; font-size: 0.85rem; font-weight: 600; border: 1px solid var(--border); background: var(--bg-base); color: var(--text-primary); }
 .settings-action-btn:hover { background: var(--bg-hover); }
-
-

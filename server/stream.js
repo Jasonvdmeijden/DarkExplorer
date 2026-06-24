@@ -496,15 +496,6 @@ router.get('/scan', (req, res) => {
         console.warn('[sunshine-sync-win] sync failed:', e.message);
       }
     });
-  } else if (platform === 'darwin') {
-    setImmediate(() => {
-      try {
-        const sunshineSyncMac = require('./sunshine-sync');
-        sunshineSyncMac();
-      } catch (e) {
-        console.warn('[sunshine-sync-mac] sync failed:', e.message);
-      }
-    });
   }
 });
 

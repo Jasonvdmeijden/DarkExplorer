@@ -360,11 +360,6 @@ const Explorer = (() => {
     const trigger = document.getElementById('btn-view-dropdown-trigger');
     const menu = document.getElementById('view-mode-menu');
     if (!trigger || !menu) return;
-
-    // Move menu to body to prevent nested backdrop-filter rendering bugs
-    document.body.appendChild(menu);
-    menu.style.position = 'fixed';
-
     document.querySelectorAll('.view-mode-group [data-view]').forEach(btn => {
       const item = document.createElement('button');
       item.className = 'view-mode-menu-item';
@@ -378,16 +373,7 @@ const Explorer = (() => {
       item.addEventListener('click', () => { setView(btn.dataset.view); menu.classList.remove('open'); });
       menu.appendChild(item);
     });
-
-    trigger.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const rect = trigger.getBoundingClientRect();
-      menu.style.top = (rect.bottom + 6) + 'px';
-      menu.style.right = (window.innerWidth - rect.right) + 'px';
-      menu.style.left = 'auto';
-      menu.classList.toggle('open');
-    });
-
+    trigger.addEventListener('click', (e) => { e.stopPropagation(); menu.classList.toggle('open'); });
     document.addEventListener('mousedown', (e) => {
       if (menu.classList.contains('open') && !menu.contains(e.target) && e.target !== trigger) menu.classList.remove('open');
     });
