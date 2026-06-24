@@ -19,20 +19,15 @@ db.exec(`
     label       TEXT,
     token       TEXT UNIQUE NOT NULL,
     enrolled_at INTEGER NOT NULL,
-    last_seen   INTEGER,
-    traffic_bytes INTEGER DEFAULT 0
+    last_seen   INTEGER
   );
 
   CREATE TABLE IF NOT EXISTS otps (
     code       TEXT PRIMARY KEY,
     expires_at INTEGER NOT NULL,
-    used       INTEGER NOT NULL DEFAULT 0,
-    device_id  TEXT
+    used       INTEGER NOT NULL DEFAULT 0
   );
-`);
-try { db.exec('ALTER TABLE otps ADD COLUMN device_id TEXT;'); } catch (e) {}
 
-db.exec(`
   CREATE TABLE IF NOT EXISTS files (
     path       TEXT PRIMARY KEY,
     name       TEXT NOT NULL,
@@ -120,12 +115,6 @@ db.exec(`
     content
   );
 `);
-
-try {
-  db.exec(`ALTER TABLE devices ADD COLUMN traffic_bytes INTEGER DEFAULT 0;`);
-} catch (err) {
-  // Column likely already exists
-}
 
 db.prepare('INSERT OR IGNORE INTO disk_scan_state (id, status, scanned_count) VALUES (1, \'idle\', 0)').run();
 

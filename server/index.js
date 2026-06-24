@@ -83,15 +83,7 @@ const moonlightProxy = createProxyMiddleware({
   target: 'http://127.0.0.1:8080',
   changeOrigin: true,
   ws: true,
-  pathFilter: (pathname) => {
-    return pathname.startsWith('/moonlight-proxy') ||
-           pathname.startsWith('/authenticate') ||
-           pathname.startsWith('/api') ||
-           pathname.startsWith('/config') ||
-           pathname.startsWith('/pin') ||
-           pathname.startsWith('/serverinfo');
-  },
-  pathRewrite: { '^/moonlight-proxy': '' },
+  pathFilter: '/moonlight-proxy',
   on: { proxyReq: fixRequestBody }
 });
 app.use(moonlightProxy);
@@ -104,14 +96,7 @@ app.use(express.static(path.join(__dirname, '..', 'public'), {
 
 app.get('/admin/gen-otp', (req, res) => {
   if (!isLocalhost(req)) return res.status(403).json({ error: 'Forbidden' });
-  const ips = [];
-  const nets = os.networkInterfaces();
-  for (const name of Object.keys(nets)) {
-    for (const net of nets[name]) {
-      if (net.family === 'IPv4' && !net.internal) ips.push(net.address);
-    }
-  }
-  res.json({ code: auth.generateOtp(req.query.device_id || null), expiresIn: '1 hour', ips });
+  res.json({ code: auth.generateOtp(), expiresIn: '1 hour' });
 });
 app.get('/admin/devices', (req, res) => {
   if (!isLocalhost(req)) return res.status(403).json({ error: 'Forbidden' });
@@ -120,11 +105,6 @@ app.get('/admin/devices', (req, res) => {
 app.delete('/admin/devices/:id', (req, res) => {
   if (!isLocalhost(req)) return res.status(403).json({ error: 'Forbidden' });
   auth.revokeDevice(req.params.id);
-  res.json({ ok: true });
-});
-app.put('/admin/devices/:id', express.json(), (req, res) => {
-  if (!isLocalhost(req)) return res.status(403).json({ error: 'Forbidden' });
-  if (req.body.label) auth.renameDevice(req.params.id, req.body.label);
   res.json({ ok: true });
 });
 
@@ -815,17 +795,7 @@ async function handle(type, payload, reply, ws, device) {
 
 function isLocalhost(req) {
   const ip = req.socket.remoteAddress;
-  if (ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1') return true;
-  
-  // Also allow if the request originated from one of the host's own network interfaces
-  const cleanIp = ip.replace('::ffff:', '');
-  const nets = os.networkInterfaces();
-  for (const name of Object.keys(nets)) {
-    for (const net of nets[name]) {
-      if (net.address === cleanIp) return true;
-    }
-  }
-  return false;
+  return ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
 }
 
 const PORT = config.port;

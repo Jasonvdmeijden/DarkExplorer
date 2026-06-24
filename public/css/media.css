@@ -155,6 +155,7 @@ body.glass-effect .netflix-header {
   overflow-x: auto;
   overflow-y: hidden;
   gap: 12px;
+  scroll-behavior: smooth;
   width: 100%;
   /* Vertical padding is headroom for the hover/focus scale-up (cards grow up
      to 15% from their 135px-tall media box) so it doesn't clip against the
