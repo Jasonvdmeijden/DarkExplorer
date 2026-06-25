@@ -1,6 +1,7 @@
-/* Remote control — virtual cursor, controlled banner, controller surface */
+/* Remote control — virtual cursor, controlled banner, controller surface.
+   Uses the app's theme tokens (themes/*.css) so it follows the active theme. */
 
-/* ── Controllee: fake cursor ── */
+/* ── Controllee: fake cursor (theme-neutral so it reads on any background) ── */
 #de-vcursor {
   position: fixed;
   left: 0; top: 0;
@@ -23,28 +24,26 @@
   gap: 10px;
   padding: 6px 10px 6px 12px;
   border-radius: 999px;
-  background: rgba(20,20,28,.9);
-  border: 1px solid rgba(255,255,255,.15);
-  color: #fff;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
   font: 500 13px/1 system-ui, sans-serif;
-  box-shadow: 0 6px 20px rgba(0,0,0,.4);
-  backdrop-filter: blur(8px);
+  box-shadow: var(--shadow);
 }
 #de-controlled-banner .dcb-dot {
   width: 8px; height: 8px; border-radius: 50%;
-  background: #ff4d4f;
-  box-shadow: 0 0 0 0 rgba(255,77,79,.6);
+  background: var(--danger);
   animation: dcb-pulse 1.6s infinite;
 }
 @keyframes dcb-pulse {
-  0%   { box-shadow: 0 0 0 0 rgba(255,77,79,.6); }
-  70%  { box-shadow: 0 0 0 8px rgba(255,77,79,0); }
-  100% { box-shadow: 0 0 0 0 rgba(255,77,79,0); }
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--danger) 60%, transparent); }
+  70%  { box-shadow: 0 0 0 8px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
 }
 #de-controlled-banner .dcb-stop {
   border: 0; cursor: pointer;
   padding: 4px 10px; border-radius: 999px;
-  background: #ff4d4f; color: #fff; font: 600 12px/1 system-ui, sans-serif;
+  background: var(--danger); color: #fff; font: 600 12px/1 system-ui, sans-serif;
 }
 
 /* ── Controller: device picker ── */
@@ -53,22 +52,22 @@
   z-index: 2147483645;
   display: none;
   align-items: center; justify-content: center;
-  background: rgba(0,0,0,.55);
+  background: color-mix(in srgb, var(--bg-base) 55%, transparent);
   backdrop-filter: blur(4px);
 }
 #de-control-picker .dcp-card {
   width: min(420px, 92vw);
   max-height: 70vh; overflow: auto;
-  background: var(--bg-surface, #1a1a24);
-  border: 1px solid rgba(255,255,255,.12);
-  border-radius: 14px;
-  color: var(--text, #eee);
-  box-shadow: 0 20px 60px rgba(0,0,0,.5);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  color: var(--text-primary);
+  box-shadow: var(--shadow);
 }
 #de-control-picker .dcp-head {
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px 16px; font: 600 15px/1 system-ui, sans-serif;
-  border-bottom: 1px solid rgba(255,255,255,.08);
+  border-bottom: 1px solid var(--border);
 }
 #de-control-picker .dcp-close {
   background: none; border: 0; color: inherit; font-size: 22px; cursor: pointer; line-height: 1;
@@ -76,13 +75,13 @@
 #de-control-picker .dcp-list { padding: 8px; display: flex; flex-direction: column; gap: 6px; }
 #de-control-picker .dcp-item {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 14px; border-radius: 10px; cursor: pointer;
-  background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+  padding: 12px 14px; border-radius: var(--radius); cursor: pointer;
+  background: var(--bg-panel); border: 1px solid var(--border);
   color: inherit; font: 500 14px/1 system-ui, sans-serif; text-align: left;
 }
-#de-control-picker .dcp-item:hover { background: rgba(255,255,255,.09); }
-#de-control-picker .dcp-go { opacity: .6; font-size: 12px; }
-#de-control-picker .dcp-empty { padding: 22px 16px; text-align: center; opacity: .6; font: 400 13px system-ui; }
+#de-control-picker .dcp-item:hover { background: var(--bg-hover); border-color: var(--border-focus); }
+#de-control-picker .dcp-go { color: var(--text-secondary); font-size: 12px; }
+#de-control-picker .dcp-empty { padding: 22px 16px; text-align: center; color: var(--text-secondary); font: 400 13px system-ui; }
 
 /* ── Controller: capture overlay ── */
 #de-control-overlay {
@@ -90,68 +89,89 @@
   z-index: 2147483640;
   display: none;
   flex-direction: column;
-  background: var(--bg, #0e0e14);
-  color: var(--text, #eee);
+  background: var(--bg-base);
+  color: var(--text-primary);
   touch-action: none;
   user-select: none; -webkit-user-select: none;
 }
 #de-control-overlay .dco-topbar {
   display: flex; align-items: center; justify-content: space-between;
   padding: 10px 14px;
-  border-bottom: 1px solid rgba(255,255,255,.1);
-  background: rgba(255,255,255,.03);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
 }
 #de-control-overlay .dco-title { font: 600 14px/1 system-ui, sans-serif; }
-#de-control-overlay.dco-reconnecting .dco-title { color: #ffb454; animation: dcb-pulse-text 1.2s infinite; }
+#de-control-overlay.dco-reconnecting .dco-title { color: var(--warn); animation: dcb-pulse-text 1.2s infinite; }
 #de-control-overlay.dco-reconnecting .dco-trackpad { opacity: .4; }
 @keyframes dcb-pulse-text { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
-#de-control-overlay .dco-exit {
-  border: 0; cursor: pointer; padding: 8px 16px; border-radius: 8px;
-  background: #ff4d4f; color: #fff; font: 600 13px/1 system-ui, sans-serif;
+#de-control-overlay .dco-topbar-right { display: flex; align-items: center; gap: 8px; }
+#de-control-overlay .dco-gear {
+  border: 1px solid var(--border); cursor: pointer; padding: 6px 10px; border-radius: var(--radius);
+  background: var(--bg-surface); color: var(--text-primary); font: 600 15px/1 system-ui, sans-serif;
 }
+#de-control-overlay .dco-exit {
+  border: 0; cursor: pointer; padding: 8px 16px; border-radius: var(--radius);
+  background: var(--danger); color: #fff; font: 600 13px/1 system-ui, sans-serif;
+}
+#de-control-overlay .dco-settings {
+  position: absolute; top: 50px; right: 12px; z-index: 5;
+  width: min(280px, 86vw);
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 14px; border-radius: var(--radius-lg);
+  background: var(--bg-surface); border: 1px solid var(--border);
+  color: var(--text-primary); box-shadow: var(--shadow);
+  font: 400 13px system-ui, sans-serif;
+}
+#de-control-overlay .dcs-row { display: flex; flex-direction: column; gap: 6px; }
+#de-control-overlay .dcs-row input[type=range] { width: 100%; accent-color: var(--accent); }
+#de-control-overlay .dcs-check { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+#de-control-overlay .dcs-check input { accent-color: var(--accent); }
 #de-control-overlay .dco-trackpad {
-  flex: 1; min-height: 120px; margin: 12px; border-radius: 14px;
-  background:
-    repeating-linear-gradient(45deg, rgba(255,255,255,.02) 0 10px, rgba(255,255,255,.04) 10px 20px);
-  border: 1px dashed rgba(255,255,255,.15);
+  flex: 1; min-height: 110px; margin: 12px; border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  border: 1px dashed var(--border);
   display: flex; align-items: center; justify-content: center;
   cursor: crosshair; touch-action: none;
 }
-#de-control-overlay .dco-hint { opacity: .35; font: 400 13px system-ui; pointer-events: none; }
+#de-control-overlay .dco-hint { color: var(--text-secondary); opacity: .8; font: 400 13px system-ui; pointer-events: none; }
 #de-control-overlay .dco-trackpad.dco-capturing {
   border-style: solid;
-  border-color: var(--accent, #4a7dff);
-  background: rgba(74,125,255,.06);
+  border-color: var(--accent);
+  background: var(--accent-dim);
   cursor: none;
 }
 #de-control-overlay .dco-buttons {
   display: flex; gap: 8px; padding: 0 12px 10px;
 }
 #de-control-overlay .dco-btn {
-  flex: 1; padding: 14px 8px; border-radius: 10px; cursor: pointer;
-  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1);
+  flex: 1; padding: 14px 8px; border-radius: var(--radius); cursor: pointer;
+  background: var(--bg-surface); border: 1px solid var(--border);
   color: inherit; font: 600 13px/1 system-ui, sans-serif;
 }
-#de-control-overlay .dco-btn:active { background: rgba(255,255,255,.16); }
+#de-control-overlay .dco-btn:active { background: var(--bg-active); }
 #de-control-overlay .dco-btn.dco-disabled { opacity: .4; cursor: not-allowed; }
-#de-control-overlay .dco-btn.dco-air.active { background: var(--accent, #4a7dff); color: #fff; }
+#de-control-overlay .dco-btn.dco-air.active { background: var(--accent); color: var(--text-inverse); border-color: var(--accent); }
+
 /* Always-visible on-screen keyboard */
 #de-control-overlay .dco-keys {
   padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
-  border-top: 1px solid rgba(255,255,255,.08);
-  background: rgba(255,255,255,.02);
+  border-top: 1px solid var(--border);
+  background: var(--bg-panel);
 }
 #de-control-overlay .dco-kbd { display: flex; flex-direction: column; gap: 5px; }
 #de-control-overlay .dco-krow { display: flex; gap: 5px; justify-content: center; }
 #de-control-overlay .dco-kbd .term-key {
   flex: 1; min-width: 0;
-  padding: 11px 0; border-radius: 7px; cursor: pointer;
-  background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12);
-  color: inherit; font: 500 15px/1 system-ui, sans-serif;
+  padding: 11px 0; border-radius: var(--radius-sm); cursor: pointer;
+  background: var(--bg-surface); border: 1px solid var(--border);
+  color: var(--text-primary); font: 500 15px/1 system-ui, sans-serif;
   text-align: center; -webkit-user-select: none; user-select: none;
+  touch-action: none; transition: transform .04s ease, background .08s ease;
 }
-#de-control-overlay .dco-kbd .term-key:active { background: rgba(255,255,255,.2); }
-#de-control-overlay .term-key.active { background: var(--accent, #4a7dff); color: #fff; }
+#de-control-overlay .dco-kbd .term-key.pressed {
+  background: var(--accent-dim); border-color: var(--accent); transform: scale(.94);
+}
+#de-control-overlay .term-key.active { background: var(--accent); color: var(--text-inverse); border-color: var(--accent); }
 @media (max-width: 480px) {
   #de-control-overlay .dco-kbd .term-key { padding: 9px 0; font-size: 14px; }
   #de-control-overlay .dco-krow { gap: 4px; }

@@ -16,6 +16,7 @@ const ControlMode = (() => {
   let reconnecting = false;    // dropped mid-session, trying to restore
   let rebindTries = 0;
   let locked = false;          // pointer lock currently held (desktop capture)
+  let kbLayer = 'alpha';       // on-screen keyboard layer: 'alpha' | 'symbol'
   let peerName = '';
   let peerDeviceId = null;     // stable id used to re-find the controllee after a reconnect
   let overlay = null, picker = null, titleEl = null;
@@ -23,6 +24,12 @@ const ControlMode = (() => {
   // Sticky modifier toggles (like the terminal key bar)
   const mods = { ctrl: false, alt: false, shift: false, meta: false };
   const currentMods = () => ({ ...mods });
+
+  // Per-device tunables (localStorage; defaults if unset)
+  function lsNum(key, def) { const v = parseFloat(localStorage.getItem(key)); return isFinite(v) ? v : def; }
+  function trackpadSens() { return lsNum('de_control_tp_sens', 1.6); }
+  function airSens()      { return lsNum('de_control_air_sens', 12); }
+  function airInvert(ax)  { return localStorage.getItem('de_control_air_inv' + ax) === '1'; }
 
   // ── Outbound input batching ──────────────────────────────────────
   let queue = [];
@@ -172,7 +179,17 @@ const ControlMode = (() => {
     overlay.innerHTML =
       `<div class="dco-topbar">
          <span class="dco-title"></span>
-         <button class="dco-exit" type="button">Exit control</button>
+         <span class="dco-topbar-right">
+           <button class="dco-gear" type="button" title="Settings">⚙</button>
+           <button class="dco-exit" type="button">Exit control</button>
+         </span>
+       </div>
+       <div class="dco-settings" hidden>
+         <label class="dcs-row"><span>Trackpad speed</span><input type="range" min="0.5" max="4" step="0.1" data-set="tp"></label>
+         <label class="dcs-row"><span>Air-mouse speed</span><input type="range" min="2" max="40" step="1" data-set="air"></label>
+         <label class="dcs-check"><input type="checkbox" data-set="invx"> Invert air-mouse X</label>
+         <label class="dcs-check"><input type="checkbox" data-set="invy"> Invert air-mouse Y</label>
+         <label class="dcs-check"><input type="checkbox" data-set="haptics"> Haptic feedback (Android)</label>
        </div>
        <div class="dco-trackpad"><span class="dco-hint">Drag to move · tap to click · two fingers to scroll</span></div>
        <div class="dco-buttons">
@@ -192,36 +209,73 @@ const ControlMode = (() => {
 
   // Always-visible on-screen keyboard. The native mobile keyboard can't stay up
   // while you use the trackpad (touching it dismisses the field), so we render
-  // our own keyboard that drives the same input pipeline.
+  // our own keyboard that drives the same input pipeline. Two layers — letters
+  // and symbols — switched by the 123/ABC key, iOS-style.
+  const KB_LAYERS = {
+    alpha: [
+      ['q','w','e','r','t','y','u','i','o','p'],
+      ['a','s','d','f','g','h','j','k','l'],
+      [{ mod: 'shift', l: '⇧', w: 1.4 }, 'z','x','c','v','b','n','m', { key: 'Backspace', l: '⌫', w: 1.4 }],
+    ],
+    symbol: [
+      ['1','2','3','4','5','6','7','8','9','0'],
+      ['-','/',':',';','(',')','$','&','@','"'],
+      ['.',',','?','!',"'",'_','+','=','#', { key: 'Backspace', l: '⌫', w: 1.4 }],
+    ],
+  };
+  function kbCommonRows() {
+    return [
+      [{ layer: 1, l: kbLayer === 'alpha' ? '123' : 'ABC', w: 1.4 },
+       { mod: 'ctrl', l: 'Ctrl' }, { mod: 'alt', l: 'Alt' }, { mod: 'meta', l: '⌘' },
+       { char: ' ', l: 'space', w: 4 },
+       { key: 'Tab', l: '⇥' }, { key: 'Escape', l: 'Esc' }, { key: 'Enter', l: '⏎', w: 1.4 }],
+      [{ key: 'ArrowLeft', l: '←' }, { key: 'ArrowUp', l: '↑' },
+       { key: 'ArrowDown', l: '↓' }, { key: 'ArrowRight', l: '→' }],
+    ];
+  }
+  function makeKey(cell) {
+    if (typeof cell === 'string') cell = { char: cell, l: cell };
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'term-key';
+    b.textContent = cell.l != null ? cell.l : (cell.char || '');
+    if (cell.w) b.style.flex = String(cell.w);
+    if (cell.char != null)   b.dataset.char = cell.char;
+    else if (cell.mod)     { b.dataset.mod = cell.mod; if (mods[cell.mod]) b.classList.add('active'); }
+    else if (cell.key)       b.dataset.key = cell.key;
+    else if (cell.layer)     b.dataset.layer = '1';
+    return b;
+  }
   function buildKeyboard(host) {
     if (!host) return;
-    const k = (attrs, label, wide) => {
-      const b = document.createElement('button');
-      b.type = 'button'; b.className = 'term-key';
-      b.textContent = label; if (wide) b.style.flex = String(wide);
-      Object.assign(b.dataset, attrs);
-      return b;
-    };
-    const c = (ch, label, wide) => k({ char: ch }, label || ch, wide);
-    const mod = (m, label) => k({ mod: m }, label);
-    const sp = (key, label, wide) => k({ key }, label, wide);
-    const rows = [
-      [c('1'),c('2'),c('3'),c('4'),c('5'),c('6'),c('7'),c('8'),c('9'),c('0')],
-      [c('q'),c('w'),c('e'),c('r'),c('t'),c('y'),c('u'),c('i'),c('o'),c('p')],
-      [c('a'),c('s'),c('d'),c('f'),c('g'),c('h'),c('j'),c('k'),c('l')],
-      [mod('shift','⇧'),c('z'),c('x'),c('c'),c('v'),c('b'),c('n'),c('m'),sp('Backspace','⌫',1.4)],
-      [c('-'),c('/'),c(':'),c(';'),c('('),c(')'),c('$'),c('&'),c('@'),c('"')],
-      [c('.'),c(','),c('?'),c('!'),c("'"),c('_'),c('+'),c('='),c('*'),c('#')],
-      [mod('ctrl','Ctrl'),mod('alt','Alt'),mod('meta','⌘'),sp('Tab','⇥'),c(' ','space',4),sp('Escape','Esc'),sp('Enter','⏎',1.4)],
-      [sp('ArrowLeft','←'),sp('ArrowUp','↑'),sp('ArrowDown','↓'),sp('ArrowRight','→')],
-    ];
     host.innerHTML = '';
-    for (const row of rows) {
+    for (const row of KB_LAYERS[kbLayer].concat(kbCommonRows())) {
       const r = document.createElement('div');
       r.className = 'dco-krow';
-      for (const key of row) r.appendChild(key);
+      for (const cell of row) r.appendChild(makeKey(cell));
       host.appendChild(r);
     }
+  }
+
+  function haptic() {
+    if (localStorage.getItem('de_control_haptics') === '0') return;
+    if (navigator.vibrate) { try { navigator.vibrate(8); } catch {} }
+  }
+
+  // A single keyboard keypress (mod toggle / char / special key / layer switch).
+  function handleKbPress(btn) {
+    if (btn.dataset.layer) {
+      kbLayer = kbLayer === 'alpha' ? 'symbol' : 'alpha';
+      buildKeyboard(overlay.querySelector('.dco-kbd'));
+    } else if (btn.dataset.mod) {
+      mods[btn.dataset.mod] = !mods[btn.dataset.mod];
+      btn.classList.toggle('active', mods[btn.dataset.mod]);
+    } else if (btn.dataset.char != null) {
+      sendChar(btn.dataset.char);
+    } else if (btn.dataset.key) {
+      enqueue({ t: 'key', key: btn.dataset.key, mods: currentMods() });
+      clearOneShotMods();
+    }
+    haptic();
   }
 
   // Send a typed character, applying active sticky modifiers (one-shot).
@@ -232,8 +286,34 @@ const ControlMode = (() => {
     else                           { enqueue({ t: 'text', str: ch }); }
   }
 
+  function initSettings(root) {
+    root.querySelector('[data-set="tp"]').value      = trackpadSens();
+    root.querySelector('[data-set="air"]').value     = airSens();
+    root.querySelector('[data-set="invx"]').checked  = airInvert('x');
+    root.querySelector('[data-set="invy"]').checked  = airInvert('y');
+    root.querySelector('[data-set="haptics"]').checked = localStorage.getItem('de_control_haptics') !== '0';
+  }
+
   function wireOverlay() {
     overlay.querySelector('.dco-exit').addEventListener('click', exit);
+
+    // Settings popover (per-device, localStorage)
+    const gear = overlay.querySelector('.dco-gear');
+    const settings = overlay.querySelector('.dco-settings');
+    gear.addEventListener('click', () => {
+      settings.hidden = !settings.hidden;
+      if (!settings.hidden) initSettings(settings);
+    });
+    settings.addEventListener('input', (e) => {
+      const el = e.target;
+      switch (el.dataset.set) {
+        case 'tp':      localStorage.setItem('de_control_tp_sens', el.value); break;
+        case 'air':     localStorage.setItem('de_control_air_sens', el.value); break;
+        case 'invx':    localStorage.setItem('de_control_air_invx', el.checked ? '1' : '0'); break;
+        case 'invy':    localStorage.setItem('de_control_air_invy', el.checked ? '1' : '0'); break;
+        case 'haptics': localStorage.setItem('de_control_haptics', el.checked ? '1' : '0'); break;
+      }
+    });
 
     // Mouse buttons + navigation
     overlay.querySelectorAll('.dco-btn').forEach(btn => {
@@ -243,31 +323,30 @@ const ControlMode = (() => {
       });
     });
 
-    // On-screen keyboard: modifier toggles, character keys, and literal keys.
-    // Modifiers are one-shot (auto-released after the next character/key).
-    overlay.querySelector('.dco-kbd').addEventListener('click', (e) => {
+    // On-screen keyboard — pointerdown for instant response + visual/haptic
+    // feedback. Modifiers are one-shot (auto-released after the next key).
+    const kbEl = overlay.querySelector('.dco-kbd');
+    kbEl.addEventListener('pointerdown', (e) => {
       const btn = e.target.closest('.term-key');
       if (!btn) return;
-      if (btn.dataset.mod) {
-        mods[btn.dataset.mod] = !mods[btn.dataset.mod];
-        btn.classList.toggle('active', mods[btn.dataset.mod]);
-      } else if (btn.dataset.char != null) {
-        sendChar(btn.dataset.char);
-      } else if (btn.dataset.key) {
-        enqueue({ t: 'key', key: btn.dataset.key, mods: currentMods() });
-        clearOneShotMods();
-      }
+      e.preventDefault();              // don't steal focus / scroll
+      btn.classList.add('pressed');
+      handleKbPress(btn);
     });
+    const clearPressed = () => kbEl.querySelectorAll('.pressed').forEach(b => b.classList.remove('pressed'));
+    kbEl.addEventListener('pointerup', clearPressed);
+    kbEl.addEventListener('pointercancel', clearPressed);
+    kbEl.addEventListener('pointerleave', clearPressed);
 
     // Air-mouse (device orientation). Only available in a secure context, so it
     // degrades gracefully to a disabled button over plain HTTP.
     const airBtn = overlay.querySelector('[data-air]');
     if (airBtn) {
-      const supported = 'DeviceOrientationEvent' in window;
+      const supported = 'DeviceMotionEvent' in window;
       if (!window.isSecureContext || !supported) {
         airBtn.disabled = true;
         airBtn.classList.add('dco-disabled');
-        airBtn.title = !supported ? 'No orientation sensor on this device'
+        airBtn.title = !supported ? 'No motion sensor on this device'
                                   : 'Air mouse needs HTTPS — open the https:// URL';
       } else {
         airBtn.addEventListener('click', () => toggleAir(airBtn));
@@ -277,30 +356,47 @@ const ControlMode = (() => {
     wireTrackpad(overlay.querySelector('.dco-trackpad'));
   }
 
-  // ── Air-mouse: tilt the phone to move the cursor ─────────────────
-  const AIR_SENS = 8;
-  let airOn = false, airLast = null;
+  // ── Air-mouse: rotate the phone to move the cursor (gyroscope) ───
+  // Yaw (turning left/right around the vertical axis) → X; pitch (tilting the
+  // phone up/down) → Y, non-inverted; roll/banking is ignored. Orientation-
+  // independent: yaw is the angular velocity projected onto gravity, so it works
+  // whether the phone is held flat or upright. Velocity-based (drift-free).
+  let airOn = false, airLastT = 0;
   function airHandler(e) {
-    if (e.beta == null || e.gamma == null) return;
-    if (airLast) {
-      enqueue({ t: 'move', dx: (e.gamma - airLast.gamma) * AIR_SENS,
-                           dy: (e.beta  - airLast.beta)  * AIR_SENS });
+    const r = e.rotationRate;
+    if (!r) return;
+    const now = e.timeStamp || performance.now();
+    const dt = airLastT ? Math.min((now - airLastT) / 1000, 0.1) : 0;
+    airLastT = now;
+    if (!dt) return;
+    const wx = r.beta || 0, wy = r.gamma || 0, wz = r.alpha || 0; // ω about device X,Y,Z
+    const g = e.accelerationIncludingGravity;
+    let yawRate;
+    if (g && (g.x || g.y || g.z)) {
+      const m = Math.hypot(g.x, g.y, g.z) || 1;
+      yawRate = (wx * g.x + wy * g.y + wz * g.z) / m;            // ω · ĝ  (about vertical)
+    } else {
+      yawRate = wz;
     }
-    airLast = { beta: e.beta, gamma: e.gamma };
+    const pitchRate = wx;                                         // about device left-right axis
+    const s = airSens();
+    const dx = -yawRate   * dt * s * (airInvert('x') ? -1 : 1);
+    const dy = -pitchRate * dt * s * (airInvert('y') ? -1 : 1);  // rotate up → cursor up
+    if (dx || dy) enqueue({ t: 'move', dx, dy });
   }
   async function toggleAir(btn) {
     if (airOn) return stopAir(btn);
-    const DOE = window.DeviceOrientationEvent;
-    if (DOE && typeof DOE.requestPermission === 'function') {
-      try { if (await DOE.requestPermission() !== 'granted') return; } catch { return; }
+    const DME = window.DeviceMotionEvent;
+    if (DME && typeof DME.requestPermission === 'function') {
+      try { if (await DME.requestPermission() !== 'granted') return; } catch { return; }
     }
-    airLast = null; airOn = true;
-    window.addEventListener('deviceorientation', airHandler);
+    airLastT = 0; airOn = true;
+    window.addEventListener('devicemotion', airHandler);
     btn.classList.add('active');
   }
   function stopAir(btn) {
     airOn = false;
-    window.removeEventListener('deviceorientation', airHandler);
+    window.removeEventListener('devicemotion', airHandler);
     const b = btn || (overlay && overlay.querySelector('[data-air]'));
     if (b) b.classList.remove('active');
   }
@@ -313,46 +409,57 @@ const ControlMode = (() => {
 
   // ── Trackpad: touch + mouse-drag relative movement ───────────────
   function wireTrackpad(pad) {
-    const SENS = 1.6;            // pointer speed multiplier
     let touchMode = null;       // 'move' | 'scroll'
     let lastX = 0, lastY = 0, moved = 0, startT = 0;
 
+    // Use targetTouches (fingers that started ON the pad) so a finger on the
+    // keyboard doesn't disturb the pad — letting you type and move at once.
     pad.addEventListener('touchstart', (e) => {
       e.preventDefault();
       startT = Date.now(); moved = 0;
-      if (e.touches.length === 2) {
-        touchMode = 'scroll';
-        lastX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-        lastY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-      } else {
-        touchMode = 'move';
-        lastX = e.touches[0].clientX; lastY = e.touches[0].clientY;
-      }
+      seedTouch(e.targetTouches);
     }, { passive: false });
 
     pad.addEventListener('touchmove', (e) => {
       e.preventDefault();
-      if (touchMode === 'scroll' && e.touches.length >= 2) {
-        const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-        const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-        enqueue({ t: 'wheel', dx: -(cx - lastX), dy: -(cy - lastY) });
+      const tt = e.targetTouches;
+      if (touchMode === 'scroll' && tt.length >= 2) {
+        const cx = (tt[0].clientX + tt[1].clientX) / 2;
+        const cy = (tt[0].clientY + tt[1].clientY) / 2;
+        const s = trackpadSens();
+        enqueue({ t: 'wheel', dx: -(cx - lastX) * s, dy: -(cy - lastY) * s });
         lastX = cx; lastY = cy;
-      } else if (touchMode === 'move') {
-        const t = e.touches[0];
-        const dx = t.clientX - lastX, dy = t.clientY - lastY;
+      } else if (touchMode === 'move' && tt.length >= 1) {
+        const dx = tt[0].clientX - lastX, dy = tt[0].clientY - lastY;
         moved += Math.abs(dx) + Math.abs(dy);
-        enqueue({ t: 'move', dx: dx * SENS, dy: dy * SENS });
-        lastX = t.clientX; lastY = t.clientY;
+        const s = trackpadSens();
+        enqueue({ t: 'move', dx: dx * s, dy: dy * s });
+        lastX = tt[0].clientX; lastY = tt[0].clientY;
       }
     }, { passive: false });
 
     pad.addEventListener('touchend', (e) => {
       e.preventDefault();
-      const quick = Date.now() - startT < 250;
-      if (touchMode === 'move' && moved < 8 && quick) enqueue({ t: 'click', button: 0 });
-      else if (touchMode === 'scroll' && moved < 8 && quick) enqueue({ t: 'click', button: 2 });
-      touchMode = null;
+      if (e.targetTouches.length === 0) {
+        const quick = Date.now() - startT < 250;
+        if (touchMode === 'move' && moved < 8 && quick) enqueue({ t: 'click', button: 0 });
+        else if (touchMode === 'scroll' && moved < 8 && quick) enqueue({ t: 'click', button: 2 });
+        touchMode = null;
+      } else {
+        seedTouch(e.targetTouches); // a finger lifted but others remain — re-seed
+      }
     }, { passive: false });
+
+    function seedTouch(tt) {
+      if (tt.length >= 2) {
+        touchMode = 'scroll';
+        lastX = (tt[0].clientX + tt[1].clientX) / 2;
+        lastY = (tt[0].clientY + tt[1].clientY) / 2;
+      } else if (tt.length === 1) {
+        touchMode = 'move';
+        lastX = tt[0].clientX; lastY = tt[0].clientY;
+      }
+    }
 
     // Desktop: Pointer Lock captures the real mouse + keyboard so input is
     // proxied to the controllee and the controller's own page receives nothing.
@@ -367,7 +474,7 @@ const ControlMode = (() => {
       updatePadHint();
     });
     document.addEventListener('mousemove', (e) => {
-      if (locked) enqueue({ t: 'move', dx: e.movementX * SENS, dy: e.movementY * SENS });
+      if (locked) { const s = trackpadSens(); enqueue({ t: 'move', dx: e.movementX * s, dy: e.movementY * s }); }
     });
     document.addEventListener('mousedown', (e) => {
       if (!locked) return;
@@ -391,14 +498,17 @@ const ControlMode = (() => {
     document.addEventListener('contextmenu', (e) => { if (locked) e.preventDefault(); });
   }
 
-  // Whole-keyboard capture while pointer-locked (desktop). Esc is reserved by
-  // the browser to release the lock, so a real Esc to the controllee is sent
-  // via the on-screen Esc key instead.
+  // Physical-keyboard capture for the whole session — works with or without
+  // pointer lock, so a hardware keyboard drives the controllee (incl. Backspace)
+  // and you can type while moving the mouse. When pointer-locked, Esc is reserved
+  // by the browser to release the lock; otherwise Esc is forwarded to the remote.
   function captureKey(e) {
-    if (!locked) return;
-    if (e.key === 'Escape') return;
+    if (!bound || !overlay || overlay.style.display === 'none') return;
+    const tag = e.target && e.target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target && e.target.isContentEditable)) return;
+    if (e.key === 'Escape' && locked) return;
     e.preventDefault(); e.stopPropagation();
-    const special = ['Enter','Backspace','Tab','Delete','Home','End','PageUp','PageDown',
+    const special = ['Enter','Backspace','Tab','Escape','Delete','Home','End','PageUp','PageDown',
                      'ArrowUp','ArrowDown','ArrowLeft','ArrowRight'];
     if (special.includes(e.key) || ((e.ctrlKey || e.metaKey || e.altKey) && e.key.length === 1)) {
       enqueue({ t: 'key', key: e.key, code: e.code,
