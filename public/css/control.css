@@ -122,6 +122,7 @@
   color: var(--text-primary); box-shadow: var(--shadow);
   font: 400 13px system-ui, sans-serif;
 }
+#de-control-overlay .dco-settings[hidden] { display: none; }
 #de-control-overlay .dcs-row { display: flex; flex-direction: column; gap: 6px; }
 #de-control-overlay .dcs-row input[type=range] { width: 100%; accent-color: var(--accent); }
 #de-control-overlay .dcs-check { display: flex; align-items: center; gap: 8px; cursor: pointer; }
