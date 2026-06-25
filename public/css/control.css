@@ -80,6 +80,8 @@
   color: inherit; font: 500 14px/1 system-ui, sans-serif; text-align: left;
 }
 #de-control-picker .dcp-item:hover { background: var(--bg-hover); border-color: var(--border-focus); }
+#de-control-picker .dcp-server { border-color: var(--accent); background: var(--accent-dim); margin-bottom: 4px; }
+#de-control-picker .dcp-server .dcp-go { color: var(--accent); }
 #de-control-picker .dcp-go { color: var(--text-secondary); font-size: 12px; }
 #de-control-picker .dcp-empty { padding: 22px 16px; text-align: center; color: var(--text-secondary); font: 400 13px system-ui; }
 

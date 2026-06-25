@@ -981,6 +981,139 @@ const StreamView = (function() {
     }
   }
 
+  // ── Phase 10: server (OS-level) control via Apollo "Remote Input" ──────────
+  // Launches Apollo's input-only app — a black, near-zero-bandwidth session that
+  // forwards mouse/keyboard/gamepad straight to the host OS — and resolves a sink
+  // that feeds our own control surface (control-mode.js) into the live Moonlight
+  // input channel (the same getInput() the on-screen keyboard already drives).
+  // Gamepad in + rumble out ride along natively through the iframe's own Gamepad
+  // polling, so there's nothing for us to wire there.
+
+  // Moonlight's LI_MOUSE_BUTTON numbering (limelight-common): the proxy's
+  // StreamMouseButton mirrors these. Our control surface uses DOM button codes
+  // (0=left,1=middle,2=right), mapped here.
+  const SMB = { LEFT: 1, MIDDLE: 2, RIGHT: 3, X1: 4, X2: 5 };
+  function smbFromDom(n) { return n === 1 ? SMB.MIDDLE : n === 2 ? SMB.RIGHT : SMB.LEFT; }
+
+  // The proxy keyboard maps by KeyboardEvent.code, so resolve our key names to a
+  // physical code. Special keys ('Enter','Backspace','ArrowLeft'…) are valid
+  // codes already; letters/digits become 'KeyA'/'Digit1'. Punctuation returns
+  // undefined — those arrive as text() (sendText) instead, never as key events.
+  function keyToCode(key) {
+    if (!key) return undefined;
+    if (key.length === 1) {
+      if (/[a-z]/i.test(key)) return 'Key' + key.toUpperCase();
+      if (/[0-9]/.test(key)) return 'Digit' + key;
+      return undefined;
+    }
+    return key;
+  }
+
+  function makeServerSink(overlay, iframe, hostId, getInput) {
+    const safe = (fn) => { try { const i = getInput(); if (i) fn(i); } catch (e) { /* stream not ready / dropped */ } };
+    const press = (i, n) => { const b = smbFromDom(n); i.sendMouseButton(true, b); i.sendMouseButton(false, b); };
+    return {
+      mode: 'server',
+      move:   (dx, dy) => safe(i => i.sendMouseMove(dx, dy)),
+      scroll: (dx, dy) => safe(i => i.sendAccumulatedScroll(dx, dy)),
+      down:   (n) => safe(i => i.sendMouseButton(true, smbFromDom(n))),
+      up:     (n) => safe(i => i.sendMouseButton(false, smbFromDom(n))),
+      click:  (n) => safe(i => press(i, n)),
+      nav:    (dir) => safe(i => { const b = dir === 'back' ? SMB.X1 : SMB.X2; i.sendMouseButton(true, b); i.sendMouseButton(false, b); }),
+      text:   (str) => safe(i => i.sendText(str)),
+      key:    (key, code, mods) => safe(i => {
+        const init = { key, code: code || keyToCode(key),
+          ctrlKey: !!(mods && mods.ctrl), altKey: !!(mods && mods.alt),
+          shiftKey: !!(mods && mods.shift), metaKey: !!(mods && mods.meta) };
+        i.onKeyDown(new KeyboardEvent('keydown', init));
+        i.onKeyUp(new KeyboardEvent('keyup', init));
+      }),
+      close: () => {
+        try {
+          fetch('/moonlight-proxy/api/host/cancel', {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ host_id: Number(hostId) })
+          }).catch(() => {});
+        } catch (e) {}
+        try { overlay.remove(); } catch (e) {}
+      },
+    };
+  }
+
+  // Returns a Promise<sink|null>. null means it couldn't start (and the error is
+  // shown briefly in the overlay before it self-dismisses).
+  function startServerControl() {
+    return new Promise((resolve) => {
+      if (document.querySelector('.server-input-overlay')) { resolve(null); return; }
+      const overlay = document.createElement('div');
+      overlay.className = 'server-input-overlay';
+      overlay.style.cssText = 'position:fixed; inset:0; z-index:1500; background:#000;';
+      overlay.innerHTML =
+        `<div class="si-loading" style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#ccc; gap:14px; font:600 1rem system-ui;">
+           <div class="stream-spinner"></div>
+           <div>Connecting to this computer…</div>
+         </div>
+         <div class="si-video" style="position:absolute; inset:0;"></div>`;
+      document.body.appendChild(overlay);
+
+      let settled = false;
+      const fail = (msg) => {
+        if (settled) return; settled = true;
+        const l = overlay.querySelector('.si-loading');
+        if (l) l.innerHTML = `<div style="color:#ff6b6b; max-width:340px; text-align:center; padding:0 20px;">${msg}</div>`;
+        setTimeout(() => { try { overlay.remove(); } catch (e) {} }, 2800);
+        resolve(null);
+      };
+
+      fetch('/stream/webrtc-config').then(r => r.json()).then(config => {
+        const hostId = config.hostId || 1;
+        return fetch(`/moonlight-proxy/api/apps?host_id=${hostId}`, { credentials: 'same-origin' })
+          .then(r => r.ok ? r.json() : r.text().then(t => Promise.reject(new Error('proxy apps HTTP ' + r.status))))
+          .then(d => ({ hostId, apps: d.apps || [] }));
+      }).then(({ hostId, apps }) => {
+        const match = apps.find(a => /remote\s*input/i.test(a.title || ''));
+        if (!match) { fail('Apollo “Remote Input” app not found. Enable “Input Only” in Apollo’s Input settings so the Remote Input app appears.'); return; }
+
+        const proxyUrl = "/moonlight-proxy/stream.html?hostId=" + hostId + "&appId=" + match.app_id + "&" + getRtcQueryParams();
+        const iframe = document.createElement('iframe');
+        iframe.src = proxyUrl;
+        iframe.style = "width:100%; height:100%; border:none; outline:none; background:#000;";
+        iframe.allow = "gamepad; microphone; autoplay; fullscreen; clipboard-read; clipboard-write";
+        overlay.querySelector('.si-video').appendChild(iframe);
+
+        iframe.onload = () => {
+          iframe.focus();
+          // Wait for the Moonlight input channel to come up before resolving.
+          let tries = 0;
+          const wait = setInterval(() => {
+            let input = null;
+            try {
+              const app = iframe.contentWindow && iframe.contentWindow.app;
+              const stream = app && app.getStream && app.getStream();
+              input = stream && stream.getInput && stream.getInput();
+            } catch (e) { /* cross-frame not ready */ }
+            if (input) {
+              clearInterval(wait);
+              if (settled) return; settled = true;
+              const l = overlay.querySelector('.si-loading'); if (l) l.style.display = 'none';
+              resolve(makeServerSink(overlay, iframe, hostId, () => {
+                try {
+                  const app = iframe.contentWindow && iframe.contentWindow.app;
+                  const stream = app && app.getStream && app.getStream();
+                  return stream && stream.getInput && stream.getInput();
+                } catch (e) { return null; }
+              }));
+            } else if (++tries > 160) { // ~40s
+              clearInterval(wait);
+              fail('Stream input channel didn’t start. Is the host paired and reachable?');
+            }
+          }, 250);
+        };
+      }).catch(e => fail('Could not reach host: ' + ((e && e.message) || e)));
+    });
+  }
+
   function hide() {
     if (container) {
       container.innerHTML = '';
@@ -994,6 +1127,7 @@ const StreamView = (function() {
   return {
     render, hide, launchApp, setFilter, setSort,
     isLocal: checkIsLocal,
+    startServerControl,
     fetchApps,
     getSystemApps: () => cachedSystemApps,
     getApolloApps: () => cachedApolloApps,

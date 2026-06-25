@@ -16,6 +16,8 @@ const ControlMode = (() => {
   let reconnecting = false;    // dropped mid-session, trying to restore
   let rebindTries = 0;
   let locked = false;          // pointer lock currently held (desktop capture)
+  let serverMode = false;      // controlling the server OS via Apollo Remote Input
+  let serverSink = null;       // input sink into the Apollo session (server mode)
   let kbLayer = 'alpha';       // on-screen keyboard layer: 'alpha' | 'symbol'
   let peerName = '';
   let peerDeviceId = null;     // stable id used to re-find the controllee after a reconnect
@@ -47,8 +49,26 @@ const ControlMode = (() => {
   function flush() {
     rafId = 0;
     if (!queue.length) return;
-    WS.emit('control:input', { events: queue });
-    queue = [];
+    const evs = queue; queue = [];
+    if (serverMode) { if (serverSink) sendToServer(evs); return; }
+    WS.emit('control:input', { events: evs });
+  }
+
+  // Server mode: translate our input events into the Apollo Remote Input sink
+  // (stream.js) instead of relaying over WS to a browser controllee.
+  function sendToServer(evs) {
+    for (const ev of evs) {
+      switch (ev.t) {
+        case 'move':  serverSink.move(ev.dx, ev.dy); break;
+        case 'wheel': serverSink.scroll(ev.dx, ev.dy); break;
+        case 'down':  serverSink.down(ev.button); break;
+        case 'up':    serverSink.up(ev.button); break;
+        case 'click': serverSink.click(ev.button); break;
+        case 'nav':   serverSink.nav(ev.dir); break;
+        case 'key':   serverSink.key(ev.key, ev.code, ev.mods); break;
+        case 'text':  serverSink.text(ev.str); break;
+      }
+    }
   }
 
   // ── Roster / identity ────────────────────────────────────────────
@@ -76,12 +96,12 @@ const ControlMode = (() => {
 
   // ── Reconnection handling ────────────────────────────────────────
   WS.onClose(() => {
-    if (!sessionActive) return;
+    if (!sessionActive || serverMode) return;  // server mode has no WS binding to restore
     bound = false;
     beginReconnect();          // our own socket dropped; rebind once it's back
   });
   WS.onOpen(() => {
-    if (sessionActive && reconnecting) { rebindTries = 0; attemptRebind(); }
+    if (sessionActive && !serverMode && reconnecting) { rebindTries = 0; attemptRebind(); }
   });
 
   function beginReconnect() {
@@ -108,6 +128,10 @@ const ControlMode = (() => {
 
   function endSession() {
     sessionActive = false; reconnecting = false; rebindTries = 0; bound = false;
+    if (serverMode) {
+      try { if (serverSink) serverSink.close(); } catch (e) {}
+      serverSink = null; serverMode = false;
+    }
     closeOverlay();
   }
 
@@ -140,10 +164,25 @@ const ControlMode = (() => {
     const empty = picker.querySelector('.dcp-empty');
     const targets = roster.filter(r => r.connId !== selfConnId && !r.controlledBy && !r.controlling);
     list.innerHTML = '';
+
+    // Pinned entry: control the server's own OS via Apollo Remote Input. Needs
+    // the streaming subsystem (App Mode) to be present on this client.
+    const serverAvailable = (typeof StreamView !== 'undefined' && StreamView.startServerControl);
+    if (serverAvailable) {
+      const sBtn = document.createElement('button');
+      sBtn.className = 'dcp-item dcp-server';
+      sBtn.type = 'button';
+      sBtn.innerHTML = `<span class="dcp-name">🖥 This Computer (server)</span><span class="dcp-go">Control →</span>`;
+      sBtn.addEventListener('click', bindToServer);
+      list.appendChild(sBtn);
+    }
+
     empty.textContent = !serverSupportsControl
       ? 'Remote control isn’t active on the server — restart the DarkExplorer server to load it.'
       : 'No other devices are connected. Open DarkExplorer on another device pointed at this same server.';
-    empty.style.display = targets.length ? 'none' : 'block';
+    // With the server entry present there's always something actionable, so only
+    // show the "no devices" hint when there are neither.
+    empty.style.display = (targets.length || serverAvailable) ? 'none' : 'block';
     for (const t of targets) {
       const btn = document.createElement('button');
       btn.className = 'dcp-item';
@@ -169,6 +208,25 @@ const ControlMode = (() => {
       alert('Could not start control: ' + e.message);
       refreshRoster().then(renderPicker);
     }
+  }
+
+  // Control the server's OS: launch Apollo's input-only "Remote Input" session
+  // and drive it with our control surface instead of relaying over WS. There's
+  // no WS binding here — input flows straight into the stream's input channel.
+  async function bindToServer() {
+    if (typeof StreamView === 'undefined' || !StreamView.startServerControl) {
+      alert('Server control needs App Mode (streaming) available on this device.');
+      return;
+    }
+    hidePicker();
+    const sink = await StreamView.startServerControl();
+    if (!sink) { showPicker(); return; }   // failed → back to the device list
+    serverSink = sink;
+    serverMode = true;
+    bound = true; sessionActive = true; reconnecting = false; rebindTries = 0;
+    peerName = 'This Computer';
+    openOverlay();
+    updateOverlayState();
   }
 
   // ── Capture overlay ──────────────────────────────────────────────
@@ -555,7 +613,7 @@ const ControlMode = (() => {
     if (overlay) overlay.querySelectorAll('.term-key.active').forEach(b => b.classList.remove('active'));
   }
   function exit() {
-    WS.send('control:unbind', {}).catch(() => {});
+    if (!serverMode) WS.send('control:unbind', {}).catch(() => {}); // no WS binding in server mode
     endSession();
   }
 
