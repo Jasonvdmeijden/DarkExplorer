@@ -7,6 +7,8 @@ const WS = (() => {
   let isOpen = false;
   const TIMEOUT = 30000;
   const listeners = {}; // type -> [fn]
+  const statusSubs = { open: [], close: [] }; // connection lifecycle hooks
+  function fireStatus(kind) { statusSubs[kind].forEach(fn => { try { fn(); } catch {} }); }
 
   function connect() {
     const token = localStorage.getItem('de_token') || '';
@@ -19,6 +21,7 @@ const WS = (() => {
       console.log('[ws] connected');
       sendQueue.forEach(msg => socket.send(msg));
       sendQueue = [];
+      fireStatus('open');
     };
 
     socket.onmessage = (e) => {
@@ -46,6 +49,7 @@ const WS = (() => {
         return;
       }
       console.log('[ws] disconnected — reconnecting in 2s');
+      fireStatus('close');
       setTimeout(connect, 2000);
     };
 
@@ -87,6 +91,10 @@ const WS = (() => {
     }
   }
 
+  function onOpen(fn)  { statusSubs.open.push(fn); }
+  function onClose(fn) { statusSubs.close.push(fn); }
+  function connected() { return isOpen; }
+
   connect();
-  return { send, on, off, emit };
+  return { send, on, off, emit, onOpen, onClose, connected };
 })();

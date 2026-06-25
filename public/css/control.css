@@ -1,0 +1,158 @@
+/* Remote control — virtual cursor, controlled banner, controller surface */
+
+/* ── Controllee: fake cursor ── */
+#de-vcursor {
+  position: fixed;
+  left: 0; top: 0;
+  width: 22px; height: 22px;
+  z-index: 2147483646;
+  pointer-events: none;
+  display: none;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,.5));
+  will-change: transform;
+}
+
+/* ── Controllee: "being controlled" banner ── */
+#de-controlled-banner {
+  position: fixed;
+  top: 8px; left: 50%;
+  transform: translateX(-50%);
+  z-index: 2147483646;
+  display: none;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px 6px 12px;
+  border-radius: 999px;
+  background: rgba(20,20,28,.9);
+  border: 1px solid rgba(255,255,255,.15);
+  color: #fff;
+  font: 500 13px/1 system-ui, sans-serif;
+  box-shadow: 0 6px 20px rgba(0,0,0,.4);
+  backdrop-filter: blur(8px);
+}
+#de-controlled-banner .dcb-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #ff4d4f;
+  box-shadow: 0 0 0 0 rgba(255,77,79,.6);
+  animation: dcb-pulse 1.6s infinite;
+}
+@keyframes dcb-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(255,77,79,.6); }
+  70%  { box-shadow: 0 0 0 8px rgba(255,77,79,0); }
+  100% { box-shadow: 0 0 0 0 rgba(255,77,79,0); }
+}
+#de-controlled-banner .dcb-stop {
+  border: 0; cursor: pointer;
+  padding: 4px 10px; border-radius: 999px;
+  background: #ff4d4f; color: #fff; font: 600 12px/1 system-ui, sans-serif;
+}
+
+/* ── Controller: device picker ── */
+#de-control-picker {
+  position: fixed; inset: 0;
+  z-index: 2147483645;
+  display: none;
+  align-items: center; justify-content: center;
+  background: rgba(0,0,0,.55);
+  backdrop-filter: blur(4px);
+}
+#de-control-picker .dcp-card {
+  width: min(420px, 92vw);
+  max-height: 70vh; overflow: auto;
+  background: var(--bg-surface, #1a1a24);
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 14px;
+  color: var(--text, #eee);
+  box-shadow: 0 20px 60px rgba(0,0,0,.5);
+}
+#de-control-picker .dcp-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px; font: 600 15px/1 system-ui, sans-serif;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+#de-control-picker .dcp-close {
+  background: none; border: 0; color: inherit; font-size: 22px; cursor: pointer; line-height: 1;
+}
+#de-control-picker .dcp-list { padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+#de-control-picker .dcp-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px; border-radius: 10px; cursor: pointer;
+  background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+  color: inherit; font: 500 14px/1 system-ui, sans-serif; text-align: left;
+}
+#de-control-picker .dcp-item:hover { background: rgba(255,255,255,.09); }
+#de-control-picker .dcp-go { opacity: .6; font-size: 12px; }
+#de-control-picker .dcp-empty { padding: 22px 16px; text-align: center; opacity: .6; font: 400 13px system-ui; }
+
+/* ── Controller: capture overlay ── */
+#de-control-overlay {
+  position: fixed; inset: 0;
+  z-index: 2147483640;
+  display: none;
+  flex-direction: column;
+  background: var(--bg, #0e0e14);
+  color: var(--text, #eee);
+  touch-action: none;
+  user-select: none; -webkit-user-select: none;
+}
+#de-control-overlay .dco-topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255,255,255,.1);
+  background: rgba(255,255,255,.03);
+}
+#de-control-overlay .dco-title { font: 600 14px/1 system-ui, sans-serif; }
+#de-control-overlay.dco-reconnecting .dco-title { color: #ffb454; animation: dcb-pulse-text 1.2s infinite; }
+#de-control-overlay.dco-reconnecting .dco-trackpad { opacity: .4; }
+@keyframes dcb-pulse-text { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
+#de-control-overlay .dco-exit {
+  border: 0; cursor: pointer; padding: 8px 16px; border-radius: 8px;
+  background: #ff4d4f; color: #fff; font: 600 13px/1 system-ui, sans-serif;
+}
+#de-control-overlay .dco-trackpad {
+  flex: 1; min-height: 120px; margin: 12px; border-radius: 14px;
+  background:
+    repeating-linear-gradient(45deg, rgba(255,255,255,.02) 0 10px, rgba(255,255,255,.04) 10px 20px);
+  border: 1px dashed rgba(255,255,255,.15);
+  display: flex; align-items: center; justify-content: center;
+  cursor: crosshair; touch-action: none;
+}
+#de-control-overlay .dco-hint { opacity: .35; font: 400 13px system-ui; pointer-events: none; }
+#de-control-overlay .dco-trackpad.dco-capturing {
+  border-style: solid;
+  border-color: var(--accent, #4a7dff);
+  background: rgba(74,125,255,.06);
+  cursor: none;
+}
+#de-control-overlay .dco-buttons {
+  display: flex; gap: 8px; padding: 0 12px 10px;
+}
+#de-control-overlay .dco-btn {
+  flex: 1; padding: 14px 8px; border-radius: 10px; cursor: pointer;
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1);
+  color: inherit; font: 600 13px/1 system-ui, sans-serif;
+}
+#de-control-overlay .dco-btn:active { background: rgba(255,255,255,.16); }
+#de-control-overlay .dco-btn.dco-disabled { opacity: .4; cursor: not-allowed; }
+#de-control-overlay .dco-btn.dco-air.active { background: var(--accent, #4a7dff); color: #fff; }
+/* Always-visible on-screen keyboard */
+#de-control-overlay .dco-keys {
+  padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+  border-top: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.02);
+}
+#de-control-overlay .dco-kbd { display: flex; flex-direction: column; gap: 5px; }
+#de-control-overlay .dco-krow { display: flex; gap: 5px; justify-content: center; }
+#de-control-overlay .dco-kbd .term-key {
+  flex: 1; min-width: 0;
+  padding: 11px 0; border-radius: 7px; cursor: pointer;
+  background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12);
+  color: inherit; font: 500 15px/1 system-ui, sans-serif;
+  text-align: center; -webkit-user-select: none; user-select: none;
+}
+#de-control-overlay .dco-kbd .term-key:active { background: rgba(255,255,255,.2); }
+#de-control-overlay .term-key.active { background: var(--accent, #4a7dff); color: #fff; }
+@media (max-width: 480px) {
+  #de-control-overlay .dco-kbd .term-key { padding: 9px 0; font-size: 14px; }
+  #de-control-overlay .dco-krow { gap: 4px; }
+}

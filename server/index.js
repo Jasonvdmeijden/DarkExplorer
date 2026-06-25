@@ -23,6 +23,7 @@ const sysStats = require('./stats');
 const shares   = require('./shares');
 const security = require('./security');
 const robot    = require('./robot');
+const control  = require('./control');
 const { createProxyMiddleware, fixRequestBody } = require('http-proxy-middleware');
 
 if (process.argv.includes('--gen-otp')) {
@@ -496,13 +497,14 @@ app.get('/share/:token', async (req, res) => {
 // --- HTTP + WS server ---
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ noServer: true });
-server.on('upgrade', (req, socket, head) => {
+function handleUpgrade(req, socket, head) {
   if (req.url && req.url.startsWith('/moonlight-proxy')) {
     moonlightProxy.upgrade(req, socket, head);
   } else {
     wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
   }
-});
+}
+server.on('upgrade', handleUpgrade);
 
 function broadcast(msg, exceptWs) {
   wss.clients.forEach(c => {
@@ -520,6 +522,10 @@ wss.on('connection', (ws, req) => {
 
   if (!device) { ws.close(4001, 'Unauthorised'); return; }
   ws.deviceId = device.id;
+  ws.connId   = uuidv4();
+  // Friendly name for the control roster: client-supplied label wins, else the enrolled device label.
+  ws.controlName = (params.get('name') || device.label || 'Device').slice(0, 60);
+  control.register(ws);
 
   try {
     const db = require('./db');
@@ -544,6 +550,7 @@ wss.on('connection', (ws, req) => {
 
   ws.on('close', () => {
     for (const [sid] of ws._termSessions || []) term.destroy(sid);
+    control.unregister(ws);
   });
 });
 
@@ -777,6 +784,13 @@ async function handle(type, payload, reply, ws, device) {
     // --- stream ---
     case 'stream:input': robot.handleInput(payload); break;
 
+    // --- remote control (controller <-> controllee relay) ---
+    case 'control:hello':  control.setName(ws, payload.name); reply({ ok: true, connId: ws.connId }); break;
+    case 'control:list':   reply({ self: ws.connId, roster: control.rosterList() }); break;
+    case 'control:bind':   { const r = control.bind(ws, payload.targetConnId); reply(r, r.ok ? null : r.error); break; }
+    case 'control:unbind': control.unbindAny(ws, 'user'); reply({ ok: true }); break;
+    case 'control:input':  control.relayInput(ws, payload); break; // fire-and-forget, no reply
+
     // --- workspace state ---
     case 'state:set': {
       const { key, value } = payload;
@@ -812,3 +826,20 @@ server.listen(PORT, () => {
     broadcastAll(JSON.stringify({ type: 'stats:push', data }));
   }, 3000);
 });
+
+// Optional HTTPS listener — required for secure-context-only browser features
+// (e.g. the remote-control air-mouse / device-orientation sensors) when the app
+// is reached off-localhost. Shares the same Express app and WS upgrade handler.
+if (config.tls && config.tls.enabled !== false) {
+  const httpsPort = config.tls.port || 3443;
+  require('./tls').loadOrCreate(config).then((creds) => {
+    if (!creds) return;
+    const secure = require('https').createServer({ key: creds.key, cert: creds.cert }, app);
+    secure.on('upgrade', handleUpgrade);
+    secure.on('error', (e) => console.error('[tls] https server error:', e.message));
+    secure.listen(httpsPort, () => {
+      console.log(`DarkExplorer HTTPS on https://localhost:${httpsPort}` +
+        (creds.selfSigned ? '  (self-signed — accept the browser warning once to unlock sensors)' : ''));
+    });
+  }).catch((e) => console.error('[tls] init failed:', e.message));
+}

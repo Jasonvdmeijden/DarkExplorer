@@ -24,6 +24,15 @@ const DEFAULTS = {
     rowHeight: 200,
     maxWidth: 400
   },
+  // Optional HTTPS listener. Needed for secure-context-only browser features
+  // (e.g. the remote-control air-mouse) when not on localhost. certPath/keyPath
+  // may point at a real cert; if null a self-signed pair is generated.
+  tls: {
+    enabled: true,
+    port: 3443,
+    certPath: null,
+    keyPath: null
+  },
   theme: 'dark'
 };
 
