@@ -308,7 +308,10 @@ const ControlMode = (() => {
            <button class="dcm-btn" data-mcmd="forward" title="Forward 10s">10⟳</button>
            <button class="dcm-btn" data-mcmd="next" title="Next">⏭</button>
          </div>
-         <div class="dcm-vol-row"><span>🔊</span><input type="range" class="dcm-vol" min="0" max="1" step="0.05" value="1"></div>
+         <div class="dcm-vol-row">
+           <button class="dcm-mute-btn" data-mcmd="mute" type="button" title="Mute / unmute">🔊</button>
+           <input type="range" class="dcm-vol" min="0" max="1" step="0.05" value="1">
+         </div>
        </div>
        <div class="dco-keys"><div class="dco-kbd"></div></div>`;
     document.body.appendChild(overlay);
@@ -433,6 +436,16 @@ const ControlMode = (() => {
     m.querySelector('.dcm-play').textContent = mediaPlaying ? '⏸' : '▶';
     const fsBtn = m.querySelector('.dcm-fs-btn');
     if (fsBtn) fsBtn.classList.toggle('active', !!(status && status.fullscreen));
+    const muteBtn = m.querySelector('.dcm-mute-btn');
+    if (muteBtn) {
+      const muted = !!(status && status.muted);
+      muteBtn.textContent = muted ? '🔇' : '🔊';
+      muteBtn.classList.toggle('active', muted);
+    }
+    const vol = m.querySelector('.dcm-vol');
+    if (vol && status && typeof status.volume === 'number' && document.activeElement !== vol) {
+      vol.value = status.volume;
+    }
     if (status && status.duration && !mediaSeeking) {
       m.querySelector('.dcm-scrub').value = (status.currentTime / status.duration) * 100;
       m.querySelector('.dcm-cur').textContent = fmtTime(status.currentTime);

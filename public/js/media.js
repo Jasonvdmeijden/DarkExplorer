@@ -25,7 +25,6 @@ const NetflixMedia = (() => {
             <input type="text" id="netflix-search" placeholder="Titles, genres, episodes…" spellcheck="false">
           </div>
           <div class="netflix-header-actions">
-            <button id="netflix-btn-remote" class="netflix-btn secondary">📱 <span class="label">Remote Mode</span></button>
             <button id="netflix-btn-refresh" class="netflix-btn secondary">↻ <span class="label">Rescan</span></button>
           </div>
         </div>
@@ -36,7 +35,6 @@ const NetflixMedia = (() => {
     `;
 
     // Bind header actions
-    container.querySelector('#netflix-btn-remote').addEventListener('click', toggleRemoteMode);
     container.querySelector('#netflix-btn-refresh').addEventListener('click', () => render(container, pathVal));
     container.querySelector('#netflix-search').addEventListener('input', debounce(filterCatalog, 300));
 
@@ -1232,108 +1230,6 @@ const NetflixMedia = (() => {
         const playBtn = document.getElementById('netflix-player-play');
         if (playBtn) playBtn.click();
       }
-    }
-  }
-
-  // ── PHONE REMOTE MODE INTERFACE ──
-  let isRemoteMode = false;
-
-  function toggleRemoteMode() {
-    isRemoteMode = !isRemoteMode;
-    const body = hostEl.querySelector('#netflix-catalog-body');
-    const search = hostEl.querySelector('.netflix-search-wrap');
-    const remoteBtn = hostEl.querySelector('#netflix-btn-remote');
-
-    if (isRemoteMode) {
-      remoteBtn.innerHTML = '📺 <span class="label">Browse Mode</span>';
-      remoteBtn.classList.add('active');
-      search.style.display = 'none';
-
-      body.innerHTML = `
-        <div class="netflix-remote-panel">
-          <div class="remote-title-info">
-            <h2 id="remote-now-playing">No Media Playing</h2>
-            <span id="remote-playlist-name">—</span>
-          </div>
-
-          <div class="remote-scrubber-wrap">
-            <input type="range" id="remote-scrubber" min="0" max="100" value="0" disabled>
-            <div class="remote-time-row">
-              <span id="remote-time-cur">00:00</span>
-              <span id="remote-time-tot">00:00</span>
-            </div>
-          </div>
-
-          <div class="remote-keypad">
-            <button class="remote-btn control-prev" title="Previous Episode">⏮</button>
-            <button class="remote-btn control-rewind" title="Rewind 10s">⟲ 10</button>
-            <button class="remote-btn control-play active" id="remote-play-toggle">▶</button>
-            <button class="remote-btn control-forward" title="Forward 10s">10 ⟳</button>
-            <button class="remote-btn control-next" title="Next Episode">⏭</button>
-          </div>
-
-          <div class="remote-volume-row">
-            <span>Volume</span>
-            <input type="range" id="remote-volume" min="0" max="1" step="0.1" value="1">
-          </div>
-
-          <div style="text-align:center;margin-top:2rem">
-            <button class="netflix-btn danger" id="remote-btn-close-tv">Exit Playback</button>
-          </div>
-        </div>
-      `;
-
-      // Connect remote triggers
-      const playToggle = body.querySelector('#remote-play-toggle');
-      const progress = body.querySelector('#remote-scrubber');
-      const volume = body.querySelector('#remote-volume');
-
-      const sendRemoteCmd = (command, value = null) => {
-        State.set('mediaCommand', {
-          command,
-          value,
-          timestamp: Date.now()
-        });
-      };
-
-      playToggle.addEventListener('click', () => {
-        const isPlaying = playToggle.textContent === '⏸';
-        sendRemoteCmd(isPlaying ? 'pause' : 'play');
-      });
-
-      body.querySelector('.control-rewind').addEventListener('click', () => sendRemoteCmd('rewind'));
-      body.querySelector('.control-forward').addEventListener('click', () => sendRemoteCmd('forward'));
-      body.querySelector('.control-prev').addEventListener('click', () => sendRemoteCmd('prev'));
-      body.querySelector('.control-next').addEventListener('click', () => sendRemoteCmd('next'));
-      body.querySelector('#remote-btn-close-tv').addEventListener('click', () => sendRemoteCmd('close'));
-
-      volume.addEventListener('input', () => {
-        sendRemoteCmd('volume', parseFloat(volume.value));
-      });
-
-      // Enable scrubber drag seeking
-      progress.removeAttribute('disabled');
-      progress.addEventListener('input', () => {
-        sendRemoteCmd('seek', parseInt(progress.value, 10));
-      });
-
-      // Listen to status updates sent from the playback client
-      State.onChange('mediaStatus', (status) => {
-        if (!status) return;
-        body.querySelector('#remote-now-playing').textContent = status.title || 'No Media Playing';
-        playToggle.textContent = status.playing ? '⏸' : '▶';
-        if (status.duration) {
-          progress.value = (status.currentTime / status.duration) * 100;
-          body.querySelector('#remote-time-cur').textContent = formatTime(status.currentTime);
-          body.querySelector('#remote-time-tot').textContent = formatTime(status.duration);
-        }
-      });
-
-    } else {
-      remoteBtn.innerHTML = '📱 <span class="label">Remote Mode</span>';
-      remoteBtn.classList.remove('active');
-      search.style.display = '';
-      buildCatalogUI();
     }
   }
 

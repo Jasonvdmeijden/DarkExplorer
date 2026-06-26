@@ -332,6 +332,18 @@ body.glass-effect .netflix-header {
   width: 90%;
   box-sizing: border-box;
 }
+/* Match preview-modal / props-dialog: explicit centering is the only method
+   that survives across browsers (iOS Safari in particular) once the dialog is
+   in the top layer. The mobile @media block below overrides this back to
+   full-screen on phones. */
+.netflix-modal[open] {
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  margin: 0;
+}
 
 .netflix-modal-wrap {
   background: var(--bg-panel);

@@ -217,6 +217,13 @@
 #de-control-overlay .dcm-btn:active { background: var(--bg-active); transform: scale(.95); }
 #de-control-overlay .dcm-play { background: var(--accent); color: var(--text-inverse); border-color: var(--accent); }
 #de-control-overlay .dcm-vol-row { display: flex; align-items: center; gap: 8px; }
+#de-control-overlay .dcm-mute-btn {
+  flex: 0 0 auto; padding: 6px 10px; border-radius: var(--radius-sm); cursor: pointer;
+  background: var(--bg-surface); border: 1px solid var(--border);
+  color: var(--text-primary); font: 600 14px/1 system-ui, sans-serif;
+}
+#de-control-overlay .dcm-mute-btn:active { background: var(--bg-active); transform: scale(.95); }
+#de-control-overlay .dcm-mute-btn.active { background: var(--accent); color: var(--text-inverse); border-color: var(--accent); }
 
 /* Always-visible on-screen keyboard */
 #de-control-overlay .dco-keys {

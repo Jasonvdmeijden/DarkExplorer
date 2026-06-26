@@ -2,10 +2,59 @@ const fs = require('fs');
 const fsp = require('fs/promises');
 const path = require('path');
 const crypto = require('crypto');
-const { execFile } = require('child_process');
+const { execFile, execFileSync } = require('child_process');
+const cfg = require('./config');
 
 const CACHE_DIR = path.join(__dirname, '..', 'data', 'thumbcache');
 if (!fs.existsSync(CACHE_DIR)) fs.mkdirSync(CACHE_DIR, { recursive: true });
+
+// ── Network-drive guard ──────────────────────────────────────────────
+// Generating thumbnails/preview-clips for files on a mapped network drive
+// reads the whole video (or at least non-trivial chunks for ffprobe + frame
+// extraction) over SMB, which can saturate the LAN and stall the rest of the
+// server. We detect Windows network drives once at startup and refuse to
+// thumb anything on them. A manual prefix list in config (`thumbnails.skipPaths`)
+// extends this for non-Windows mounts or specific UNC paths.
+const NETWORK_DRIVES = (() => {
+  if (process.platform !== 'win32' || cfg.thumbnails.skipNetworkDrives === false) return [];
+  // wmic is deprecated but still ships on Windows 10/11 and is the cheapest probe.
+  // We also pull ProviderName via PowerShell: mounts that show up as Fixed (Dokan,
+  // rclone, Mountain Duck, iSCSI etc.) often still have a non-null ProviderName.
+  const found = new Set();
+  try {
+    const out = execFileSync('wmic', ['logicaldisk', 'get', 'DeviceID,DriveType'],
+                             { encoding: 'utf8', timeout: 3000, stdio: ['ignore', 'pipe', 'ignore'] });
+    for (const line of out.split('\n')) {
+      const m = line.match(/([A-Za-z]):\s+(\d+)/);
+      if (m && m[2] === '4') found.add(m[1].toLowerCase() + ':');
+    }
+  } catch {}
+  try {
+    const ps = execFileSync('powershell.exe',
+      ['-NoProfile', '-Command',
+       "Get-CimInstance Win32_LogicalDisk | Where-Object { $_.DriveType -eq 4 -or $_.ProviderName } | ForEach-Object { \"$($_.DeviceID) $($_.DriveType) $($_.ProviderName)\" }"],
+      { encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'] });
+    for (const line of ps.split('\n')) {
+      const m = line.match(/^([A-Za-z]):/);
+      if (m) found.add(m[1].toLowerCase() + ':');
+    }
+  } catch {}
+  const drives = [...found];
+  if (drives.length) console.log(`[thumbs] network drives auto-detected, thumbnails disabled: ${drives.join(' ')}`);
+  else console.log('[thumbs] no network drives auto-detected; add prefixes to config.thumbnails.skipPaths if needed');
+  return drives;
+})();
+const SKIP_PREFIXES = (cfg.thumbnails.skipPaths || []).map(p => String(p).toLowerCase());
+
+function _isOnBlockedPath(filePath) {
+  if (!filePath) return false;
+  const lower = filePath.toLowerCase();
+  // UNC paths (\\server\share) always count as network
+  if (lower.startsWith('\\\\') || lower.startsWith('//')) return true;
+  for (const d of NETWORK_DRIVES) if (lower.startsWith(d)) return true;
+  for (const p of SKIP_PREFIXES)  if (lower.startsWith(p)) return true;
+  return false;
+}
 
 let sharp, ffmpeg, createCanvas, heicConvert;
 
@@ -55,6 +104,7 @@ function cachePath(key) {
 }
 
 async function get(filePath, targetWidth = 300) {
+  if (_isOnBlockedPath(filePath)) return null;
   try {
     const stat = await fsp.stat(filePath);
     const key  = cacheKey(filePath, stat.mtimeMs, targetWidth);
@@ -90,6 +140,7 @@ async function get(filePath, targetWidth = 300) {
 // On-demand preview clip (5s, looping) — only called when the client actually
 // hovers/taps a video thumbnail, not for every thumbnail rendered.
 async function getPreviewClip(filePath, targetWidth = 400) {
+  if (_isOnBlockedPath(filePath)) return null;
   try {
     const stat = await fsp.stat(filePath);
     const ext  = path.extname(filePath).toLowerCase();
@@ -454,6 +505,7 @@ async function getViewableImage(filePath) {
   const ext = path.extname(filePath).toLowerCase();
   if (!CONVERT_EXTS.has(ext)) return filePath;
   if (!sharp) return null;
+  if (_isOnBlockedPath(filePath)) return null;
   try {
     const stat = await fsp.stat(filePath);
     const key  = cacheKey(filePath, stat.mtimeMs, 'preview1800q75');

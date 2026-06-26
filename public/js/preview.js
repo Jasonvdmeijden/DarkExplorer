@@ -232,6 +232,88 @@ const Preview = (() => {
     nextBtn.style.display = 'none';
   }
 
+  // ── Resume / continue-watching ──
+  // Backed by the existing /media-progress endpoint (also used by media.js).
+  // Persists position periodically; clears it once the video finishes; on
+  // re-open of a partially-watched video, prompts continue vs restart.
+  function _fmtTime(s) {
+    if (!isFinite(s) || s < 0) s = 0;
+    const total = Math.floor(s);
+    const h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), ss = total % 60;
+    const mm = String(m).padStart(2, '0'), sss = String(ss).padStart(2, '0');
+    return h > 0 ? `${h}:${mm}:${sss}` : `${m}:${sss}`;
+  }
+  function _fetchVideoProgress(path) {
+    const token = localStorage.getItem('de_token') || '';
+    return fetch(`/media-progress?token=${token}`)
+      .then(r => r.json())
+      .then(rows => rows.find(r => r.path === path) || null)
+      .catch(() => null);
+  }
+  function _saveVideoProgress(path, currentTime, duration) {
+    if (!duration || !currentTime) return;
+    const progress_pct = (currentTime / duration) * 100;
+    const token = localStorage.getItem('de_token') || '';
+    fetch(`/media-progress?token=${token}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path, progress_pct, current_time: currentTime, duration })
+    }).catch(() => {});
+  }
+  function _deleteVideoProgress(path) {
+    const token = localStorage.getItem('de_token') || '';
+    fetch(`/media-progress?token=${token}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path })
+    }).catch(() => {});
+  }
+  function _setupResume(videoEl, item) {
+    // Periodic save (every 5s while playing)
+    let lastSave = 0;
+    videoEl.addEventListener('timeupdate', () => {
+      const now = performance.now();
+      if (now - lastSave < 5000) return;
+      lastSave = now;
+      if (videoEl.duration && videoEl.currentTime > 5) {
+        _saveVideoProgress(item.path, videoEl.currentTime, videoEl.duration);
+      }
+    });
+    videoEl.addEventListener('ended', () => _deleteVideoProgress(item.path));
+    // Resume prompt
+    _fetchVideoProgress(item.path).then(row => {
+      if (!row || !row.current_time) return;
+      const showPrompt = () => {
+        const t = row.current_time;
+        const dur = videoEl.duration || row.duration || 0;
+        if (t < 5) return;                  // barely started
+        if (dur && t > dur - 30) return;    // essentially finished
+        const host = videoEl.parentNode;
+        if (!host || host.querySelector('.preview-resume-prompt')) return;
+        const prompt = document.createElement('div');
+        prompt.className = 'preview-resume-prompt';
+        prompt.innerHTML =
+          `<div class="pvr-card">
+             <div class="pvr-text">Resume from <strong>${_fmtTime(t)}</strong>?</div>
+             <div class="pvr-actions">
+               <button class="pvr-btn pvr-continue" type="button">Continue</button>
+               <button class="pvr-btn pvr-restart" type="button">Start over</button>
+             </div>
+           </div>`;
+        const choose = (action) => {
+          if (action === 'continue') { try { videoEl.currentTime = t; } catch {} }
+          else if (action === 'restart') { try { videoEl.currentTime = 0; } catch {} }
+          prompt.remove();
+        };
+        prompt.querySelector('.pvr-continue').addEventListener('click', () => choose('continue'));
+        prompt.querySelector('.pvr-restart').addEventListener('click', () => choose('restart'));
+        host.appendChild(prompt);
+      };
+      if (videoEl.readyState >= 1) showPrompt();
+      else videoEl.addEventListener('loadedmetadata', showPrompt, { once: true });
+    });
+  }
+
   // ── Preview-owned media status (drives controller media remote) ──
   // Called when a video appears in the preview (desktop renderVideo /
   // mobile carousel current slide). Publishes mediaStatus so the
@@ -249,12 +331,15 @@ const Preview = (() => {
         currentTime: videoEl.currentTime || 0,
         duration: isFinite(videoEl.duration) ? videoEl.duration : (prev.duration || 0),
         fullscreen: isFs(),
+        muted: !!videoEl.muted,
+        volume: videoEl.volume,
         closed: false, ...patch });
     };
     push({});
     videoEl.addEventListener('play',  () => push({ playing: true }));
     videoEl.addEventListener('pause', () => push({ playing: false }));
     videoEl.addEventListener('durationchange', () => push({}));
+    videoEl.addEventListener('volumechange', () => push({}));
     let _lastTick = 0;
     videoEl.addEventListener('timeupdate', () => {
       const now = performance.now();
@@ -295,21 +380,13 @@ const Preview = (() => {
       _lastMediaCmdT = cmdObj.timestamp || 0;
       const v = _activeVideoEl;
       switch (cmdObj.command) {
-        case 'play':
-          // The controllee may have no recent user activation (the preview
-          // was opened by a synthetic click from the controller), so unmuted
-          // play() may be rejected by the autoplay policy. Fall back to
-          // muted playback; the volume slider re-unmutes on use.
-          v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });
-          break;
+        case 'play':    v.play().catch(() => {}); break;
         case 'pause':   v.pause(); break;
         case 'rewind':  v.currentTime = Math.max(0, v.currentTime - 10); break;
         case 'forward': v.currentTime = Math.min(v.duration || 0, v.currentTime + 10); break;
         case 'seek':    if (v.duration) v.currentTime = (cmdObj.value / 100) * v.duration; break;
-        case 'volume':
-          v.volume = Math.max(0, Math.min(1, cmdObj.value));
-          if (cmdObj.value > 0) v.muted = false;
-          break;
+        case 'volume':  v.volume = Math.max(0, Math.min(1, cmdObj.value)); break;
+        case 'mute':    v.muted = !v.muted; break;
         case 'fullscreen': {
           // Fullscreen API requires user activation; same caveat as play. We
           // attempt the standard path then fall back to iOS Safari's per-video
@@ -531,6 +608,7 @@ const Preview = (() => {
       v.addEventListener('loadedmetadata', clearSpinner, { once: true });
       v.addEventListener('canplay',        clearSpinner, { once: true });
       _claimVideoForRemote(v, item);
+      _setupResume(v, item);
       // If direct serve fails, transparently retry through the transcoder.
       // Some MKVs/AVIs need server-side remux to be browser-playable.
       let _retried = false;
@@ -737,6 +815,7 @@ const Preview = (() => {
     const token = localStorage.getItem('de_token') || '';
     content.style.padding  = '0';
     content.style.overflow = 'hidden';
+    content.style.position = 'relative';   // anchor for the resume-prompt overlay
     const video = document.createElement('video');
     video.src = _videoSrc(currentFile);
     video.controls = true;
@@ -760,6 +839,7 @@ const Preview = (() => {
     });
     content.appendChild(video);
     _claimVideoForRemote(video, currentFile);
+    _setupResume(video, currentFile);
   }
 
   function renderAudio() {

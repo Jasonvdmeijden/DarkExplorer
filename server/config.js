@@ -22,7 +22,15 @@ const DEFAULTS = {
   },
   thumbnails: {
     rowHeight: 200,
-    maxWidth: 400
+    maxWidth: 400,
+    // Network drives (e.g. mapped X:) saturate the LAN if we generate
+    // thumbnails for every video on them. When `skipNetworkDrives` is true
+    // (default) we auto-detect Windows network drives at startup and serve
+    // 204 No Content for any thumbnail/preview-clip request on them — the
+    // client falls back to its file-icon placeholder. `skipPaths` is an
+    // additional manual prefix list (case-insensitive).
+    skipNetworkDrives: true,
+    skipPaths: []
   },
   // Optional HTTPS listener. Needed for secure-context-only browser features
   // (e.g. the remote-control air-mouse) when not on localhost. certPath/keyPath
