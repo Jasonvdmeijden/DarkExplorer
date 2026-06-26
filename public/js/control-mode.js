@@ -39,12 +39,12 @@ const ControlMode = (() => {
   function lsNum(key, def) { const v = parseFloat(localStorage.getItem(key)); return isFinite(v) ? v : def; }
   function trackpadSens() { return lsNum('de_control_tp_sens', 1.6); }
 
-  // Air-mouse is configured per phone axis: yaw (turning the phone left/right
-  // around vertical) and pitch (tilting up/down). Each axis maps to a mouse
-  // direction ('x' = left/right, 'y' = up/down, 'off' = ignore), with its own
-  // sensitivity and invert toggle. Defaults reproduce the previous behaviour:
-  // yaw→X, pitch→Y, rotate-up = cursor-up.
-  const AIR_DEF = { yaw: { target: 'x', sens: 12 }, pitch: { target: 'y', sens: 12 } };
+  // Air-mouse is configured per phone rotation axis: yaw (turning left/right
+  // around vertical), pitch (tilting up/down), and roll (twisting/banking the
+  // phone side to side). Each axis maps to a mouse direction ('x' = left/right,
+  // 'y' = up/down, 'off' = ignore), with its own sensitivity and invert toggle.
+  // Defaults reproduce the previous behaviour: yaw→X, pitch→Y, roll off.
+  const AIR_DEF = { yaw: { target: 'x', sens: 12 }, pitch: { target: 'y', sens: 12 }, roll: { target: 'off', sens: 12 } };
   function airAxisTarget(ax) { return localStorage.getItem('de_control_air_' + ax + '_target') || AIR_DEF[ax].target; }
   function airAxisSens(ax)   { return lsNum('de_control_air_' + ax + '_sens', AIR_DEF[ax].sens); }
   function airAxisInvert(ax) { return localStorage.getItem('de_control_air_' + ax + '_inv') === '1'; }
@@ -275,6 +275,11 @@ const ControlMode = (() => {
            <select data-set="pitch-target"><option value="x">Mouse left/right</option><option value="y">Mouse up/down</option><option value="off">Off</option></select></label>
          <label class="dcs-row"><span>Speed</span><input type="range" min="2" max="40" step="1" data-set="pitch-sens"></label>
          <label class="dcs-check"><input type="checkbox" data-set="pitch-inv"> Invert</label>
+         <div class="dcs-sep">Air-mouse · twist / roll</div>
+         <label class="dcs-row"><span>Controls</span>
+           <select data-set="roll-target"><option value="x">Mouse left/right</option><option value="y">Mouse up/down</option><option value="off">Off</option></select></label>
+         <label class="dcs-row"><span>Speed</span><input type="range" min="2" max="40" step="1" data-set="roll-sens"></label>
+         <label class="dcs-check"><input type="checkbox" data-set="roll-inv"> Invert</label>
          <label class="dcs-check"><input type="checkbox" data-set="haptics"> Haptic feedback (Android)</label>
        </div>
        <div class="dco-media">
@@ -329,7 +334,7 @@ const ControlMode = (() => {
   function kbCommonRows() {
     return [
       [{ layer: 1, l: kbLayer === 'alpha' ? '123' : 'ABC', w: 1.4 },
-       { mod: 'ctrl', l: 'Ctrl' }, { mod: 'alt', l: 'Alt' }, { mod: 'meta', l: '⌘' },
+       { mod: 'ctrl', l: 'Ctrl' }, { mod: 'alt', l: 'Alt' }, { mod: 'meta', l: '⊞' },
        { char: ' ', l: 'space', w: 4 },
        { key: 'Tab', l: '⇥' }, { key: 'Escape', l: 'Esc' }, { key: 'Enter', l: '⏎', w: 1.4 }],
       [{ key: 'ArrowLeft', l: '←' }, { key: 'ArrowUp', l: '↑' },
@@ -397,6 +402,9 @@ const ControlMode = (() => {
     root.querySelector('[data-set="pitch-target"]').value = airAxisTarget('pitch');
     root.querySelector('[data-set="pitch-sens"]').value   = airAxisSens('pitch');
     root.querySelector('[data-set="pitch-inv"]').checked  = airAxisInvert('pitch');
+    root.querySelector('[data-set="roll-target"]').value  = airAxisTarget('roll');
+    root.querySelector('[data-set="roll-sens"]').value    = airAxisSens('roll');
+    root.querySelector('[data-set="roll-inv"]').checked   = airAxisInvert('roll');
     root.querySelector('[data-set="haptics"]').checked    = localStorage.getItem('de_control_haptics') !== '0';
   }
 
@@ -477,6 +485,9 @@ const ControlMode = (() => {
         case 'pitch-target': localStorage.setItem('de_control_air_pitch_target', el.value); break;
         case 'pitch-sens':   localStorage.setItem('de_control_air_pitch_sens', el.value); break;
         case 'pitch-inv':    localStorage.setItem('de_control_air_pitch_inv', el.checked ? '1' : '0'); break;
+        case 'roll-target':  localStorage.setItem('de_control_air_roll_target', el.value); break;
+        case 'roll-sens':    localStorage.setItem('de_control_air_roll_sens', el.value); break;
+        case 'roll-inv':     localStorage.setItem('de_control_air_roll_inv', el.checked ? '1' : '0'); break;
         case 'haptics':      localStorage.setItem('de_control_haptics', el.checked ? '1' : '0'); break;
       }
     };
@@ -564,11 +575,12 @@ const ControlMode = (() => {
       yawRate = wz;
     }
     const pitchRate = wx;                                         // about device left-right axis
+    const rollRate  = wy;                                         // about device top-bottom axis (twist/bank)
     // Route each axis to its configured mouse direction. The leading minus is
     // the base "normal" sign (rotate-right → cursor-right, rotate-up → cursor-up);
     // the per-axis invert toggle flips it.
     let dx = 0, dy = 0;
-    for (const [axis, rate] of [['yaw', yawRate], ['pitch', pitchRate]]) {
+    for (const [axis, rate] of [['yaw', yawRate], ['pitch', pitchRate], ['roll', rollRate]]) {
       const target = airAxisTarget(axis);
       if (target === 'off') continue;
       const contrib = -rate * dt * airAxisSens(axis) * (airAxisInvert(axis) ? -1 : 1);

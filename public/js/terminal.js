@@ -65,7 +65,7 @@ const Term = (() => {
   function _oskCommonRows() {
     return [
       [{ layer: 1, l: _oskLayer === 'alpha' ? '123' : 'ABC', w: 1.4 },
-       { mod: 'ctrl', l: 'Ctrl' }, { mod: 'alt', l: 'Alt' }, { mod: 'meta', l: '⌘' },
+       { mod: 'ctrl', l: 'Ctrl' }, { mod: 'alt', l: 'Alt' }, { mod: 'meta', l: '⊞' },
        { char: ' ', l: 'space', w: 4 },
        { key: 'Tab', l: '⇥' }, { key: 'Escape', l: 'Esc' }, { key: 'Enter', l: '⏎', w: 1.4 }],
       [{ key: 'ArrowLeft', l: '←' }, { key: 'ArrowUp', l: '↑' },

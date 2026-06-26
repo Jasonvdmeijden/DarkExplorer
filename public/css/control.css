@@ -203,7 +203,9 @@
 #de-control-overlay .dco-kbd { display: flex; flex-direction: column; gap: 5px; }
 #de-control-overlay .dco-krow { display: flex; gap: 5px; justify-content: center; }
 #de-control-overlay .dco-kbd .term-key {
-  flex: 1; min-width: 0;
+  /* min-width:0 !important defeats the mobile "bigger touch targets" rule
+     (.term-key { min-width: 42px !important }) so 10 keys shrink to fit a row. */
+  flex: 1 1 0; min-width: 0 !important;
   padding: 11px 0; border-radius: var(--radius-sm); cursor: pointer;
   background: var(--bg-surface); border: 1px solid var(--border);
   color: var(--text-primary); font: 500 15px/1 system-ui, sans-serif;

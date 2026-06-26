@@ -1787,8 +1787,10 @@ dialog#preview-modal::backdrop {
   }
   #term-osk .osk-row { display: flex; gap: 5px; }
   #term-osk .term-key {
-    flex: 1;
-    min-width: 0;
+    /* min-width:0 !important defeats the "bigger touch targets" rule above
+       (.term-key { min-width: 42px !important }) so all 10 keys fit the row. */
+    flex: 1 1 0;
+    min-width: 0 !important;
     padding: 11px 0;
     font-size: .82rem;
     -webkit-user-select: none; user-select: none;
