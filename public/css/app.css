@@ -312,21 +312,9 @@ aside, #panel-left, #panel-right {
   align-items: center;
 }
 
-#term-keys-top {
-  display: flex;
-  align-items: center;
-  gap: 0;
-}
-
-#term-keys-bottom {
-  display: none;
-  align-items: center;
-  gap: 0;
-  padding: 0 var(--layout-pad-h);
-  border-top: 1px solid var(--border);
-  overflow-x: auto;
-}
-#term-keys-bottom::-webkit-scrollbar { display: none; }
+/* In-app on-screen keyboard: desktop never shows it (physical keyboard);
+   the mobile media query below docks it under the terminal output. */
+#term-osk { display: none; }
 
 .panel-content { flex: 1; overflow-y: auto; padding: 10px; }
 
@@ -1783,21 +1771,31 @@ dialog#preview-modal::backdrop {
   }
   #splitter-bottom { display: none !important; }
 
-  /* Responsive Terminal Keys */
-  #term-keys-top { display: none !important; }
-  #term-keys-bottom { 
-    display: flex !important; 
-    gap: 0;
-    padding: 0 var(--layout-pad-h) !important;
-    padding-bottom: max(env(safe-area-inset-bottom, 0px), 5px) !important;
-  }
   #terminal-container { padding: 0 10px !important; }
 
-  .term-key {
-    min-width: 2rem;
-    padding: 4px 8px;
-    font-size: .72rem;
+  /* In-app on-screen keyboard — docked under the terminal output on mobile.
+     The terminal output (#terminal-container, flex:1) fills the space above. */
+  #term-osk {
+    display: flex !important;
+    flex-direction: column;
+    gap: 5px;
+    flex-shrink: 0;
+    padding: 5px var(--layout-pad-h);
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), 5px);
+    background: var(--bg-panel);
+    border-top: 1px solid var(--border);
   }
+  #term-osk .osk-row { display: flex; gap: 5px; }
+  #term-osk .term-key {
+    flex: 1;
+    min-width: 0;
+    padding: 11px 0;
+    font-size: .82rem;
+    -webkit-user-select: none; user-select: none;
+    touch-action: manipulation;
+  }
+  #term-osk .term-key.pressed { background: var(--accent); color: var(--text-inverse); border-color: var(--accent); }
+  #term-osk .term-key.active  { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
 
   /* Safe areas handled globally by body padding — only need visual-padding overrides here */
 

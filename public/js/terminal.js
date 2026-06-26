@@ -32,9 +32,139 @@ const Term = (() => {
     return `cd "${p.replace(/"/g, '\\"')}"\r`;
   }
 
-  // Modifier/arrow keys were removed from the terminal header — those are now
-  // provided by the in-app on-screen keyboard (mobile) and the physical
-  // keyboard (desktop), so the terminal just streams raw input through.
+  // ── In-app on-screen keyboard (mobile only) ────────────────────────
+  // The native mobile keyboard is unreliable over a PTY (it hides/show the
+  // viewport, autocorrects, and can't send Ctrl/Esc/arrows), so on touch
+  // devices we render our own keyboard — mirroring the remote-control overlay's
+  // layout — and translate each press into raw terminal bytes. The header's
+  // arrow/modifier bar was removed in favour of this; desktop uses the physical
+  // keyboard and never shows the OSK.
+  let _oskLayer = 'alpha';                                  // 'alpha' | 'symbol'
+  const _oskMods = { ctrl: false, alt: false, shift: false, meta: false };
+  const CTRL_MAP = (() => {
+    const m = {};
+    for (let c = 65; c <= 90; c++) m[String.fromCharCode(c)] = c - 64;  // Ctrl+A..Z
+    for (let c = 97; c <= 122; c++) m[String.fromCharCode(c)] = c - 96; // Ctrl+a..z
+    Object.assign(m, { '@': 0, '[': 27, '\\': 28, ']': 29, '^': 30, '_': 31, '?': 127 });
+    return m;
+  })();
+  const ARROW_CODE = { up: 'A', down: 'B', right: 'C', left: 'D' };
+
+  const OSK_LAYERS = {
+    alpha: [
+      ['q','w','e','r','t','y','u','i','o','p'],
+      ['a','s','d','f','g','h','j','k','l'],
+      [{ mod: 'shift', l: '⇧', w: 1.4 }, 'z','x','c','v','b','n','m', { key: 'Backspace', l: '⌫', w: 1.4 }],
+    ],
+    symbol: [
+      ['1','2','3','4','5','6','7','8','9','0'],
+      ['-','/',':',';','(',')','$','&','@','"'],
+      ['.',',','?','!',"'",'_','+','=','#', { key: 'Backspace', l: '⌫', w: 1.4 }],
+    ],
+  };
+  function _oskCommonRows() {
+    return [
+      [{ layer: 1, l: _oskLayer === 'alpha' ? '123' : 'ABC', w: 1.4 },
+       { mod: 'ctrl', l: 'Ctrl' }, { mod: 'alt', l: 'Alt' }, { mod: 'meta', l: '⌘' },
+       { char: ' ', l: 'space', w: 4 },
+       { key: 'Tab', l: '⇥' }, { key: 'Escape', l: 'Esc' }, { key: 'Enter', l: '⏎', w: 1.4 }],
+      [{ key: 'ArrowLeft', l: '←' }, { key: 'ArrowUp', l: '↑' },
+       { key: 'ArrowDown', l: '↓' }, { key: 'ArrowRight', l: '→' }],
+    ];
+  }
+  function _oskMakeKey(cell) {
+    if (typeof cell === 'string') cell = { char: cell, l: cell };
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'term-key';
+    b.textContent = cell.l != null ? cell.l : (cell.char || '');
+    if (cell.w) b.style.flex = String(cell.w);
+    if (cell.char != null)   b.dataset.char = cell.char;
+    else if (cell.mod)     { b.dataset.mod = cell.mod; if (_oskMods[cell.mod]) b.classList.add('active'); }
+    else if (cell.key)       b.dataset.key = cell.key;
+    else if (cell.layer)     b.dataset.layer = '1';
+    return b;
+  }
+  function _buildOsk() {
+    const host = document.getElementById('term-osk');
+    if (!host) return;
+    host.innerHTML = '';
+    for (const row of OSK_LAYERS[_oskLayer].concat(_oskCommonRows())) {
+      const r = document.createElement('div');
+      r.className = 'osk-row';
+      for (const cell of row) r.appendChild(_oskMakeKey(cell));
+      host.appendChild(r);
+    }
+  }
+  // Sticky modifiers are one-shot: applied to the next key, then released.
+  function _clearOskMods() {
+    let changed = false;
+    for (const k in _oskMods) if (_oskMods[k]) { _oskMods[k] = false; changed = true; }
+    if (changed) {
+      document.querySelectorAll('#term-osk .term-key.active').forEach(b => b.classList.remove('active'));
+    }
+  }
+  function _oskSend(data) {
+    if (!sid || data == null) return;
+    WS.emit('terminal:input', { sid, data });
+    if (term) term.focus();
+  }
+  // Translate a printable character through the active sticky modifiers.
+  function _oskSendChar(ch) {
+    const m = _oskMods;
+    let out = ch;
+    if (m.shift && out.length === 1 && /[a-z]/.test(out)) out = out.toUpperCase();
+    if (m.ctrl && CTRL_MAP[out] !== undefined) out = String.fromCharCode(CTRL_MAP[out]);
+    if (m.alt || m.meta) out = '\x1b' + out;                // Alt/Meta → Escape-prefixed
+    _oskSend(out);
+    _clearOskMods();
+  }
+  // Translate a named key (arrows/Tab/Enter/Esc/Backspace) into a byte sequence.
+  function _oskSendKey(key) {
+    const m = _oskMods;
+    const param = 1 + (m.shift ? 1 : 0) + (m.alt ? 2 : 0) + (m.ctrl ? 4 : 0) + (m.meta ? 8 : 0);
+    const arrowDir = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' }[key];
+    let seq;
+    if (arrowDir) {
+      const code = ARROW_CODE[arrowDir];
+      seq = param > 1 ? `\x1b[1;${param}${code}` : `\x1b[${code}`;
+    } else if (key === 'Enter')      seq = '\r';
+    else if (key === 'Tab')          seq = m.shift ? '\x1b[Z' : '\t';
+    else if (key === 'Escape')       seq = (m.alt || m.meta) ? '\x1b\x1b' : '\x1b';
+    else if (key === 'Backspace')    seq = '\x7f';
+    else return;
+    _oskSend(seq);
+    _clearOskMods();
+  }
+  function _oskPress(btn) {
+    if (btn.dataset.layer) {
+      _oskLayer = _oskLayer === 'alpha' ? 'symbol' : 'alpha';
+      _buildOsk();
+    } else if (btn.dataset.mod) {
+      _oskMods[btn.dataset.mod] = !_oskMods[btn.dataset.mod];
+      btn.classList.toggle('active', _oskMods[btn.dataset.mod]);
+    } else if (btn.dataset.char != null) {
+      _oskSendChar(btn.dataset.char);
+    } else if (btn.dataset.key) {
+      _oskSendKey(btn.dataset.key);
+    }
+    if (navigator.vibrate) { try { navigator.vibrate(8); } catch {} }
+  }
+  function _initOsk() {
+    const host = document.getElementById('term-osk');
+    if (!host || host.dataset.wired) return;
+    host.dataset.wired = '1';
+    _buildOsk();
+    // pointerdown for instant response; preventDefault keeps the PTY focused.
+    host.addEventListener('pointerdown', (e) => {
+      const btn = e.target.closest('.term-key');
+      if (!btn) return;
+      e.preventDefault();
+      btn.classList.add('pressed');
+      _oskPress(btn);
+    });
+    host.addEventListener('pointerup',     (e) => { const b = e.target.closest('.term-key'); if (b) b.classList.remove('pressed'); });
+    host.addEventListener('pointercancel', (e) => { const b = e.target.closest('.term-key'); if (b) b.classList.remove('pressed'); });
+  }
 
   // Build an xterm theme from the current page CSS vars so the terminal matches
   // the active app theme (and in particular flips with the light/dark toggle).
@@ -253,6 +383,7 @@ const Term = (() => {
 
   async function open(cwd) {
     Panels.showBottom();
+    _initOsk();                              // idempotent; OSK shown only on mobile (CSS)
     const target = cwd || Explorer.getCurrentPath();
 
     // Already showing a session for this folder — just (re)fit it
