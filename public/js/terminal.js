@@ -330,6 +330,20 @@ const Term = (() => {
     term.open(container);
     term.focus();
 
+    // On mobile we type through our own in-app keyboard (#term-osk), so suppress
+    // the native soft keyboard: xterm's hidden helper <textarea> would otherwise
+    // pop the OS keyboard whenever it's focused (incl. the touch handler below).
+    // inputmode="none" keeps the textarea focusable/selectable but hides the VKB.
+    if (isMobile) {
+      const ta = term.textarea || container.querySelector('.xterm-helper-textarea');
+      if (ta) {
+        ta.setAttribute('inputmode', 'none');
+        ta.setAttribute('autocorrect', 'off');
+        ta.setAttribute('autocapitalize', 'off');
+        ta.setAttribute('spellcheck', 'false');
+      }
+    }
+
     _safeFit();
     // Belt-and-braces refits as layout settles
     setTimeout(_safeFit, 80);
