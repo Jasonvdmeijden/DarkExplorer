@@ -241,12 +241,14 @@ const Preview = (() => {
     if (!videoEl || !item || typeof State === 'undefined') return;
     _activeVideoEl = videoEl;
     _ownsMediaStatus = true;
+    const isFs = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
     const push = (patch) => {
       const prev = State.get('mediaStatus', {}) || {};
       State.set('mediaStatus', { path: item.path, title: item.name,
         playing: !videoEl.paused,
         currentTime: videoEl.currentTime || 0,
         duration: isFinite(videoEl.duration) ? videoEl.duration : (prev.duration || 0),
+        fullscreen: isFs(),
         closed: false, ...patch });
     };
     push({});
@@ -260,6 +262,9 @@ const Preview = (() => {
       _lastTick = now; push({});
     });
     videoEl.addEventListener('ended', () => push({ playing: false }));
+    // iOS Safari fires webkitbegin/endfullscreen on <video> itself
+    videoEl.addEventListener('webkitbeginfullscreen', () => push({}));
+    videoEl.addEventListener('webkitendfullscreen',   () => push({}));
   }
   function _releaseMediaStatus() {
     _activeVideoEl = null;
@@ -270,6 +275,19 @@ const Preview = (() => {
       }
     }
   }
+  // Standard Fullscreen API fires `fullscreenchange` on document (not on
+  // the element). Republish status so the controller's ⛶ button can reflect
+  // current state. iOS Safari's per-<video> path is handled by listeners
+  // attached inside _claimVideoForRemote.
+  const _onFsChange = () => {
+    if (!_activeVideoEl || !_ownsMediaStatus) return;
+    const prev = State.get('mediaStatus', {}) || {};
+    State.set('mediaStatus', { ...prev,
+      fullscreen: !!(document.fullscreenElement || document.webkitFullscreenElement) });
+  };
+  document.addEventListener('fullscreenchange', _onFsChange);
+  document.addEventListener('webkitfullscreenchange', _onFsChange);
+
   if (typeof State !== 'undefined') {
     State.onChange('mediaCommand', (cmdObj) => {
       if (!cmdObj || !_activeVideoEl) return;
@@ -292,6 +310,21 @@ const Preview = (() => {
           v.volume = Math.max(0, Math.min(1, cmdObj.value));
           if (cmdObj.value > 0) v.muted = false;
           break;
+        case 'fullscreen': {
+          // Fullscreen API requires user activation; same caveat as play. We
+          // attempt the standard path then fall back to iOS Safari's per-video
+          // API. If the browser rejects (no activation), nothing happens.
+          const inFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+          if (inFs) {
+            (document.exitFullscreen || document.webkitExitFullscreen).call(document).catch(() => {});
+          } else {
+            const req = v.requestFullscreen || v.webkitRequestFullscreen || v.webkitEnterFullscreen;
+            if (req) {
+              try { const r = req.call(v); if (r && r.catch) r.catch(() => {}); } catch {}
+            }
+          }
+          break;
+        }
         case 'close':   close(); break;
       }
     });

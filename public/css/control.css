@@ -191,11 +191,20 @@
 #de-control-overlay.dco-media-on .dco-keys { display: none; }
 #de-control-overlay.dco-media-on .dco-media { display: flex; }
 #de-control-overlay.dco-media-on .dco-media-btn { background: var(--accent); color: var(--text-inverse); border-color: var(--accent); }
+#de-control-overlay .dcm-title-row { display: flex; align-items: center; gap: 8px; }
 #de-control-overlay .dcm-title {
+  flex: 1;
   font: 600 13px/1.2 system-ui, sans-serif; text-align: center;
   color: var(--text-primary); word-break: break-word;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+#de-control-overlay .dcm-fs-btn {
+  flex: 0 0 auto; padding: 6px 10px; border-radius: var(--radius-sm); cursor: pointer;
+  background: var(--bg-surface); border: 1px solid var(--border);
+  color: var(--text-primary); font: 600 14px/1 system-ui, sans-serif;
+}
+#de-control-overlay .dcm-fs-btn:active { background: var(--bg-active); transform: scale(.95); }
+#de-control-overlay .dcm-fs-btn.active { background: var(--accent); color: var(--text-inverse); border-color: var(--accent); }
 #de-control-overlay .dcm-scrub-row { display: flex; align-items: center; gap: 8px; }
 #de-control-overlay .dcm-scrub-row .dcm-cur, #de-control-overlay .dcm-scrub-row .dcm-tot { font: 500 11px system-ui; color: var(--text-secondary); min-width: 38px; text-align: center; }
 #de-control-overlay .dcm-scrub, #de-control-overlay .dcm-vol { flex: 1; accent-color: var(--accent); }

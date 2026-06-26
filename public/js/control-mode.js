@@ -292,7 +292,10 @@ const ControlMode = (() => {
          <button class="dco-btn dco-air" data-air>✦ Air</button>
        </div>
        <div class="dco-media">
-         <div class="dcm-title">No media</div>
+         <div class="dcm-title-row">
+           <div class="dcm-title">No media</div>
+           <button class="dcm-fs-btn" data-mcmd="fullscreen" type="button" title="Toggle fullscreen">⛶</button>
+         </div>
          <div class="dcm-scrub-row">
            <span class="dcm-cur">00:00</span>
            <input type="range" class="dcm-scrub" min="0" max="100" value="0">
@@ -428,6 +431,8 @@ const ControlMode = (() => {
     if (!m) return;
     m.querySelector('.dcm-title').textContent = (status && status.title) || 'No media';
     m.querySelector('.dcm-play').textContent = mediaPlaying ? '⏸' : '▶';
+    const fsBtn = m.querySelector('.dcm-fs-btn');
+    if (fsBtn) fsBtn.classList.toggle('active', !!(status && status.fullscreen));
     if (status && status.duration && !mediaSeeking) {
       m.querySelector('.dcm-scrub').value = (status.currentTime / status.duration) * 100;
       m.querySelector('.dcm-cur').textContent = fmtTime(status.currentTime);
