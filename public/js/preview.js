@@ -232,6 +232,89 @@ const Preview = (() => {
     nextBtn.style.display = 'none';
   }
 
+  // ── Custom video controls ──
+  // Native <video controls> live in the browser's shadow DOM and don't accept
+  // synthetic clicks, so the remote-control fake cursor can't drive them. This
+  // builds a plain-HTML control bar (play/pause/scrub/mute/volume/fullscreen)
+  // appended next to the <video>, so synthetic clicks (and real clicks) both
+  // dispatch through normal event handlers. Note: browser autoplay policies
+  // still apply — calling v.play() from a synthetic click in Safari requires
+  // the controllee to have granted activation at least once.
+  function _attachCustomControls(videoEl) {
+    videoEl.removeAttribute('controls');
+    const host = videoEl.parentNode;
+    if (!host) return;
+
+    const bigPlay = document.createElement('button');
+    bigPlay.className = 'pvc-big-play';
+    bigPlay.type = 'button';
+    bigPlay.textContent = '▶';
+
+    const bar = document.createElement('div');
+    bar.className = 'pvc-bar';
+    bar.innerHTML =
+      `<button class="pvc-btn pvc-play" type="button" title="Play/Pause">▶</button>
+       <span class="pvc-time pvc-cur">0:00</span>
+       <input type="range" class="pvc-scrub" min="0" max="1000" value="0" title="Seek">
+       <span class="pvc-time pvc-tot">0:00</span>
+       <button class="pvc-btn pvc-mute" type="button" title="Mute">🔊</button>
+       <input type="range" class="pvc-vol" min="0" max="1" step="0.01" value="1" title="Volume">
+       <button class="pvc-btn pvc-fs" type="button" title="Fullscreen">⛶</button>`;
+
+    host.appendChild(bigPlay);
+    host.appendChild(bar);
+
+    const playBtn = bar.querySelector('.pvc-play');
+    const scrub   = bar.querySelector('.pvc-scrub');
+    const cur     = bar.querySelector('.pvc-cur');
+    const tot     = bar.querySelector('.pvc-tot');
+    const muteBtn = bar.querySelector('.pvc-mute');
+    const vol     = bar.querySelector('.pvc-vol');
+    const fsBtn   = bar.querySelector('.pvc-fs');
+
+    let hideTimer = 0;
+    const show = () => {
+      bar.classList.add('visible');
+      clearTimeout(hideTimer);
+      if (!videoEl.paused) hideTimer = setTimeout(() => bar.classList.remove('visible'), 3000);
+    };
+    host.addEventListener('mousemove', show);
+    host.addEventListener('mouseenter', show);
+    show();
+
+    const toggle = () => { if (videoEl.paused) videoEl.play().catch(() => {}); else videoEl.pause(); };
+    playBtn.addEventListener('click', toggle);
+    bigPlay.addEventListener('click', toggle);
+    videoEl.addEventListener('click', toggle);
+
+    videoEl.addEventListener('play',  () => { playBtn.textContent = '⏸'; bigPlay.style.display = 'none'; show(); });
+    videoEl.addEventListener('pause', () => { playBtn.textContent = '▶'; bigPlay.style.display = ''; bar.classList.add('visible'); clearTimeout(hideTimer); });
+    videoEl.addEventListener('timeupdate', () => {
+      if (!videoEl.duration) return;
+      if (document.activeElement !== scrub) scrub.value = (videoEl.currentTime / videoEl.duration) * 1000;
+      cur.textContent = _fmtTime(videoEl.currentTime);
+    });
+    videoEl.addEventListener('durationchange', () => { tot.textContent = _fmtTime(videoEl.duration); });
+    videoEl.addEventListener('volumechange', () => {
+      muteBtn.textContent = (videoEl.muted || videoEl.volume === 0) ? '🔇' : '🔊';
+      if (document.activeElement !== vol) vol.value = videoEl.muted ? 0 : videoEl.volume;
+    });
+
+    scrub.addEventListener('input', () => { if (videoEl.duration) videoEl.currentTime = (scrub.value / 1000) * videoEl.duration; });
+    vol.addEventListener('input', () => { videoEl.volume = parseFloat(vol.value); if (videoEl.volume > 0) videoEl.muted = false; });
+    muteBtn.addEventListener('click', () => { videoEl.muted = !videoEl.muted; });
+    fsBtn.addEventListener('click', () => {
+      const inFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+      if (inFs) {
+        const exit = document.exitFullscreen || document.webkitExitFullscreen;
+        try { const r = exit.call(document); if (r && r.catch) r.catch(() => {}); } catch {}
+      } else {
+        const req = videoEl.requestFullscreen || videoEl.webkitRequestFullscreen || videoEl.webkitEnterFullscreen;
+        if (req) try { const r = req.call(videoEl); if (r && r.catch) r.catch(() => {}); } catch {}
+      }
+    });
+  }
+
   // ── Resume / continue-watching ──
   // Backed by the existing /media-progress endpoint (also used by media.js).
   // Persists position periodically; clears it once the video finishes; on
@@ -607,6 +690,7 @@ const Preview = (() => {
       v.style.cssText = 'max-width:100%;max-height:100%;width:100%;height:100%;object-fit:contain;background:var(--bg-base)';
       v.addEventListener('loadedmetadata', clearSpinner, { once: true });
       v.addEventListener('canplay',        clearSpinner, { once: true });
+      _attachCustomControls(v);
       _claimVideoForRemote(v, item);
       _setupResume(v, item);
       // If direct serve fails, transparently retry through the transcoder.
@@ -838,6 +922,7 @@ const Preview = (() => {
       }
     });
     content.appendChild(video);
+    _attachCustomControls(video);
     _claimVideoForRemote(video, currentFile);
     _setupResume(video, currentFile);
   }

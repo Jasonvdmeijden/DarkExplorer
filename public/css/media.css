@@ -1327,6 +1327,9 @@ html[data-mode="light"] body.glass-effect .netflix-season-pill {
     max-width: none !important;
     max-height: none !important;
     margin: 0 !important;
+    /* Override the desktop transform-based centering so the dialog isn't shifted
+       off-screen by translate(-50%, -50%) once inset:0 pins it edge-to-edge. */
+    transform: none !important;
     padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px) !important;
   }
   dialog#netflix-series-dialog[open] .netflix-modal-wrap {

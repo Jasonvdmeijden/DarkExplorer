@@ -646,6 +646,50 @@ aside, #panel-left, #panel-right {
 }
 .flex-gap { flex: 1; }
 
+/* Custom video controls — overlay the preview <video>. Plain DOM so the
+   remote-control fake cursor can dispatch synthetic clicks to them (native
+   <video controls> are shadow DOM and ignore synthetic events). */
+.pvc-big-play {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 76px; height: 76px; border-radius: 50%;
+  background: rgba(0,0,0,.55); color: #fff; border: 0; cursor: pointer;
+  font-size: 30px; line-height: 1; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 3; transition: background .15s ease, transform .1s ease;
+}
+.pvc-big-play:hover { background: rgba(0,0,0,.75); transform: translate(-50%, -50%) scale(1.05); }
+.pvc-bar {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(to top, rgba(0,0,0,.85), rgba(0,0,0,0));
+  color: #fff; font: 500 13px system-ui, sans-serif;
+  opacity: 0; pointer-events: none;
+  transition: opacity .25s ease;
+  z-index: 4;
+}
+.pvc-bar.visible { opacity: 1; pointer-events: auto; }
+/* While a remote controller is driving this device, keep the bar visible so
+   the fake cursor can hit the buttons. */
+body.de-controlled .pvc-bar { opacity: 1; pointer-events: auto; }
+.pvc-btn {
+  background: transparent; border: 0; color: #fff;
+  cursor: pointer; font-size: 16px; padding: 6px 8px; border-radius: 4px;
+  line-height: 1;
+}
+.pvc-btn:hover { background: rgba(255,255,255,.18); }
+.pvc-btn:active { background: rgba(255,255,255,.28); }
+.pvc-time { min-width: 44px; text-align: center; opacity: .92; font-variant-numeric: tabular-nums; }
+.pvc-scrub { flex: 1; accent-color: var(--accent); cursor: pointer; }
+.pvc-vol   { width: 80px; accent-color: var(--accent); cursor: pointer; }
+@media (max-width: 480px) {
+  .pvc-vol { width: 56px; }
+  .pvc-bar { gap: 6px; padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px)); font-size: 12px; }
+  .pvc-time { min-width: 38px; }
+  .pvc-btn { font-size: 15px; padding: 5px 6px; }
+}
+
 /* Resume-watching prompt overlaid on a preview video */
 .preview-resume-prompt {
   position: absolute; inset: 0;

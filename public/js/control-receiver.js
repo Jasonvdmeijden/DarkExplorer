@@ -367,6 +367,10 @@ const ControlReceiver = (() => {
     ensureCursor();
     showCursor();
     showBanner();
+    // CSS hook so e.g. auto-hiding video controls can stay visible while a
+    // controller is driving us (otherwise the remote cursor has nothing to
+    // click between wiggles).
+    document.body.classList.add('de-controlled');
   }
   function stop() {
     active = false;
@@ -375,6 +379,7 @@ const ControlReceiver = (() => {
     for (const e of hoverChain) e.classList.remove('de-vhover');
     hoverChain = []; lastOver = null;
     hideBanner();
+    document.body.classList.remove('de-controlled');
   }
 
   // ── Wire WS ──────────────────────────────────────────────────────
