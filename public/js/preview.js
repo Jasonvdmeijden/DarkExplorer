@@ -14,6 +14,12 @@ const Preview = (() => {
   let navLayout   = { view: 'details', cols: 4 }; // Added layout tracking
   let _zoomCleanup = null;
   let _fromRemote  = false;
+  // When the preview shows a video, we publish/own `mediaStatus` so the
+  // controller auto-opens its media remote — even from list/details mode,
+  // before playback starts. Cleared on close.
+  let _ownsMediaStatus = false;
+  let _activeVideoEl   = null;
+  let _lastMediaCmdT   = 0;
 
   // Cross-device: sync preview open/close. Suppressed while this device is
   // driving a remote (controller overlay up): its own interface stays frozen
@@ -208,6 +214,7 @@ const Preview = (() => {
   function close(_fromRemoteClose = false) {
     if (_zoomCleanup) { _zoomCleanup(); _zoomCleanup = null; }
     if (!_fromRemoteClose) State.set('activePreview', null);
+    _releaseMediaStatus();
     modal.close();
     currentFile = null;
     rawContent  = null;
@@ -225,10 +232,70 @@ const Preview = (() => {
     nextBtn.style.display = 'none';
   }
 
+  // ── Preview-owned media status (drives controller media remote) ──
+  // Called when a video appears in the preview (desktop renderVideo /
+  // mobile carousel current slide). Publishes mediaStatus so the
+  // controller auto-opens its 🎬 surface, and wires the video so
+  // mediaCommand from the remote drives playback.
+  function _claimVideoForRemote(videoEl, item) {
+    if (!videoEl || !item || typeof State === 'undefined') return;
+    _activeVideoEl = videoEl;
+    _ownsMediaStatus = true;
+    const push = (patch) => {
+      const prev = State.get('mediaStatus', {}) || {};
+      State.set('mediaStatus', { path: item.path, title: item.name,
+        playing: !videoEl.paused,
+        currentTime: videoEl.currentTime || 0,
+        duration: isFinite(videoEl.duration) ? videoEl.duration : (prev.duration || 0),
+        closed: false, ...patch });
+    };
+    push({});
+    videoEl.addEventListener('play',  () => push({ playing: true }));
+    videoEl.addEventListener('pause', () => push({ playing: false }));
+    videoEl.addEventListener('durationchange', () => push({}));
+    let _lastTick = 0;
+    videoEl.addEventListener('timeupdate', () => {
+      const now = performance.now();
+      if (now - _lastTick < 500) return;     // throttle to 2 Hz
+      _lastTick = now; push({});
+    });
+    videoEl.addEventListener('ended', () => push({ playing: false }));
+  }
+  function _releaseMediaStatus() {
+    _activeVideoEl = null;
+    if (_ownsMediaStatus) {
+      _ownsMediaStatus = false;
+      if (typeof State !== 'undefined') {
+        State.set('mediaStatus', { title: null, playing: false, currentTime: 0, duration: 0, closed: true });
+      }
+    }
+  }
+  if (typeof State !== 'undefined') {
+    State.onChange('mediaCommand', (cmdObj) => {
+      if (!cmdObj || !_activeVideoEl) return;
+      if (cmdObj.timestamp && cmdObj.timestamp <= _lastMediaCmdT) return;
+      _lastMediaCmdT = cmdObj.timestamp || 0;
+      const v = _activeVideoEl;
+      switch (cmdObj.command) {
+        case 'play':    v.play().catch(() => {}); break;
+        case 'pause':   v.pause(); break;
+        case 'rewind':  v.currentTime = Math.max(0, v.currentTime - 10); break;
+        case 'forward': v.currentTime = Math.min(v.duration || 0, v.currentTime + 10); break;
+        case 'seek':    if (v.duration) v.currentTime = (cmdObj.value / 100) * v.duration; break;
+        case 'volume':  v.volume = Math.max(0, Math.min(1, cmdObj.value)); break;
+        case 'close':   close(); break;
+      }
+    });
+  }
+
   async function render() {
     if (_zoomCleanup) { _zoomCleanup(); _zoomCleanup = null; }
     if (!currentFile) return;
     const ext = (currentFile.ext || '').replace('.', '').toLowerCase();
+    // Navigating to a non-video clears any video-driven media status so the
+    // controller's media remote closes; a new video re-claims below.
+    _activeVideoEl = null;
+    if (!VID_EXT_SET.has(ext)) _releaseMediaStatus();
     content.innerHTML = '';
     content.style.padding       = '';
     content.style.overflow      = '';
@@ -421,6 +488,7 @@ const Preview = (() => {
       v.style.cssText = 'max-width:100%;max-height:100%;width:100%;height:100%;object-fit:contain;background:var(--bg-base)';
       v.addEventListener('loadedmetadata', clearSpinner, { once: true });
       v.addEventListener('canplay',        clearSpinner, { once: true });
+      _claimVideoForRemote(v, item);
       // If direct serve fails, transparently retry through the transcoder.
       // Some MKVs/AVIs need server-side remux to be browser-playable.
       let _retried = false;
@@ -649,6 +717,7 @@ const Preview = (() => {
       }
     });
     content.appendChild(video);
+    _claimVideoForRemote(video, currentFile);
   }
 
   function renderAudio() {

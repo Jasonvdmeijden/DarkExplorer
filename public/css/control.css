@@ -1,9 +1,19 @@
 /* Remote control — virtual cursor, controlled banner, controller surface.
    Uses the app's theme tokens (themes/*.css) so it follows the active theme. */
 
-/* ── Controllee: fake cursor (theme-neutral so it reads on any background) ── */
+/* ── Controllee: fake cursor (theme-neutral so it reads on any background) ──
+   `popover="manual"` puts the cursor in the top layer so it stays visible
+   above modal <dialog>s (showModal()) that would otherwise occlude any z-index.
+   Override UA popover defaults (inset:0 / margin:auto / border / background)
+   so our explicit left/top + transform-based positioning still works. */
 #de-vcursor {
   position: fixed;
+  inset: auto;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  overflow: visible;
   left: 0; top: 0;
   width: 22px; height: 22px;
   z-index: 2147483646;

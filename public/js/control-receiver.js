@@ -22,12 +22,19 @@ const ControlReceiver = (() => {
   let lastOver = null;         // last element for mouseover/out emulation
   let shimBuilt = false;
   let held = 0;                // pressed-button bitmask (DOM `buttons`)
+  let lastClickT = 0;          // for synthesizing dblclick on rapid double-clicks
+  let lastClickEl = null;
+  const DBLCLICK_MS = 500;
 
   // ── Virtual cursor ───────────────────────────────────────────────
+  // Uses the Popover API so the cursor sits in the top layer — otherwise a
+  // modal <dialog> opened with showModal() would render above any z-index and
+  // hide the cursor (e.g. once a file preview opens).
   function ensureCursor() {
     if (cursorEl) return;
     cursorEl = document.createElement('div');
     cursorEl.id = 'de-vcursor';
+    if ('popover' in cursorEl) cursorEl.setAttribute('popover', 'manual');
     cursorEl.innerHTML =
       `<svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
          <path d="M2 2 L2 16 L6 12.5 L8.5 18 L11 17 L8.6 11.6 L14 11 Z"
@@ -35,9 +42,34 @@ const ControlReceiver = (() => {
        </svg>`;
     document.body.appendChild(cursorEl);
     paintCursor();
+    // When a new top-layer element (modal dialog, popover, fullscreen) opens
+    // it stacks above us; re-show to push the cursor back to the top.
+    if (!ensureCursor._observed) {
+      ensureCursor._observed = true;
+      const bump = () => { if (active) showCursor(); };
+      try {
+        new MutationObserver(bump).observe(document.documentElement,
+          { attributes: true, attributeFilter: ['open'], subtree: true });
+      } catch {}
+      document.addEventListener('fullscreenchange', bump);
+    }
   }
   function paintCursor() {
     if (cursorEl) cursorEl.style.transform = `translate(${x}px, ${y}px)`;
+  }
+  function showCursor() {
+    if (!cursorEl) return;
+    cursorEl.style.display = 'block';
+    // hide+show pushes us above any top-layer element opened after start().
+    if (cursorEl.showPopover) {
+      try { if (cursorEl.matches(':popover-open')) cursorEl.hidePopover(); } catch {}
+      try { cursorEl.showPopover(); } catch {}
+    }
+  }
+  function hideCursor() {
+    if (!cursorEl) return;
+    cursorEl.style.display = 'none';
+    if (cursorEl.hidePopover) { try { cursorEl.hidePopover(); } catch {} }
   }
 
   // ── Hover shim: mirror every `:hover` rule onto `.de-vhover` ──────
@@ -223,7 +255,18 @@ const ControlReceiver = (() => {
     mouse(el, 'mouseup', { button });
     if (button === 2)      mouse(el, 'contextmenu', { button });
     else if (button === 1) mouse(el, 'auxclick', { button });
-    else                   mouse(el, 'click', { button });
+    else {
+      mouse(el, 'click', { button });
+      // Synthetic clicks don't trigger native dblclick — file rows in list/details/
+      // mosaic modes open on dblclick, so fire one ourselves on rapid repeat.
+      const now = performance.now();
+      if (lastClickEl === el && now - lastClickT < DBLCLICK_MS) {
+        mouse(el, 'dblclick', { button, detail: 2 });
+        lastClickT = 0; lastClickEl = null;
+      } else {
+        lastClickT = now; lastClickEl = el;
+      }
+    }
   }
   function click(button) { down(button); up(button); }
   function nav(dir) {
@@ -322,13 +365,13 @@ const ControlReceiver = (() => {
     active = true;
     buildHoverShim();
     ensureCursor();
-    cursorEl.style.display = 'block';
+    showCursor();
     showBanner();
   }
   function stop() {
     active = false;
     held = 0;
-    if (cursorEl) cursorEl.style.display = 'none';
+    hideCursor();
     for (const e of hoverChain) e.classList.remove('de-vhover');
     hoverChain = []; lastOver = null;
     hideBanner();
