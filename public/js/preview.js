@@ -15,8 +15,11 @@ const Preview = (() => {
   let _zoomCleanup = null;
   let _fromRemote  = false;
 
-  // Cross-device: sync preview open/close
+  // Cross-device: sync preview open/close. Suppressed while this device is
+  // driving a remote (controller overlay up): its own interface stays frozen
+  // rather than mirroring the controllee and popping previews over the overlay.
   State.onChange('activePreview', (fileStat) => {
+    if (document.body.classList.contains('de-controlling')) return;
     if (!fileStat) { if (modal.open) close(true); return; }
     if (modal.open && currentFile?.path === fileStat.path) return;
     _fromRemote = true;

@@ -74,8 +74,12 @@ const Tabs = (() => {
     _saving = false;
   }
 
-  // Cross-device: another device changed the tab list
+  // Cross-device: another device changed the tab list.
+  // While driving a remote (controller overlay up) we don't follow the live
+  // session — the controller's own explorer stays put instead of navigating
+  // along with the controllee underneath the overlay.
   State.onChange('tabs', (newTabs) => {
+    if (document.body.classList.contains('de-controlling')) return;
     if (!newTabs || _saving) return;
     _saving = true;
     const prevPath = tabs.find(t => t.id === activeId)?.path ?? null;
@@ -95,6 +99,7 @@ const Tabs = (() => {
 
   // Cross-device: another device switched the active tab
   State.onChange('activeTab', (newId) => {
+    if (document.body.classList.contains('de-controlling')) return;
     if (newId === activeId || _saving) return;
     const tab = tabs.find(t => t.id === newId);
     if (!tab) return;

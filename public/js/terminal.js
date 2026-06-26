@@ -497,5 +497,10 @@ const Term = (() => {
     }
   });
 
+  // Build the on-screen keyboard once at load so it's present no matter how the
+  // panel becomes visible — including session-restore paths (State 'activeTerm')
+  // that attach to an existing terminal without going through open().
+  _initOsk();
+
   return { open, openHere, switchShell, hide, destroy, syncToPath };
 })();
