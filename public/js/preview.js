@@ -277,12 +277,21 @@ const Preview = (() => {
       _lastMediaCmdT = cmdObj.timestamp || 0;
       const v = _activeVideoEl;
       switch (cmdObj.command) {
-        case 'play':    v.play().catch(() => {}); break;
+        case 'play':
+          // The controllee may have no recent user activation (the preview
+          // was opened by a synthetic click from the controller), so unmuted
+          // play() may be rejected by the autoplay policy. Fall back to
+          // muted playback; the volume slider re-unmutes on use.
+          v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });
+          break;
         case 'pause':   v.pause(); break;
         case 'rewind':  v.currentTime = Math.max(0, v.currentTime - 10); break;
         case 'forward': v.currentTime = Math.min(v.duration || 0, v.currentTime + 10); break;
         case 'seek':    if (v.duration) v.currentTime = (cmdObj.value / 100) * v.duration; break;
-        case 'volume':  v.volume = Math.max(0, Math.min(1, cmdObj.value)); break;
+        case 'volume':
+          v.volume = Math.max(0, Math.min(1, cmdObj.value));
+          if (cmdObj.value > 0) v.muted = false;
+          break;
         case 'close':   close(); break;
       }
     });

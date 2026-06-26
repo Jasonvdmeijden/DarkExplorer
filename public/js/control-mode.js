@@ -282,6 +282,15 @@ const ControlMode = (() => {
          <label class="dcs-check"><input type="checkbox" data-set="roll-inv"> Invert</label>
          <label class="dcs-check"><input type="checkbox" data-set="haptics"> Haptic feedback (Android)</label>
        </div>
+       <div class="dco-trackpad"><span class="dco-hint">Drag to move · tap to click · two fingers to scroll</span></div>
+       <div class="dco-buttons">
+         <button class="dco-btn" data-btn="0">Left</button>
+         <button class="dco-btn" data-btn="1">Middle</button>
+         <button class="dco-btn" data-btn="2">Right</button>
+         <button class="dco-btn" data-nav="back">‹ Back</button>
+         <button class="dco-btn" data-nav="forward">Fwd ›</button>
+         <button class="dco-btn dco-air" data-air>✦ Air</button>
+       </div>
        <div class="dco-media">
          <div class="dcm-title">No media</div>
          <div class="dcm-scrub-row">
@@ -297,16 +306,6 @@ const ControlMode = (() => {
            <button class="dcm-btn" data-mcmd="next" title="Next">⏭</button>
          </div>
          <div class="dcm-vol-row"><span>🔊</span><input type="range" class="dcm-vol" min="0" max="1" step="0.05" value="1"></div>
-         <button class="dcm-close" data-mcmd="close" type="button">Exit playback</button>
-       </div>
-       <div class="dco-trackpad"><span class="dco-hint">Drag to move · tap to click · two fingers to scroll</span></div>
-       <div class="dco-buttons">
-         <button class="dco-btn" data-btn="0">Left</button>
-         <button class="dco-btn" data-btn="1">Middle</button>
-         <button class="dco-btn" data-btn="2">Right</button>
-         <button class="dco-btn" data-nav="back">‹ Back</button>
-         <button class="dco-btn" data-nav="forward">Fwd ›</button>
-         <button class="dco-btn dco-air" data-air>✦ Air</button>
        </div>
        <div class="dco-keys"><div class="dco-kbd"></div></div>`;
     document.body.appendChild(overlay);
