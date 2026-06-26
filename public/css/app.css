@@ -1643,6 +1643,7 @@ dialog#preview-modal::backdrop {
   
   /* Right group */
   .view-mode-dropdown { order: 23; }
+  #btn-control { order: 24; }
   #btn-app-settings { order: 30; }
 
   /* Pathbar gets its own row */
