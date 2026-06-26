@@ -18,6 +18,14 @@ const ControlMode = (() => {
   let locked = false;          // pointer lock currently held (desktop capture)
   let serverMode = false;      // controlling the server OS via Apollo Remote Input
   let serverSink = null;       // input sink into the Apollo session (server mode)
+  // Media remote: when the controllee has a video player open, the control
+  // surface can switch to media controls that drive it via the synced State
+  // channel (mediaCommand/mediaStatus) the in-app player already listens to.
+  let mediaActive = false;     // controllee reports an open player
+  let mediaShown = false;      // media surface currently displayed (vs trackpad)
+  let mediaPlaying = false;    // last known play/pause state
+  let mediaSeeking = false;    // user dragging the scrubber — don't fight status
+  let mediaWasActive = false;  // for detecting the inactive→active transition
   let kbLayer = 'alpha';       // on-screen keyboard layer: 'alpha' | 'symbol'
   let peerName = '';
   let peerDeviceId = null;     // stable id used to re-find the controllee after a reconnect
@@ -30,8 +38,16 @@ const ControlMode = (() => {
   // Per-device tunables (localStorage; defaults if unset)
   function lsNum(key, def) { const v = parseFloat(localStorage.getItem(key)); return isFinite(v) ? v : def; }
   function trackpadSens() { return lsNum('de_control_tp_sens', 1.6); }
-  function airSens()      { return lsNum('de_control_air_sens', 12); }
-  function airInvert(ax)  { return localStorage.getItem('de_control_air_inv' + ax) === '1'; }
+
+  // Air-mouse is configured per phone axis: yaw (turning the phone left/right
+  // around vertical) and pitch (tilting up/down). Each axis maps to a mouse
+  // direction ('x' = left/right, 'y' = up/down, 'off' = ignore), with its own
+  // sensitivity and invert toggle. Defaults reproduce the previous behaviour:
+  // yaw→X, pitch→Y, rotate-up = cursor-up.
+  const AIR_DEF = { yaw: { target: 'x', sens: 12 }, pitch: { target: 'y', sens: 12 } };
+  function airAxisTarget(ax) { return localStorage.getItem('de_control_air_' + ax + '_target') || AIR_DEF[ax].target; }
+  function airAxisSens(ax)   { return lsNum('de_control_air_' + ax + '_sens', AIR_DEF[ax].sens); }
+  function airAxisInvert(ax) { return localStorage.getItem('de_control_air_' + ax + '_inv') === '1'; }
 
   // ── Outbound input batching ──────────────────────────────────────
   let queue = [];
@@ -72,6 +88,10 @@ const ControlMode = (() => {
   }
 
   // ── Roster / identity ────────────────────────────────────────────
+  // The controllee broadcasts its player state on this synced key; mirror it
+  // into the control overlay so the media surface tracks/drives it.
+  if (typeof State !== 'undefined') State.onChange('mediaStatus', onMediaStatus);
+
   WS.on('control:self', (d) => { selfConnId = d.connId; });
   WS.on('control:roster', (list) => { roster = list || []; if (picker && picker.style.display !== 'none') renderPicker(); });
   WS.on('control:bound', (d) => {
@@ -238,16 +258,41 @@ const ControlMode = (() => {
       `<div class="dco-topbar">
          <span class="dco-title"></span>
          <span class="dco-topbar-right">
+           <button class="dco-media-btn" type="button" title="Media remote" hidden>🎬</button>
            <button class="dco-gear" type="button" title="Settings">⚙</button>
            <button class="dco-exit" type="button">Exit control</button>
          </span>
        </div>
        <div class="dco-settings" hidden>
          <label class="dcs-row"><span>Trackpad speed</span><input type="range" min="0.5" max="4" step="0.1" data-set="tp"></label>
-         <label class="dcs-row"><span>Air-mouse speed</span><input type="range" min="2" max="40" step="1" data-set="air"></label>
-         <label class="dcs-check"><input type="checkbox" data-set="invx"> Invert air-mouse X</label>
-         <label class="dcs-check"><input type="checkbox" data-set="invy"> Invert air-mouse Y</label>
+         <div class="dcs-sep">Air-mouse · horizontal turn</div>
+         <label class="dcs-row"><span>Controls</span>
+           <select data-set="yaw-target"><option value="x">Mouse left/right</option><option value="y">Mouse up/down</option><option value="off">Off</option></select></label>
+         <label class="dcs-row"><span>Speed</span><input type="range" min="2" max="40" step="1" data-set="yaw-sens"></label>
+         <label class="dcs-check"><input type="checkbox" data-set="yaw-inv"> Invert</label>
+         <div class="dcs-sep">Air-mouse · vertical tilt</div>
+         <label class="dcs-row"><span>Controls</span>
+           <select data-set="pitch-target"><option value="x">Mouse left/right</option><option value="y">Mouse up/down</option><option value="off">Off</option></select></label>
+         <label class="dcs-row"><span>Speed</span><input type="range" min="2" max="40" step="1" data-set="pitch-sens"></label>
+         <label class="dcs-check"><input type="checkbox" data-set="pitch-inv"> Invert</label>
          <label class="dcs-check"><input type="checkbox" data-set="haptics"> Haptic feedback (Android)</label>
+       </div>
+       <div class="dco-media">
+         <div class="dcm-title">No media</div>
+         <div class="dcm-scrub-row">
+           <span class="dcm-cur">00:00</span>
+           <input type="range" class="dcm-scrub" min="0" max="100" value="0">
+           <span class="dcm-tot">00:00</span>
+         </div>
+         <div class="dcm-buttons">
+           <button class="dcm-btn" data-mcmd="prev" title="Previous">⏮</button>
+           <button class="dcm-btn" data-mcmd="rewind" title="Rewind 10s">⟲10</button>
+           <button class="dcm-btn dcm-play" data-mcmd="toggle" title="Play / Pause">▶</button>
+           <button class="dcm-btn" data-mcmd="forward" title="Forward 10s">10⟳</button>
+           <button class="dcm-btn" data-mcmd="next" title="Next">⏭</button>
+         </div>
+         <div class="dcm-vol-row"><span>🔊</span><input type="range" class="dcm-vol" min="0" max="1" step="0.05" value="1"></div>
+         <button class="dcm-close" data-mcmd="close" type="button">Exit playback</button>
        </div>
        <div class="dco-trackpad"><span class="dco-hint">Drag to move · tap to click · two fingers to scroll</span></div>
        <div class="dco-buttons">
@@ -345,11 +390,71 @@ const ControlMode = (() => {
   }
 
   function initSettings(root) {
-    root.querySelector('[data-set="tp"]').value      = trackpadSens();
-    root.querySelector('[data-set="air"]').value     = airSens();
-    root.querySelector('[data-set="invx"]').checked  = airInvert('x');
-    root.querySelector('[data-set="invy"]').checked  = airInvert('y');
-    root.querySelector('[data-set="haptics"]').checked = localStorage.getItem('de_control_haptics') !== '0';
+    root.querySelector('[data-set="tp"]').value           = trackpadSens();
+    root.querySelector('[data-set="yaw-target"]').value   = airAxisTarget('yaw');
+    root.querySelector('[data-set="yaw-sens"]').value     = airAxisSens('yaw');
+    root.querySelector('[data-set="yaw-inv"]').checked    = airAxisInvert('yaw');
+    root.querySelector('[data-set="pitch-target"]').value = airAxisTarget('pitch');
+    root.querySelector('[data-set="pitch-sens"]').value   = airAxisSens('pitch');
+    root.querySelector('[data-set="pitch-inv"]').checked  = airAxisInvert('pitch');
+    root.querySelector('[data-set="haptics"]').checked    = localStorage.getItem('de_control_haptics') !== '0';
+  }
+
+  // ── Media remote ─────────────────────────────────────────────────
+  function fmtTime(sec) {
+    const s = Math.floor(sec || 0), m = Math.floor(s / 60), h = Math.floor(m / 60);
+    const mm = String(m % 60).padStart(2, '0'), ss = String(s % 60).padStart(2, '0');
+    return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+  }
+  function sendMedia(command, value) {
+    State.set('mediaCommand', { command, value: value == null ? null : value, timestamp: Date.now() });
+  }
+  function showMediaSurface(on) {
+    if (on && !mediaActive) return;
+    mediaShown = !!on;
+    if (mediaShown) stopAir();                       // air-mouse is meaningless in media mode
+    if (overlay) overlay.classList.toggle('dco-media-on', mediaShown);
+  }
+  function updateMediaPanel(status) {
+    if (!overlay) return;
+    const m = overlay.querySelector('.dco-media');
+    if (!m) return;
+    m.querySelector('.dcm-title').textContent = (status && status.title) || 'No media';
+    m.querySelector('.dcm-play').textContent = mediaPlaying ? '⏸' : '▶';
+    if (status && status.duration && !mediaSeeking) {
+      m.querySelector('.dcm-scrub').value = (status.currentTime / status.duration) * 100;
+      m.querySelector('.dcm-cur').textContent = fmtTime(status.currentTime);
+      m.querySelector('.dcm-tot').textContent = fmtTime(status.duration);
+    }
+  }
+  // Reflect the controllee's player into the overlay. Auto-opens the media
+  // surface on the inactive→active transition; hides it (and the toggle) when
+  // the player closes. No-op in server mode (Apollo OS has no in-app player).
+  function onMediaStatus(status) {
+    const active = !!(status && status.title && !status.closed);
+    mediaActive = active;
+    mediaPlaying = !!(status && status.playing);
+    const usable = active && bound && !serverMode;
+    if (overlay) {
+      const btn = overlay.querySelector('.dco-media-btn');
+      if (btn) btn.hidden = !usable;
+    }
+    if (usable && !mediaWasActive && !mediaShown) showMediaSurface(true); // media just started
+    if (!active && mediaShown) showMediaSurface(false);                   // player closed
+    updateMediaPanel(status);
+    mediaWasActive = active;
+  }
+  // Baseline sync without auto-opening (used when a session opens).
+  function syncMedia() {
+    const status = (typeof State !== 'undefined') ? State.get('mediaStatus', null) : null;
+    mediaActive = !!(status && status.title && !status.closed);
+    mediaPlaying = !!(status && status.playing);
+    mediaWasActive = mediaActive;
+    if (overlay) {
+      const btn = overlay.querySelector('.dco-media-btn');
+      if (btn) btn.hidden = !(mediaActive && bound && !serverMode);
+    }
+    updateMediaPanel(status);
   }
 
   function wireOverlay() {
@@ -362,16 +467,38 @@ const ControlMode = (() => {
       settings.hidden = !settings.hidden;
       if (!settings.hidden) initSettings(settings);
     });
-    settings.addEventListener('input', (e) => {
+    const onSetting = (e) => {
       const el = e.target;
       switch (el.dataset.set) {
-        case 'tp':      localStorage.setItem('de_control_tp_sens', el.value); break;
-        case 'air':     localStorage.setItem('de_control_air_sens', el.value); break;
-        case 'invx':    localStorage.setItem('de_control_air_invx', el.checked ? '1' : '0'); break;
-        case 'invy':    localStorage.setItem('de_control_air_invy', el.checked ? '1' : '0'); break;
-        case 'haptics': localStorage.setItem('de_control_haptics', el.checked ? '1' : '0'); break;
+        case 'tp':           localStorage.setItem('de_control_tp_sens', el.value); break;
+        case 'yaw-target':   localStorage.setItem('de_control_air_yaw_target', el.value); break;
+        case 'yaw-sens':     localStorage.setItem('de_control_air_yaw_sens', el.value); break;
+        case 'yaw-inv':      localStorage.setItem('de_control_air_yaw_inv', el.checked ? '1' : '0'); break;
+        case 'pitch-target': localStorage.setItem('de_control_air_pitch_target', el.value); break;
+        case 'pitch-sens':   localStorage.setItem('de_control_air_pitch_sens', el.value); break;
+        case 'pitch-inv':    localStorage.setItem('de_control_air_pitch_inv', el.checked ? '1' : '0'); break;
+        case 'haptics':      localStorage.setItem('de_control_haptics', el.checked ? '1' : '0'); break;
       }
+    };
+    settings.addEventListener('input', onSetting);   // ranges/checkboxes
+    settings.addEventListener('change', onSetting);  // <select> in all browsers
+
+    // Media remote surface
+    overlay.querySelector('.dco-media-btn').addEventListener('click', () => showMediaSurface(!mediaShown));
+    const media = overlay.querySelector('.dco-media');
+    media.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-mcmd]');
+      if (!b) return;
+      const cmd = b.dataset.mcmd;
+      if (cmd === 'toggle') sendMedia(mediaPlaying ? 'pause' : 'play');
+      else sendMedia(cmd);
     });
+    const scrub = media.querySelector('.dcm-scrub');
+    scrub.addEventListener('input', () => { mediaSeeking = true; sendMedia('seek', parseInt(scrub.value, 10)); });
+    const endSeek = () => { mediaSeeking = false; };
+    scrub.addEventListener('change', endSeek);
+    scrub.addEventListener('pointerup', endSeek);
+    media.querySelector('.dcm-vol').addEventListener('input', (e) => sendMedia('volume', parseFloat(e.target.value)));
 
     // Mouse buttons + navigation
     overlay.querySelectorAll('.dco-btn').forEach(btn => {
@@ -437,9 +564,16 @@ const ControlMode = (() => {
       yawRate = wz;
     }
     const pitchRate = wx;                                         // about device left-right axis
-    const s = airSens();
-    const dx = -yawRate   * dt * s * (airInvert('x') ? -1 : 1);
-    const dy = -pitchRate * dt * s * (airInvert('y') ? -1 : 1);  // rotate up → cursor up
+    // Route each axis to its configured mouse direction. The leading minus is
+    // the base "normal" sign (rotate-right → cursor-right, rotate-up → cursor-up);
+    // the per-axis invert toggle flips it.
+    let dx = 0, dy = 0;
+    for (const [axis, rate] of [['yaw', yawRate], ['pitch', pitchRate]]) {
+      const target = airAxisTarget(axis);
+      if (target === 'off') continue;
+      const contrib = -rate * dt * airAxisSens(axis) * (airAxisInvert(axis) ? -1 : 1);
+      if (target === 'x') dx += contrib; else dy += contrib;
+    }
     if (dx || dy) enqueue({ t: 'move', dx, dy });
   }
   async function toggleAir(btn) {
@@ -602,12 +736,14 @@ const ControlMode = (() => {
     document.body.classList.add('de-controlling');
     updateOverlayState();
     updatePadHint();
+    syncMedia();
   }
   function closeOverlay() {
     if (document.pointerLockElement) document.exitPointerLock();
     locked = false;
     stopAir();
-    if (overlay) overlay.style.display = 'none';
+    if (overlay) { overlay.style.display = 'none'; overlay.classList.remove('dco-media-on'); }
+    mediaShown = false;
     document.body.classList.remove('de-controlling');
     for (const k in mods) mods[k] = false;
     if (overlay) overlay.querySelectorAll('.term-key.active').forEach(b => b.classList.remove('active'));

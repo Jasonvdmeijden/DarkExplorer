@@ -83,8 +83,6 @@ body.glass-effect .pane,
 body.glass-effect .panel-section,
 body.glass-effect .panel-tabs,
 body.glass-effect #terminal-container,
-body.glass-effect #term-mods,
-body.glass-effect #term-arrows,
 body.glass-effect .group-header {
   background: transparent !important;
   backdrop-filter: none !important;

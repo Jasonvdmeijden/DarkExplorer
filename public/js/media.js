@@ -933,6 +933,8 @@ const NetflixMedia = (() => {
       if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
       player.remove();
       activePlayer = null;
+      // Tell remotes/controllers the player is gone so they hide their media UI.
+      State.set('mediaStatus', { title: null, playing: false, currentTime: 0, duration: 0, closed: true });
       buildCatalogUI(); // Rebuild to sync continue watching row
     };
     player.querySelector('#netflix-player-back').addEventListener('click', exitPlayer);
@@ -996,6 +998,7 @@ const NetflixMedia = (() => {
       if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
       if (player) player.remove();
       activePlayer = null;
+      State.set('mediaStatus', { title: null, playing: false, currentTime: 0, duration: 0, closed: true });
       buildCatalogUI();
     };
 
@@ -1017,6 +1020,16 @@ const NetflixMedia = (() => {
     if (activeIdx < playlist.length - 1) {
       playVideo(playlist[activeIdx + 1], playlist, activeIdx + 1, playlistName);
     }
+  }
+
+  function playPrevEpisodeDirect() {
+    if (!activePlayer) return;
+    const { video, playlist, activeIdx, playlistName } = activePlayer;
+    // Mirror typical media players: restart the current item unless we're near
+    // its start, in which case step to the previous one.
+    if (video && video.currentTime > 3) { video.currentTime = 0; return; }
+    if (activeIdx > 0) playVideo(playlist[activeIdx - 1], playlist, activeIdx - 1, playlistName);
+    else if (video) video.currentTime = 0;
   }
 
   // ── KEYBOARD & GAMEPAD CONTROLS ──
@@ -1113,7 +1126,8 @@ const NetflixMedia = (() => {
           case 'seek': video.currentTime = (cmdObj.value / 100) * video.duration; break;
           case 'volume': video.volume = cmdObj.value; break;
           case 'next': playNextEpisodeDirect(); break;
-          case 'close': 
+          case 'prev': playPrevEpisodeDirect(); break;
+          case 'close':
             const closeBtn = document.getElementById('netflix-player-back');
             if (closeBtn) closeBtn.click();
             break;

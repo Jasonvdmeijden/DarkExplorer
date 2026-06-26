@@ -127,6 +127,16 @@
 #de-control-overlay .dco-settings[hidden] { display: none; }
 #de-control-overlay .dcs-row { display: flex; flex-direction: column; gap: 6px; }
 #de-control-overlay .dcs-row input[type=range] { width: 100%; accent-color: var(--accent); }
+#de-control-overlay .dcs-row select {
+  width: 100%; padding: 6px 8px; border-radius: var(--radius);
+  background: var(--bg-panel); color: var(--text-primary); border: 1px solid var(--border);
+  font: 400 13px system-ui, sans-serif;
+}
+#de-control-overlay .dcs-sep {
+  margin-top: 2px; padding-top: 8px; border-top: 1px solid var(--border);
+  color: var(--text-secondary); font: 600 11px/1 system-ui, sans-serif;
+  text-transform: uppercase; letter-spacing: .04em;
+}
 #de-control-overlay .dcs-check { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 #de-control-overlay .dcs-check input { accent-color: var(--accent); }
 #de-control-overlay .dco-trackpad {
@@ -154,6 +164,35 @@
 #de-control-overlay .dco-btn:active { background: var(--bg-active); }
 #de-control-overlay .dco-btn.dco-disabled { opacity: .4; cursor: not-allowed; }
 #de-control-overlay .dco-btn.dco-air.active { background: var(--accent); color: var(--text-inverse); border-color: var(--accent); }
+#de-control-overlay .dco-media-btn {
+  border: 1px solid var(--border); cursor: pointer; padding: 6px 10px; border-radius: var(--radius);
+  background: var(--bg-surface); font: 600 15px/1 system-ui, sans-serif;
+}
+
+/* Media remote surface — swaps in for the trackpad/buttons/keyboard when on */
+#de-control-overlay .dco-media { display: none; flex: 1; flex-direction: column; gap: 16px; padding: 18px 16px; justify-content: center; }
+#de-control-overlay.dco-media-on .dco-trackpad,
+#de-control-overlay.dco-media-on .dco-buttons,
+#de-control-overlay.dco-media-on .dco-keys { display: none; }
+#de-control-overlay.dco-media-on .dco-media { display: flex; }
+#de-control-overlay.dco-media-on .dco-media-btn { background: var(--accent); color: var(--text-inverse); border-color: var(--accent); }
+#de-control-overlay .dcm-title { font: 600 16px/1.3 system-ui, sans-serif; text-align: center; color: var(--text-primary); word-break: break-word; }
+#de-control-overlay .dcm-scrub-row { display: flex; align-items: center; gap: 10px; }
+#de-control-overlay .dcm-scrub-row .dcm-cur, #de-control-overlay .dcm-scrub-row .dcm-tot { font: 500 12px system-ui; color: var(--text-secondary); min-width: 44px; text-align: center; }
+#de-control-overlay .dcm-scrub, #de-control-overlay .dcm-vol { flex: 1; accent-color: var(--accent); }
+#de-control-overlay .dcm-buttons { display: flex; gap: 8px; justify-content: center; }
+#de-control-overlay .dcm-btn {
+  flex: 1; max-width: 80px; padding: 16px 0; border-radius: var(--radius); cursor: pointer;
+  background: var(--bg-surface); border: 1px solid var(--border);
+  color: var(--text-primary); font: 600 18px/1 system-ui, sans-serif;
+}
+#de-control-overlay .dcm-btn:active { background: var(--bg-active); transform: scale(.95); }
+#de-control-overlay .dcm-play { background: var(--accent); color: var(--text-inverse); border-color: var(--accent); }
+#de-control-overlay .dcm-vol-row { display: flex; align-items: center; gap: 10px; }
+#de-control-overlay .dcm-close {
+  padding: 12px; border-radius: var(--radius); cursor: pointer;
+  background: var(--danger); color: #fff; border: 0; font: 600 13px/1 system-ui, sans-serif;
+}
 
 /* Always-visible on-screen keyboard */
 #de-control-overlay .dco-keys {

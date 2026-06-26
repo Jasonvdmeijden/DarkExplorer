@@ -32,58 +32,9 @@ const Term = (() => {
     return `cd "${p.replace(/"/g, '\\"')}"\r`;
   }
 
-  // ── Mobile modifier/arrow keys ─────────────────────────────
-  // Ctrl/Alt/Shift/Meta are toggles: tap to switch on, tap again to switch off.
-  // Any combination can be held on at once, and they stay on across keypresses
-  // (like holding a real modifier key) until switched off.
-  let _modFlags = { ctrl: false, alt: false, shift: false, meta: false };
-  const CTRL_MAP = (() => {
-    const m = {};
-    for (let c = 65; c <= 90; c++) m[String.fromCharCode(c)] = c - 64;  // Ctrl+A..Z
-    for (let c = 97; c <= 122; c++) m[String.fromCharCode(c)] = c - 96; // Ctrl+a..z
-    Object.assign(m, { '@': 0, '[': 27, '\\': 28, ']': 29, '^': 30, '_': 31, '?': 127 });
-    return m;
-  })();
-  const ARROW_CODE = { up: 'A', down: 'B', right: 'C', left: 'D' };
-
-  function _toggleMod(name, btn) {
-    _modFlags[name] = !_modFlags[name];
-    btn.classList.toggle('active', _modFlags[name]);
-  }
-
-  function _applyMods(data) {
-    const m = _modFlags;
-    if (!m.ctrl && !m.alt && !m.shift && !m.meta) return data;
-    let out = data;
-    if (m.shift && out === '\t') out = '\x1b[Z'; // Shift+Tab -> back-tab
-    else if (m.shift && out.length === 1 && /[a-z]/.test(out)) out = out.toUpperCase();
-    if (m.ctrl && out.length === 1 && CTRL_MAP[out] !== undefined) out = String.fromCharCode(CTRL_MAP[out]);
-    if (m.alt || m.meta) out = '\x1b' + out; // Alt/Meta sends Escape-prefixed input
-    return out;
-  }
-
-  // xterm CSI modifier parameter: 1 + Shift(1) + Alt(2) + Ctrl(4) + Meta(8)
-  function _modParam() {
-    const m = _modFlags;
-    return 1 + (m.shift ? 1 : 0) + (m.alt ? 2 : 0) + (m.ctrl ? 4 : 0) + (m.meta ? 8 : 0);
-  }
-
-  function _sendArrow(dir) {
-    if (!sid) return;
-    const mod = _modParam();
-    const seq = mod > 1 ? `\x1b[1;${mod}${ARROW_CODE[dir]}` : `\x1b[${ARROW_CODE[dir]}`;
-    WS.emit('terminal:input', { sid, data: seq });
-    if (term) term.focus();
-  }
-
-  function _sendEscape() {
-    if (!sid) return;
-    const m = _modFlags;
-    const seq = (m.alt || m.meta) ? '\x1b\x1b' : '\x1b'; // Alt/Meta+Esc -> double escape
-    WS.emit('terminal:input', { sid, data: seq });
-    if (term) term.focus();
-  }
-
+  // Modifier/arrow keys were removed from the terminal header — those are now
+  // provided by the in-app on-screen keyboard (mobile) and the physical
+  // keyboard (desktop), so the terminal just streams raw input through.
 
   // Build an xterm theme from the current page CSS vars so the terminal matches
   // the active app theme (and in particular flips with the light/dark toggle).
@@ -270,7 +221,7 @@ const Term = (() => {
 
     term.onData(data => {
       if (!sid) return;
-      WS.emit('terminal:input', { sid, data: _applyMods(data) });
+      WS.emit('terminal:input', { sid, data });
     });
     window.addEventListener('resize', _safeFit);
     return true;
@@ -399,16 +350,6 @@ const Term = (() => {
       e.preventDefault();
       document.getElementById('btn-toggle-terminal').click();
     }
-  });
-
-  document.querySelectorAll('.term-key[data-mod]').forEach(btn => {
-    btn.addEventListener('click', () => { _toggleMod(btn.dataset.mod, btn); if (term) term.focus(); });
-  });
-  document.querySelectorAll('.term-key[data-arrow]').forEach(btn => {
-    btn.addEventListener('click', () => _sendArrow(btn.dataset.arrow));
-  });
-  document.querySelectorAll('.term-key[data-key="esc"]').forEach(btn => {
-    btn.addEventListener('click', _sendEscape);
   });
 
   return { open, openHere, switchShell, hide, destroy, syncToPath };
