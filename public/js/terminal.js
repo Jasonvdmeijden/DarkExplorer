@@ -119,8 +119,10 @@ const Term = (() => {
     _clearOskMods();
   }
   // Translate a named key (arrows/Tab/Enter/Esc/Backspace) into a byte sequence.
-  function _oskSendKey(key) {
-    const m = _oskMods;
+  // modsOverride lets a remote controller drive the terminal with its own
+  // modifier state (without touching/clearing this device's sticky OSK mods).
+  function _oskSendKey(key, modsOverride) {
+    const m = modsOverride || _oskMods;
     const param = 1 + (m.shift ? 1 : 0) + (m.alt ? 2 : 0) + (m.ctrl ? 4 : 0) + (m.meta ? 8 : 0);
     const arrowDir = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' }[key];
     let seq;
@@ -133,7 +135,31 @@ const Term = (() => {
     else if (key === 'Backspace')    seq = '\x7f';
     else return;
     _oskSend(seq);
-    _clearOskMods();
+    if (!modsOverride) _clearOskMods();
+  }
+
+  // ── Remote-control input (controllee side) ─────────────────────────
+  // When a controller drives this device and the terminal is focused, route
+  // its typed text / keypresses straight to the PTY instead of dispatching
+  // synthetic DOM events (which xterm ignores). Reuses the byte translation.
+  function _isTerminalFocused() {
+    const el = document.activeElement;
+    return !!(sid && el && el.closest && el.closest('#panel-bottom'));
+  }
+  function remoteText(str) {
+    if (!str) return;
+    _oskSend(str);                         // plain text → raw bytes (case already applied)
+  }
+  function remoteKey(key, mods) {
+    mods = mods || {};
+    const NAMED = { Enter: 1, Tab: 1, Escape: 1, Backspace: 1, ArrowUp: 1, ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1 };
+    if (NAMED[key]) { _oskSendKey(key, mods); return; }
+    if (key && key.length === 1) {         // printable char, possibly with Ctrl/Alt/Meta
+      let out = key;
+      if (mods.ctrl && CTRL_MAP[out] !== undefined) out = String.fromCharCode(CTRL_MAP[out]);
+      if (mods.alt || mods.meta)                    out = '\x1b' + out;
+      _oskSend(out);
+    }
   }
   function _oskPress(btn) {
     if (btn.dataset.layer) {
@@ -502,5 +528,5 @@ const Term = (() => {
   // that attach to an existing terminal without going through open().
   _initOsk();
 
-  return { open, openHere, switchShell, hide, destroy, syncToPath };
+  return { open, openHere, switchShell, hide, destroy, syncToPath, remoteText, remoteKey, isTerminalFocused: _isTerminalFocused };
 })();

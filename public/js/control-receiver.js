@@ -144,6 +144,11 @@ const ControlReceiver = (() => {
       }
       return;
     }
+    // Terminal (xterm) ignores synthetic DOM input — forward to the PTY instead.
+    if (typeof Term !== 'undefined' && Term.isTerminalFocused && Term.isTerminalFocused()) {
+      Term.remoteText(str);
+      return;
+    }
     const el = document.activeElement;
     if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) insertText(el, str);
     else if (el && el.isContentEditable) document.execCommand('insertText', false, str);
@@ -247,6 +252,11 @@ const ControlReceiver = (() => {
     if (streamRect()) {
       const k = robotKey(info.key);
       if (k) { const mods = robotMods(info.mods); emitStream({ action: 'keydown', key: k, modifiers: mods }); emitStream({ action: 'keyup', key: k, modifiers: mods }); }
+      return;
+    }
+    // Terminal (xterm) ignores synthetic DOM keys — forward to the PTY instead.
+    if (typeof Term !== 'undefined' && Term.isTerminalFocused && Term.isTerminalFocused()) {
+      Term.remoteKey(info.key, info.mods);
       return;
     }
     const el = document.activeElement || document.body;

@@ -175,11 +175,21 @@ function trigrams(s) {
 }
 
 function searchFilename(query, limit = 50) {
-  // Narrow down candidates using SQL LIKE first to avoid processing millions of rows in JS
+  if (!query) return [];
+  // Narrow down candidates using SQL LIKE first to avoid processing millions of rows in JS.
   const pattern = `%${query}%`;
-  const rows = db.prepare('SELECT path, name, ext, size, mtime, is_dir, searchable FROM files WHERE searchable LIKE ?').all(pattern);
-  
-  // If we have too many matches, still score them to show the best ones first
+  // Cap the candidate set. A broad query (e.g. a single common letter) would
+  // otherwise match and score the entire index synchronously, blocking the
+  // single-threaded event loop for hundreds of ms — which stalls everything
+  // else on the server, including remote-control input relay. With a LIMIT,
+  // SQLite stops scanning once it has enough matches (fast for broad queries)
+  // and the JS scoring work is bounded regardless of index size.
+  const CANDIDATE_CAP = 4000;
+  const rows = db.prepare(
+    'SELECT path, name, ext, size, mtime, is_dir, searchable FROM files WHERE searchable LIKE ? LIMIT ?'
+  ).all(pattern, CANDIDATE_CAP);
+
+  // Score the bounded candidate set to show the best matches first
   const scored = rows
     .map(r => ({ ...r, score: trigramScore(r.searchable, query) }))
     .sort((a, b) => b.score - a.score)
@@ -248,7 +258,13 @@ async function searchContent({ term, isRegex, includes, excludes, page = 0, page
   });
 
   const results = [];
+  // Scanning every candidate's lines can take a while on big result sets. Yield
+  // to the event loop every so often so the single-threaded server keeps
+  // servicing other traffic during the scan — notably remote-control input
+  // relay, which must stay responsive even while a heavy search runs.
+  let processed = 0;
   for (const { path: filePath, content } of candidates) {
+    if (++processed % 200 === 0) await new Promise(setImmediate);
     if (!content) continue;
     const lines = content.split('\n');
     for (let i = 0; i < lines.length; i++) {
