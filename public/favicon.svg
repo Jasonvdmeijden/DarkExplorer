@@ -1,16 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Background -->
+  <rect width="64" height="64" fill="#12121a"/>
+  <!-- Folder body with gradient -->
   <defs>
-    <linearGradient id="folderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#6366f1;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+    <linearGradient id="fg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#8b5cf6"/>
     </linearGradient>
   </defs>
-  <!-- Background -->
-  <rect width="256" height="256" fill="#12121a"/>
-  <!-- Folder body with gradient -->
-  <path d="M32 48c-8.8 0-16 7.2-16 16v128c0 8.8 7.2 16 16 16h192c8.8 0 16-7.2 16-16V96c0-8.8-7.2-16-16-16h-88l-24-32H32z" fill="url(#folderGrad)" stroke="#8b5cf6" stroke-width="2"/>
-  <!-- Accent line inside folder -->
-  <path d="M80 120l32 24 48-40" fill="none" stroke="#88d3f0" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/>
-  <!-- Subtle shine effect -->
-  <ellipse cx="90" cy="80" rx="25" ry="18" fill="white" opacity="0.08"/>
+  <path d="M 8 12c-1.1 0-2 0.9-2 2v16c0 1.1 0.9 2 2 2h24c1.1 0 2-0.9 2-2v-8c0-1.1-0.9-2-2-2h-11l-3-4H8z" fill="url(#fg)" stroke="#8b5cf6" stroke-width="0.5"/>
+  <!-- Accent mark -->
+  <line x1="14" y1="22" x2="26" y2="22" stroke="#88d3f0" stroke-width="1.5" stroke-linecap="round" opacity="0.9"/>
 </svg>
