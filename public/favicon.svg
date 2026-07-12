@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="folderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6366f1;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <!-- Background -->
+  <rect width="256" height="256" fill="#12121a"/>
+  <!-- Folder body with gradient -->
+  <path d="M32 48c-8.8 0-16 7.2-16 16v128c0 8.8 7.2 16 16 16h192c8.8 0 16-7.2 16-16V96c0-8.8-7.2-16-16-16h-88l-24-32H32z" fill="url(#folderGrad)" stroke="#8b5cf6" stroke-width="2"/>
+  <!-- Accent line inside folder -->
+  <path d="M80 120l32 24 48-40" fill="none" stroke="#88d3f0" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/>
+  <!-- Subtle shine effect -->
+  <ellipse cx="90" cy="80" rx="25" ry="18" fill="white" opacity="0.08"/>
+</svg>
